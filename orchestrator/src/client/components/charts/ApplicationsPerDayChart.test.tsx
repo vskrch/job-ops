@@ -241,10 +241,10 @@ describe("ApplicationsPerDayChart - Edge Cases", () => {
     it("shows down trend for significant negative trend", () => {
       // First half: high activity, Second half: low activity
       const dates = [
-        "2025-01-09T00:00:00Z", // First half - 3 apps
-        "2025-01-09T00:00:00Z",
-        "2025-01-09T00:00:00Z",
-        "2025-01-15T00:00:00Z", // Second half - 1 app
+        "2025-01-09T12:00:00Z", // First half - 3 apps
+        "2025-01-09T12:00:00Z",
+        "2025-01-09T12:00:00Z",
+        "2025-01-15T12:00:00Z", // Second half - 1 app
       ];
       render(
         <ApplicationsPerDayChart
@@ -323,13 +323,13 @@ describe("ApplicationsPerDayChart - Edge Cases", () => {
 
     it("handles applications spread across different days in range", () => {
       const dates = [
-        "2025-01-09T00:00:00Z",
-        "2025-01-10T00:00:00Z",
-        "2025-01-10T00:00:00Z",
-        "2025-01-11T00:00:00Z",
-        "2025-01-11T00:00:00Z",
-        "2025-01-11T00:00:00Z",
-        "2025-01-15T00:00:00Z",
+        "2025-01-09T12:00:00Z",
+        "2025-01-10T12:00:00Z",
+        "2025-01-10T12:00:00Z",
+        "2025-01-11T12:00:00Z",
+        "2025-01-11T12:00:00Z",
+        "2025-01-11T12:00:00Z",
+        "2025-01-15T12:00:00Z",
       ];
       render(
         <ApplicationsPerDayChart

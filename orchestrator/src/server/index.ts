@@ -40,20 +40,20 @@ async function startServer() {
   }
 
   const app = createApp();
-  const PORT = process.env.PORT || 3001;
+  const PORT = Number(process.env.PORT) || 3001;
 
   // Start server
-  app.listen(PORT, async () => {
+  const server = app.listen(PORT, "0.0.0.0", async () => {
     console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🚀 Job Ops Orchestrator                                 ║
 ║                                                           ║
-║   Server running at: http://localhost:${PORT}               ║
+║   Server running at: http://0.0.0.0:${PORT}                 ║
 ║                                                           ║
-║   API:     http://localhost:${PORT}/api                     ║
-║   Health:  http://localhost:${PORT}/health                  ║
-║   PDFs:    http://localhost:${PORT}/pdfs                    ║
+║   API:     http://0.0.0.0:${PORT}/api                       ║
+║   Health:  http://0.0.0.0:${PORT}/health                    ║
+║   PDFs:    http://0.0.0.0:${PORT}/pdfs                      ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
@@ -122,6 +122,21 @@ async function startServer() {
       });
     }
   });
+
+  const gracefulShutdown = (signal: string) => {
+    logger.info(`Received ${signal}. Shutting down HTTP server...`);
+    server.close(() => {
+      logger.info("HTTP server closed. Exiting process.");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      logger.error("Forced shutdown after timeout.");
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 
 void startServer();
