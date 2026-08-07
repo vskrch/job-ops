@@ -80,6 +80,25 @@ export default defineConfig({
   build: {
     outDir: "dist/client",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "query-vendor": ["@tanstack/react-query"],
+          ui: [
+            "framer-motion",
+            "lucide-react",
+            "sonner",
+            "cmdk",
+            "vaul",
+            "react-transition-group",
+          ],
+          editor: ["@tiptap/react", "@tiptap/starter-kit", "@tiptap/extension-link"],
+          charts: ["recharts"],
+          forms: ["react-hook-form", "@hookform/resolvers", "zod"],
+        },
+      },
+    },
   },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),

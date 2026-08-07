@@ -3,7 +3,7 @@
  */
 
 import { X } from "lucide-react";
-import React, { useRef, useState } from "react";
+import React, { lazy, Suspense, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 
@@ -12,16 +12,43 @@ import { Toaster } from "@/components/ui/sonner";
 import { BasicAuthPrompt } from "./components/BasicAuthPrompt";
 import { OnboardingGate } from "./components/OnboardingGate";
 import { useDemoInfo } from "./hooks/useDemoInfo";
-import { DesignResumePage } from "./pages/DesignResumePage";
-import { GmailOauthCallbackPage } from "./pages/GmailOauthCallbackPage";
-import { HomePage } from "./pages/HomePage";
-import { InProgressBoardPage } from "./pages/InProgressBoardPage";
-import { JobPage } from "./pages/JobPage";
-import { OrchestratorPage } from "./pages/OrchestratorPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { TracerLinksPage } from "./pages/TracerLinksPage";
-import { TrackingInboxPage } from "./pages/TrackingInboxPage";
-import { VisaSponsorsPage } from "./pages/VisaSponsorsPage";
+
+const DesignResumePage = lazy(() =>
+  import("./pages/DesignResumePage").then((m) => ({ default: m.DesignResumePage })),
+);
+const GmailOauthCallbackPage = lazy(() =>
+  import("./pages/GmailOauthCallbackPage").then((m) => ({
+    default: m.GmailOauthCallbackPage,
+  })),
+);
+const HomePage = lazy(() =>
+  import("./pages/HomePage").then((m) => ({ default: m.HomePage })),
+);
+const InProgressBoardPage = lazy(() =>
+  import("./pages/InProgressBoardPage").then((m) => ({
+    default: m.InProgressBoardPage,
+  })),
+);
+const JobPage = lazy(() =>
+  import("./pages/JobPage").then((m) => ({ default: m.JobPage })),
+);
+const OrchestratorPage = lazy(() =>
+  import("./pages/OrchestratorPage").then((m) => ({ default: m.OrchestratorPage })),
+);
+const SettingsPage = lazy(() =>
+  import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+const TracerLinksPage = lazy(() =>
+  import("./pages/TracerLinksPage").then((m) => ({ default: m.TracerLinksPage })),
+);
+const TrackingInboxPage = lazy(() =>
+  import("./pages/TrackingInboxPage").then((m) => ({
+    default: m.TrackingInboxPage,
+  })),
+);
+const VisaSponsorsPage = lazy(() =>
+  import("./pages/VisaSponsorsPage").then((m) => ({ default: m.VisaSponsorsPage })),
+);
 
 /** Backwards-compatibility redirects: old URL paths -> new URL paths */
 const REDIRECTS: Array<{ from: string; to: string }> = [
@@ -120,7 +147,8 @@ export const App: React.FC = () => {
             unmountOnExit
           >
             <div ref={nodeRef}>
-              <Routes location={location}>
+              <Suspense fallback={null}>
+                <Routes location={location}>
                 {/* Backwards-compatibility redirects */}
                 {REDIRECTS.map(({ from, to }) => (
                   <Route
@@ -152,6 +180,7 @@ export const App: React.FC = () => {
                   element={<OrchestratorPage />}
                 />
               </Routes>
+              </Suspense>
             </div>
           </CSSTransition>
         </SwitchTransition>
