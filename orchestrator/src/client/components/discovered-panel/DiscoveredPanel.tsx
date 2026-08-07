@@ -177,5 +177,3 @@ export const DiscoveredPanel: React.FC<DiscoveredPanelProps> = ({
     </div>
   );
 };
-
-export default DiscoveredPanel;
