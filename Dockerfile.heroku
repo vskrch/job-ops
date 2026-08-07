@@ -3,12 +3,14 @@
 # ============================================================================
 # JobOps Heroku-optimized container image
 #
-# Optimizations vs the generic Dockerfile:
-#   - Skips Tectonic (default PDF renderer is RxResume, not LaTeX).
-#   - Skips docs-site build (major time/size saver; /docs not served here).
-#   - Uses npm ci for reproducible installs.
-#   - Uses exec in CMD so Node becomes PID 1 and receives signals.
-#   - No Dockerfile HEALTHCHECK (Heroku ignores it).
+# Built on Heroku's x86_64 cloud builder via `git push heroku main` (heroku.yml).
+# Runtime notes for Heroku containers:
+#   - Containers run as a NON-ROOT user with $HOME unset -> HOME must be set
+#     explicitly so camoufox-js finds binaries at $HOME/.cache/camoufox.
+#   - The filesystem is ephemeral; /app/data is fresh each boot.
+#   - No layer caching on Heroku cloud builds -> keep the build lean.
+#   - TECTONIC_BIN is unset here; LaTeX resume rendering is skipped and falls
+#     back to the RxResume renderer (matching the default Dockerfile path).
 # ============================================================================
 
 # ============================================================================
@@ -21,8 +23,9 @@ ENV NODE_ENV=production
 ENV PORT=3001
 ENV PYTHON_PATH=/usr/bin/python3
 ENV DATA_DIR=/app/data
+ENV HOME=/app
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV PATH=/root/.local/bin:${PATH}
+ENV PATH=/usr/local/bin:${PATH}
 
 # Install runtime dependencies shared by build and production stages.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -71,7 +74,9 @@ COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
 COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 
-# Install Node dependencies (dev deps needed for client build).
+# Install Node dependencies (dev deps needed for client + docs builds).
+# HOME=/app (inherited) so camoufox downloads to /app/.cache, and the same
+# path is reused at runtime via HOME=/app in the production stage.
 RUN npm ci --workspaces --include-workspace-root --include=dev \
     --no-audit --no-fund --progress=false
 
@@ -80,18 +85,24 @@ RUN npx camoufox-js fetch
 
 FROM node-deps AS build-sources
 
+COPY docs-site ./docs-site
 COPY shared ./shared
 COPY orchestrator ./orchestrator
 COPY visa-sponsor-providers ./visa-sponsor-providers
 COPY extractors ./extractors
 
 # ============================================================================
-# CLIENT BUILD
+# CLIENT + DOCS BUILDS
 # ============================================================================
 FROM build-sources AS client-build
 
 WORKDIR /app/orchestrator
 RUN npm run build:client
+
+FROM build-sources AS docs-build
+
+WORKDIR /app/docs-site
+RUN npm run build
 
 # ============================================================================
 # PRODUCTION INPUT STAGE
@@ -123,16 +134,17 @@ FROM runtime-node-deps AS production
 # Copy production-only runtime assets from sibling stages.
 COPY --from=python-deps /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
 COPY --from=python-deps /ms-playwright /ms-playwright
-COPY --from=node-deps /root/.cache/camoufox /root/.cache/camoufox
+COPY --from=node-deps /app/.cache/camoufox /app/.cache/camoufox
 
-# Copy built client assets and runtime source code.
+# Copy built client and docs assets plus runtime source code.
 COPY --from=client-build /app/orchestrator/dist ./orchestrator/dist
+COPY --from=docs-build /app/docs-site/build ./orchestrator/dist/docs
 COPY shared ./shared
 COPY orchestrator ./orchestrator
 COPY visa-sponsor-providers ./visa-sponsor-providers
 COPY extractors ./extractors
 
-# Create data directory.
+# Create data directory (writable at runtime by Heroku's non-root user).
 RUN mkdir -p /app/data/pdfs
 
 EXPOSE 3001
