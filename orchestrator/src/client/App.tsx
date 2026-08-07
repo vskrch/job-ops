@@ -14,7 +14,9 @@ import { OnboardingGate } from "./components/OnboardingGate";
 import { useDemoInfo } from "./hooks/useDemoInfo";
 
 const DesignResumePage = lazy(() =>
-  import("./pages/DesignResumePage").then((m) => ({ default: m.DesignResumePage })),
+  import("./pages/DesignResumePage").then((m) => ({
+    default: m.DesignResumePage,
+  })),
 );
 const GmailOauthCallbackPage = lazy(() =>
   import("./pages/GmailOauthCallbackPage").then((m) => ({
@@ -33,13 +35,17 @@ const JobPage = lazy(() =>
   import("./pages/JobPage").then((m) => ({ default: m.JobPage })),
 );
 const OrchestratorPage = lazy(() =>
-  import("./pages/OrchestratorPage").then((m) => ({ default: m.OrchestratorPage })),
+  import("./pages/OrchestratorPage").then((m) => ({
+    default: m.OrchestratorPage,
+  })),
 );
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
 const TracerLinksPage = lazy(() =>
-  import("./pages/TracerLinksPage").then((m) => ({ default: m.TracerLinksPage })),
+  import("./pages/TracerLinksPage").then((m) => ({
+    default: m.TracerLinksPage,
+  })),
 );
 const TrackingInboxPage = lazy(() =>
   import("./pages/TrackingInboxPage").then((m) => ({
@@ -47,7 +53,9 @@ const TrackingInboxPage = lazy(() =>
   })),
 );
 const VisaSponsorsPage = lazy(() =>
-  import("./pages/VisaSponsorsPage").then((m) => ({ default: m.VisaSponsorsPage })),
+  import("./pages/VisaSponsorsPage").then((m) => ({
+    default: m.VisaSponsorsPage,
+  })),
 );
 
 /** Backwards-compatibility redirects: old URL paths -> new URL paths */
@@ -149,37 +157,40 @@ export const App: React.FC = () => {
             <div ref={nodeRef}>
               <Suspense fallback={null}>
                 <Routes location={location}>
-                {/* Backwards-compatibility redirects */}
-                {REDIRECTS.map(({ from, to }) => (
-                  <Route
-                    key={from}
-                    path={from}
-                    element={<Navigate to={to} replace />}
-                  />
-                ))}
+                  {/* Backwards-compatibility redirects */}
+                  {REDIRECTS.map(({ from, to }) => (
+                    <Route
+                      key={from}
+                      path={from}
+                      element={<Navigate to={to} replace />}
+                    />
+                  ))}
 
-                {/* Application routes */}
-                <Route path="/overview" element={<HomePage />} />
-                <Route
-                  path="/oauth/gmail/callback"
-                  element={<GmailOauthCallbackPage />}
-                />
-                <Route path="/job/:id" element={<JobPage />} />
-                <Route
-                  path="/applications/in-progress"
-                  element={<InProgressBoardPage />}
-                />
-                <Route path="/design-resume" element={<DesignResumePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/tracer-links" element={<TracerLinksPage />} />
-                <Route path="/visa-sponsors" element={<VisaSponsorsPage />} />
-                <Route path="/tracking-inbox" element={<TrackingInboxPage />} />
-                <Route path="/jobs/:tab" element={<OrchestratorPage />} />
-                <Route
-                  path="/jobs/:tab/:jobId"
-                  element={<OrchestratorPage />}
-                />
-              </Routes>
+                  {/* Application routes */}
+                  <Route path="/overview" element={<HomePage />} />
+                  <Route
+                    path="/oauth/gmail/callback"
+                    element={<GmailOauthCallbackPage />}
+                  />
+                  <Route path="/job/:id" element={<JobPage />} />
+                  <Route
+                    path="/applications/in-progress"
+                    element={<InProgressBoardPage />}
+                  />
+                  <Route path="/design-resume" element={<DesignResumePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/tracer-links" element={<TracerLinksPage />} />
+                  <Route path="/visa-sponsors" element={<VisaSponsorsPage />} />
+                  <Route
+                    path="/tracking-inbox"
+                    element={<TrackingInboxPage />}
+                  />
+                  <Route path="/jobs/:tab" element={<OrchestratorPage />} />
+                  <Route
+                    path="/jobs/:tab/:jobId"
+                    element={<OrchestratorPage />}
+                  />
+                </Routes>
               </Suspense>
             </div>
           </CSSTransition>

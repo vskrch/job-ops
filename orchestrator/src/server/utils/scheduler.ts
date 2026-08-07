@@ -3,6 +3,8 @@
  * Used by visa-sponsors and backup services.
  */
 
+import { logger } from "@infra/logger";
+
 export interface Scheduler {
   /** Start scheduling at the specified hour (0-23) */
   start(hour: number): void;
@@ -73,16 +75,17 @@ export function createScheduler(
     state.nextRunTime = calculateNextTime(hour);
     const delay = state.nextRunTime.getTime() - Date.now();
 
-    console.log(
-      `⏰ [${name}] Next run scheduled for: ${state.nextRunTime.toISOString()}`,
-    );
+    logger.info("Scheduler next run scheduled", {
+      scheduler: name,
+      nextRun: state.nextRunTime.toISOString(),
+    });
 
     state.timer = setTimeout(async () => {
-      console.log(`🔄 [${name}] Running scheduled task...`);
+      logger.info("Scheduler task starting", { scheduler: name });
       try {
         await callback();
       } catch (error) {
-        console.error(`❌ [${name}] Scheduled task failed:`, error);
+        logger.error("Scheduled task failed", { scheduler: name, error });
       }
       // Reschedule for next occurrence
       scheduleNext(hour);
@@ -92,10 +95,10 @@ export function createScheduler(
   return {
     start(hour: number): void {
       if (state.timer) {
-        console.log(`🔄 [${name}] Restarting scheduler with hour ${hour}...`);
+        logger.info("Scheduler restarting", { scheduler: name, hour });
         clearState();
       } else {
-        console.log(`🚀 [${name}] Starting scheduler at hour ${hour}...`);
+        logger.info("Scheduler starting", { scheduler: name, hour });
       }
       scheduleNext(hour);
     },
@@ -103,7 +106,7 @@ export function createScheduler(
     stop(): void {
       if (state.timer) {
         clearState();
-        console.log(`⏹️ [${name}] Stopped scheduler`);
+        logger.info("Scheduler stopped", { scheduler: name });
       }
     },
 

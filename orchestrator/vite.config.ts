@@ -93,7 +93,11 @@ export default defineConfig({
             "vaul",
             "react-transition-group",
           ],
-          editor: ["@tiptap/react", "@tiptap/starter-kit", "@tiptap/extension-link"],
+          editor: [
+            "@tiptap/react",
+            "@tiptap/starter-kit",
+            "@tiptap/extension-link",
+          ],
           charts: ["recharts"],
           forms: ["react-hook-form", "@hookform/resolvers", "zod"],
         },

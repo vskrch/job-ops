@@ -181,10 +181,11 @@ describe("createScheduler", () => {
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
 
     expect(callback).toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "❌ [test] Scheduled task failed:",
-      expect.any(Error),
-    );
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    const loggedLine = consoleSpy.mock.calls[0][0] as string;
+    expect(loggedLine).toContain('"level":"error"');
+    expect(loggedLine).toContain("Scheduled task failed");
+    expect(loggedLine).toContain('"scheduler":"test"');
 
     // Scheduler should still be running after error
     expect(scheduler.isRunning()).toBe(true);
