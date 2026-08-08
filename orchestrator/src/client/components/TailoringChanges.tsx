@@ -27,7 +27,9 @@ function diffKeywords(
 ): SkillDiff {
   const toSet = (groups: TailoredSkillGroup[]): Set<string> =>
     new Set(
-      groups.flatMap((g) => g.keywords.map((k: string) => k.toLowerCase().trim())),
+      groups.flatMap((g) =>
+        g.keywords.map((k: string) => k.toLowerCase().trim()),
+      ),
     );
 
   const origSet = toSet(original);

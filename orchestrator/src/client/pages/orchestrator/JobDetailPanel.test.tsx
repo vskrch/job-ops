@@ -58,6 +58,7 @@ vi.mock("@client/components", () => ({
   JobHeader: () => <div data-testid="job-header" />,
   FitAssessment: () => <div data-testid="fit-assessment" />,
   TailoredSummary: () => <div data-testid="tailored-summary" />,
+  TailoringChanges: () => <div data-testid="tailoring-changes" />,
 }));
 
 vi.mock("@client/hooks/useSettings", () => ({

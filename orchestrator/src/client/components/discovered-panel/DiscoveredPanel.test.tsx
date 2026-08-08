@@ -58,6 +58,7 @@ vi.mock("@client/api", () => ({
   skipJob: vi.fn(),
   processJob: vi.fn(),
   checkSponsor: vi.fn(),
+  getProfile: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("../JobDetailsEditDrawer", () => ({
