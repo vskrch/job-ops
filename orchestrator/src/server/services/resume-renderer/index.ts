@@ -18,6 +18,7 @@ export async function renderResumePdf(args: {
   jobId: string;
   mode?: "v4" | "v5";
   templateId?: LatexTemplateId;
+  customTemplateContent?: string;
 }): Promise<void> {
   const document =
     args.mode === "v4"
@@ -33,5 +34,6 @@ export async function renderResumePdf(args: {
     outputPath: args.outputPath,
     jobId: args.jobId,
     templateId: args.templateId,
+    customTemplateContent: args.customTemplateContent,
   });
 }

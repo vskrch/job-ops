@@ -358,12 +358,17 @@ export async function generatePdf(
     const outputPath = join(OUTPUT_DIR, `resume_${jobId}.pdf`);
     if (renderer === "latex") {
       const templateId = await resolveLatexTemplate();
+      const customTemplateContent =
+        templateId === "custom"
+          ? ((await getSetting("customLatexTemplate")) ?? undefined)
+          : undefined;
       await renderResumePdf({
         resumeJson: preparedResume.data,
         outputPath,
         jobId,
         mode: preparedResume.mode,
         templateId,
+        customTemplateContent,
       });
     } else {
       await renderRxResumePdf({
@@ -410,12 +415,17 @@ export async function generateDesignResumePdf(options?: {
 
   if (renderer === "latex") {
     const templateId = await resolveLatexTemplate();
+    const customTemplateContent =
+      templateId === "custom"
+        ? ((await getSetting("customLatexTemplate")) ?? undefined)
+        : undefined;
     await renderResumePdf({
       resumeJson: designResume.data,
       outputPath,
       jobId: "design-resume",
       mode: designResume.mode,
       templateId,
+      customTemplateContent,
     });
   } else {
     await renderRxResumePdf({

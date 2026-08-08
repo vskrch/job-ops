@@ -200,6 +200,9 @@ async function loadTemplate(
     if (customContent?.trim()) return customContent;
     const dbValue = await getSetting("customLatexTemplate");
     if (dbValue?.trim()) return dbValue;
+    throw new Error(
+      "Custom LaTeX template is selected but no custom TeX content was found. Provide custom TeX in Settings or switch to a built-in template (jake, modern).",
+    );
   }
   return await readFile(resolveTemplatePath(templateId), "utf8");
 }
