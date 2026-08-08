@@ -59,6 +59,9 @@ describe("location-support", () => {
       true,
     );
     expect(isSourceAllowedForCountry("startupjobs", "worldwide")).toBe(true);
+    expect(isSourceAllowedForCountry("usajobs", "united states")).toBe(true);
+    expect(isSourceAllowedForCountry("usajobs", "united kingdom")).toBe(false);
+    expect(isSourceAllowedForCountry("usajobs", "worldwide")).toBe(false);
   });
 
   it("filters incompatible sources while preserving compatible order", () => {
