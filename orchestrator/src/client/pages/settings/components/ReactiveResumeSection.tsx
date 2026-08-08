@@ -78,10 +78,11 @@ export const ReactiveResumeSection: React.FC<ReactiveResumeSectionProps> = ({
     control,
     name: "latexTemplate",
   }) ?? "jake") as LatexTemplate;
-  const customLatexTemplateValue = useWatch({
-    control,
-    name: "customLatexTemplate",
-  }) ?? "";
+  const customLatexTemplateValue =
+    useWatch({
+      control,
+      name: "customLatexTemplate",
+    }) ?? "";
   const rxresumeApiKeyValue =
     useWatch({ control, name: "rxresumeApiKey" }) ?? "";
   const rxresumeEmailValue = useWatch({ control, name: "rxresumeEmail" }) ?? "";

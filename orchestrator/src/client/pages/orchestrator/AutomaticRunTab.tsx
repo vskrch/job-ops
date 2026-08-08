@@ -183,7 +183,9 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       workplaceTypes: DEFAULT_VALUES.workplaceTypes,
       searchTerms: DEFAULT_VALUES.searchTerms,
       searchTermDraft: "",
-      hoursOld: DEFAULT_VALUES.hoursOld ? String(DEFAULT_VALUES.hoursOld) : "any",
+      hoursOld: DEFAULT_VALUES.hoursOld
+        ? String(DEFAULT_VALUES.hoursOld)
+        : "any",
       isCustomHours: false,
     },
   });
@@ -208,7 +210,9 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       memory?.minSuitabilityScore ?? DEFAULT_VALUES.minSuitabilityScore;
     const memoryHoursOld = memory?.hoursOld ?? DEFAULT_VALUES.hoursOld;
     const defaultHoursOldStr = memoryHoursOld ? String(memoryHoursOld) : "any";
-    const isStandardHours = ["24", "72", "168", "336", "any"].includes(defaultHoursOldStr);
+    const isStandardHours = ["24", "72", "168", "336", "any"].includes(
+      defaultHoursOldStr,
+    );
 
     const rememberedRunBudget =
       settings?.jobspyResultsWanted?.value ??
@@ -264,7 +268,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
 
   const values = useMemo<AutomaticRunValues>(() => {
     const normalizedCountry = normalizeUiCountryKey(countryInput);
-    
+
     let hoursOld: number | null = null;
     if (isCustomHours) {
       const parsed = Number.parseInt(hoursOldInput, 10);
@@ -534,9 +538,13 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
                         value={isCustomHours ? "custom" : hoursOldInput}
                         onValueChange={(val) => {
                           if (val === "custom") {
-                            setValue("isCustomHours", true, { shouldDirty: true });
+                            setValue("isCustomHours", true, {
+                              shouldDirty: true,
+                            });
                           } else {
-                            setValue("isCustomHours", false, { shouldDirty: true });
+                            setValue("isCustomHours", false, {
+                              shouldDirty: true,
+                            });
                             setValue("hoursOld", val, { shouldDirty: true });
                           }
                         }}
@@ -550,7 +558,9 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
                           <SelectItem value="72">Last 3 days</SelectItem>
                           <SelectItem value="168">Last 7 days</SelectItem>
                           <SelectItem value="336">Last 14 days</SelectItem>
-                          <SelectItem value="custom">Custom (hours)...</SelectItem>
+                          <SelectItem value="custom">
+                            Custom (hours)...
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       {isCustomHours && (
@@ -562,11 +572,15 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
                             placeholder="e.g. 48"
                             value={hoursOldInput !== "any" ? hoursOldInput : ""}
                             onChange={(e) =>
-                              setValue("hoursOld", e.target.value, { shouldDirty: true })
+                              setValue("hoursOld", e.target.value, {
+                                shouldDirty: true,
+                              })
                             }
                             className="h-9"
                           />
-                          <span className="text-sm text-muted-foreground">hours</span>
+                          <span className="text-sm text-muted-foreground">
+                            hours
+                          </span>
                         </div>
                       )}
                     </div>

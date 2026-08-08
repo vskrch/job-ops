@@ -874,7 +874,7 @@ describe("OrchestratorPage", () => {
       country: "united kingdom",
       cityLocations: ["London", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
-hoursOld: null,
+      hoursOld: null,
     };
 
     render(
@@ -910,7 +910,7 @@ hoursOld: null,
       country: "united kingdom",
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
-hoursOld: null,
+      hoursOld: null,
     };
 
     render(
@@ -946,7 +946,7 @@ hoursOld: null,
       country: "united kingdom",
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
-hoursOld: null,
+      hoursOld: null,
     };
 
     render(
@@ -1054,7 +1054,7 @@ hoursOld: null,
       country: "united states",
       cityLocations: [],
       workplaceTypes: ["remote", "hybrid", "onsite"],
-hoursOld: null,
+      hoursOld: null,
     };
 
     render(

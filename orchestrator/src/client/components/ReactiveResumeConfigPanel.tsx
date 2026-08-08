@@ -246,7 +246,10 @@ export const ReactiveResumeConfigPanel: React.FC<
           </p>
           {latexTemplate === "custom" && (
             <div className="mt-3 space-y-1.5">
-              <label htmlFor="customLatexTemplate" className="text-xs font-medium">
+              <label
+                htmlFor="customLatexTemplate"
+                className="text-xs font-medium"
+              >
                 Custom TeX Code
               </label>
               <textarea
@@ -259,7 +262,9 @@ export const ReactiveResumeConfigPanel: React.FC<
                 disabled={disabled}
               />
               <p className="text-[11px] text-muted-foreground">
-                Placeholders available: <code>__NAME__</code>, <code>__HEADLINE_BLOCK__</code>, <code>__CONTACT_BLOCK__</code>, <code>__BODY__</code>.
+                Placeholders available: <code>__NAME__</code>,{" "}
+                <code>__HEADLINE_BLOCK__</code>, <code>__CONTACT_BLOCK__</code>,{" "}
+                <code>__BODY__</code>.
               </p>
             </div>
           )}
