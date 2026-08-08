@@ -54,6 +54,17 @@ vi.mock("@server/services/applicationTracking", () => ({
 
 vi.mock("@server/repositories/settings", () => ({
   getSetting: vi.fn().mockResolvedValue(null),
+  getAllSettings: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("@server/services/modelSelection", () => ({
+  resolveLlmModel: vi.fn().mockResolvedValue("gpt-4o"),
+  resolveLlmRuntimeSettings: vi.fn().mockResolvedValue({
+    model: "gpt-4o",
+    provider: "openai",
+    baseUrl: "https://api.openai.com",
+    apiKey: "test-key",
+  }),
 }));
 
 const llmCallJson = vi.fn().mockResolvedValue({

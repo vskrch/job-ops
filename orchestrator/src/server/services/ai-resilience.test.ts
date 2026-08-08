@@ -4,9 +4,35 @@ import { pickProjectIdsForJob } from "./projectSelection";
 import { scoreJobSuitability } from "./scorer";
 
 // --- Mocks ---
-vi.mock("../repositories/settings", () => ({
+vi.mock("@server/repositories/settings", () => ({
   getSetting: vi.fn().mockResolvedValue(null),
   getAllSettings: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("./modelSelection", () => ({
+  resolveLlmModel: vi.fn().mockResolvedValue("gpt-4o"),
+}));
+
+vi.mock("./settings", () => ({
+  getEffectiveSettings: vi.fn().mockResolvedValue({
+    penalizeMissingSalary: { value: false },
+    missingSalaryPenalty: { value: 0 },
+    scoringInstructions: { value: "" },
+    scoringPromptTemplate: { value: "" },
+  }),
+}));
+
+vi.mock("./writing-style", () => ({
+  getWritingStyle: vi.fn().mockResolvedValue({
+    tone: "professional",
+    formality: "high",
+    constraints: "",
+    doNotUse: "",
+    languageMode: "auto",
+    manualLanguage: "english",
+    summaryMaxWords: null,
+    maxKeywordsPerSkill: null,
+  }),
 }));
 
 // We need to mock 'fetch' globally for these tests

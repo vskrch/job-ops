@@ -24,9 +24,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useVersionCheck } from "../hooks/useVersionCheck";
-import { UserDropdown } from "../UserDropdown";
 import { isNavActive, NAV_LINKS } from "./navigation";
 import { StatusBadgeIndicator } from "./StatusIndicator";
+import { UserDropdown } from "./UserDropdown";
 
 // ============================================================================
 // Page Header

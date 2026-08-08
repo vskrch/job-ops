@@ -12,9 +12,10 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 export const UserDropdown: React.FC = () => {
-  const { user, logout } = useAuth();
+  const auth = useAuth();
 
-  if (!user) return null;
+  if (!auth || !auth.user) return null;
+  const { user, logout } = auth;
 
   return (
     <DropdownMenu>

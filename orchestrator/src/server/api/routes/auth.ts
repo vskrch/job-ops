@@ -13,8 +13,9 @@ authRouter.post(
   asyncRoute(async (req: Request, res: Response) => {
     const { email, password, name } = req.body || {};
     const user = await createUser({ email, password, name });
+    req.session = req.session || {};
     req.session.userId = user.id;
-    res.json(ok(req, { user }));
+    ok(res, { user });
   }),
 );
 
@@ -23,28 +24,31 @@ authRouter.post(
   asyncRoute(async (req: Request, res: Response) => {
     const { email, password } = req.body || {};
     const user = await authenticateUser({ email, password });
+    req.session = req.session || {};
     req.session.userId = user.id;
-    res.json(ok(req, { user }));
+    ok(res, { user });
   }),
 );
 
 authRouter.post(
   "/logout",
   asyncRoute(async (req: Request, res: Response) => {
-    req.session.userId = undefined;
-    res.json(ok(req, { loggedOut: true }));
+    if (req.session) {
+      req.session.userId = undefined;
+    }
+    ok(res, { loggedOut: true });
   }),
 );
 
 authRouter.get(
   "/me",
   asyncRoute(async (req: Request, res: Response) => {
-    const userId = req.session?.userId || (req.user as { id?: string })?.id;
+    const userId = req.session?.userId || req.user?.id;
     if (!userId) {
-      res.json(ok(req, { user: null }));
+      ok(res, { user: null });
       return;
     }
     const user = await getUserById(userId);
-    res.json(ok(req, { user }));
+    ok(res, { user });
   }),
 );

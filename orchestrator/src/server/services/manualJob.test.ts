@@ -7,6 +7,10 @@ vi.mock("../repositories/settings", () => ({
   getAllSettings: vi.fn().mockResolvedValue({}),
 }));
 
+vi.mock("./modelSelection", () => ({
+  resolveLlmModel: vi.fn().mockResolvedValue("gpt-4o"),
+}));
+
 const originalEnv = process.env;
 const originalFetch = global.fetch;
 

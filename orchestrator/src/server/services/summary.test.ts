@@ -7,6 +7,11 @@ const getBaseUrlMock = vi.fn();
 
 vi.mock("../repositories/settings", () => ({
   getSetting: vi.fn(),
+  getAllSettings: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("./modelSelection", () => ({
+  resolveLlmModel: vi.fn().mockResolvedValue("gpt-4o"),
 }));
 
 vi.mock("./llm/service", () => ({

@@ -19,8 +19,18 @@ if (!existsSync(dataDir)) {
 const sqlite = new Database(DB_PATH);
 
 const migrations = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
   `CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     source TEXT NOT NULL DEFAULT 'gradcracker',
     source_job_id TEXT,
     job_url_direct TEXT,
@@ -72,6 +82,8 @@ const migrations = [
     selected_project_ids TEXT,
     pdf_path TEXT,
     tracer_links_enabled INTEGER NOT NULL DEFAULT 0,
+    sponsor_match_score REAL,
+    sponsor_match_names TEXT,
     discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
     processed_at TEXT,
     ready_at TEXT,
@@ -82,6 +94,7 @@ const migrations = [
 
   `CREATE TABLE IF NOT EXISTS pipeline_runs (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     started_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT,
     status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
@@ -91,7 +104,9 @@ const migrations = [
   )`,
 
   `CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    key TEXT NOT NULL,
     value TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -99,6 +114,7 @@ const migrations = [
 
   `CREATE TABLE IF NOT EXISTS design_resume_documents (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     title TEXT NOT NULL,
     resume_json TEXT NOT NULL,
     revision INTEGER NOT NULL DEFAULT 1,
@@ -361,9 +377,11 @@ const migrations = [
   `ALTER TABLE jobs ADD COLUMN tailored_skills TEXT`,
   `ALTER TABLE jobs ADD COLUMN tracer_links_enabled INTEGER NOT NULL DEFAULT 0`,
 
-  // Add sponsor match columns for visa sponsor matching feature
-  `ALTER TABLE jobs ADD COLUMN sponsor_match_score REAL`,
-  `ALTER TABLE jobs ADD COLUMN sponsor_match_names TEXT`,
+  // Add user_id columns for existing databases
+  `ALTER TABLE jobs ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
+  `ALTER TABLE pipeline_runs ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
+  `ALTER TABLE settings ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
+  `ALTER TABLE design_resume_documents ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
 
   // Add application tracking columns
   `ALTER TABLE jobs ADD COLUMN outcome TEXT`,
@@ -408,6 +426,7 @@ const migrations = [
   // Ensure pipeline_runs status supports "cancelled" for existing databases.
   `CREATE TABLE IF NOT EXISTS pipeline_runs_new (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     started_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT,
     status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
@@ -415,8 +434,8 @@ const migrations = [
     jobs_processed INTEGER NOT NULL DEFAULT 0,
     error_message TEXT
   )`,
-  `INSERT OR REPLACE INTO pipeline_runs_new (id, started_at, completed_at, status, jobs_discovered, jobs_processed, error_message)
-   SELECT id, started_at, completed_at, status, jobs_discovered, jobs_processed, error_message
+  `INSERT OR REPLACE INTO pipeline_runs_new (id, user_id, started_at, completed_at, status, jobs_discovered, jobs_processed, error_message)
+   SELECT id, COALESCE(user_id, 'default-user'), started_at, completed_at, status, jobs_discovered, jobs_processed, error_message
    FROM pipeline_runs`,
   `DROP TABLE IF EXISTS pipeline_runs`,
   `ALTER TABLE pipeline_runs_new RENAME TO pipeline_runs`,
@@ -424,6 +443,7 @@ const migrations = [
   // Ensure jobs status supports "in_progress" for existing databases.
   `CREATE TABLE IF NOT EXISTS jobs_new (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     source TEXT NOT NULL DEFAULT 'gradcracker',
     source_job_id TEXT,
     job_url_direct TEXT,
@@ -485,7 +505,7 @@ const migrations = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `INSERT OR REPLACE INTO jobs_new (
-    id, source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
+    id, user_id, source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
     salary_min_amount, salary_max_amount, salary_currency, is_remote, job_level, job_function, listing_type,
     emails, company_industry, company_logo, company_url_direct, company_addresses, company_num_employees,
     company_revenue, company_description, skills, experience_range, company_rating, company_reviews_count,
@@ -497,7 +517,7 @@ const migrations = [
     applied_at, created_at, updated_at
   )
   SELECT
-    id, source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
+    id, COALESCE(user_id, 'default-user'), source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
     salary_min_amount, salary_max_amount, salary_currency, is_remote, job_level, job_function, listing_type,
     emails, company_industry, company_logo, company_url_direct, company_addresses, company_num_employees,
     company_revenue, company_description, skills, experience_range, company_rating, company_reviews_count,
@@ -692,20 +712,7 @@ for (const migration of migrations) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const isDuplicateColumn =
-      (migration.toLowerCase().includes("alter table jobs add column") ||
-        migration.toLowerCase().includes("alter table tasks add column") ||
-        migration
-          .toLowerCase()
-          .includes("alter table post_application_messages add column") ||
-        migration
-          .toLowerCase()
-          .includes("alter table stage_events add column") ||
-        migration
-          .toLowerCase()
-          .includes("alter table job_chat_messages add column") ||
-        migration
-          .toLowerCase()
-          .includes("alter table job_chat_threads add column")) &&
+      migration.toLowerCase().includes("add column") &&
       message.toLowerCase().includes("duplicate column name");
 
     if (isDuplicateColumn) {

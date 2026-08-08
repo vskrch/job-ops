@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   DEMO_DEFAULT_JOBS,
   DEMO_DEFAULT_PIPELINE_RUNS,
@@ -103,6 +104,8 @@ export async function applyDemoBaseline(
 
     const settingRows = Object.entries(baseline.settings).map(
       ([key, value]) => ({
+        id: randomUUID(),
+        userId: "default-user",
         key,
         value,
         createdAt: baseline.resetAt,

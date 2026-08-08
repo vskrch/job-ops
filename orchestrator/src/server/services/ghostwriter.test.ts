@@ -46,8 +46,32 @@ vi.mock("./ghostwriter-context", () => ({
   buildJobChatPromptContext: mocks.buildJobChatPromptContext,
 }));
 
+vi.mock("../repositories/jobs", () => ({
+  getJobById: vi.fn().mockResolvedValue({
+    id: "job-1",
+    title: "Engineer",
+    employer: "Acme",
+    jobDescription: "Description",
+  }),
+}));
+
 vi.mock("../repositories/settings", () => ({
   getAllSettings: mocks.settings.getAllSettings,
+  getSetting: vi.fn(),
+}));
+
+vi.mock("@server/repositories/settings", () => ({
+  getAllSettings: mocks.settings.getAllSettings,
+  getSetting: vi.fn(),
+}));
+
+vi.mock("./modelSelection", () => ({
+  resolveLlmRuntimeSettings: vi.fn().mockResolvedValue({
+    model: "gpt-4o",
+    provider: "openai",
+    baseUrl: "https://api.openai.com",
+    apiKey: "test-key",
+  }),
 }));
 
 vi.mock("../repositories/ghostwriter", () => ({
