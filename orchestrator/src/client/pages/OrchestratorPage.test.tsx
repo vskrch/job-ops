@@ -65,6 +65,7 @@ let mockAutomaticRunValues: AutomaticRunValues = {
   country: "united kingdom",
   cityLocations: [],
   workplaceTypes: ["remote", "hybrid", "onsite"],
+  hoursOld: null,
 };
 
 const jobFixture = createJob({
@@ -426,6 +427,7 @@ describe("OrchestratorPage", () => {
       country: "united kingdom",
       cityLocations: [],
       workplaceTypes: ["remote", "hybrid", "onsite"],
+      hoursOld: null,
     };
   });
 

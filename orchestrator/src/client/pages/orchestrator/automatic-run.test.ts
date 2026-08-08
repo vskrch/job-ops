@@ -161,7 +161,7 @@ describe("automatic-run utilities", () => {
         country: "united kingdom",
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
-hoursOld: null,
+        hoursOld: null,
       },
       sources: ["workingnomads"],
     });
