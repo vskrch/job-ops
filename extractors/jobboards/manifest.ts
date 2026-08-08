@@ -48,10 +48,19 @@ export const manifest: ExtractorManifest = {
       ? parseInt(context.settings.jobspyResultsWanted, 10)
       : 200;
 
+    // UI-managed LLM settings (Settings > Models); env vars stay as the
+    // fallback inside the shared client when these are unset.
+    const llm = {
+      baseUrl: context.settings.llmBaseUrl || undefined,
+      apiKey: context.settings.llmApiKey || undefined,
+      model: context.settings.model || undefined,
+    };
+
     const result = await runJobBoards({
       sources: context.selectedSources,
       searchTerms: context.searchTerms,
       maxJobsPerTerm,
+      llm,
       onProgress: (event) => {
         if (context.shouldCancel?.()) return;
         context.onProgress?.(toProgress(event));
