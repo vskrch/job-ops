@@ -38,7 +38,17 @@ function toProgress(event: JobBoardsProgressEvent): ExtractorProgressEvent {
 export const manifest: ExtractorManifest = {
   id: "jobboards",
   displayName: "Job Boards",
-  providesSources: ["dice", "monster", "instahyre", "eluta"],
+  providesSources: [
+    "dice",
+    "monster",
+    "instahyre",
+    "eluta",
+    "builtin",
+    "simplyhired",
+    "jobbank",
+    "foundit",
+    "shine",
+  ],
   async run(context) {
     if (context.shouldCancel?.()) {
       return { success: true, jobs: [] };

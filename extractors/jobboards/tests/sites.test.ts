@@ -111,4 +111,29 @@ describe("jobboards parsers", () => {
       location: "India",
     });
   });
+
+  it("parses simplyhired markdown", () => {
+    const fixture = `[Software Engineer](https://www.simplyhired.com/job/q-software-engineer-seattle/abc123)`;
+    const jobs = JOB_BOARD_SITES.simplyhired.parse(fixture);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "simplyhired",
+      title: "Software Engineer",
+      jobUrl:
+        "https://www.simplyhired.com/job/q-software-engineer-seattle/abc123",
+    });
+    expect(jobs[0].sourceJobId).toBeTruthy();
+  });
+
+  it("parses foundit india markdown", () => {
+    const fixture = `[React Developer](https://www.foundit.in/job/react-developer-bangalore-123)`;
+    const jobs = JOB_BOARD_SITES.foundit.parse(fixture);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "foundit",
+      title: "React Developer",
+      location: "India",
+    });
+    expect(jobs[0].sourceJobId).toBeTruthy();
+  });
 });
