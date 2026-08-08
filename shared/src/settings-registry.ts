@@ -401,6 +401,22 @@ export const settingsRegistry = {
     parse: parseIntOrNull,
     serialize: serializeNullableNumber,
   },
+  jobspyHoursOld: {
+    kind: "typed" as const,
+    schema: z.number().int().min(1).max(8760).nullable(), // up to 1 year
+    default: (): number | null => {
+      if (typeof process === "undefined") return 72;
+      const raw = process.env.JOBSPY_HOURS_OLD;
+      if (!raw) return 72;
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? 72 : parsed;
+    },
+    parse: (raw: string | undefined): number | null => {
+      const parsed = raw ? parseInt(raw, 10) : NaN;
+      return Number.isNaN(parsed) ? null : Math.max(1, parsed);
+    },
+    serialize: serializeNullableNumber,
+  },
   jobspyCountryIndeed: {
     kind: "typed" as const,
     schema: z.string().trim().max(100),

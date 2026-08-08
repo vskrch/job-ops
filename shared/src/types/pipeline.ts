@@ -10,6 +10,7 @@ export interface PipelineConfig {
   enableScoring?: boolean;
   enableImporting?: boolean;
   enableAutoTailoring?: boolean;
+  hoursOld?: number | null;
 }
 
 export interface PipelineRun {

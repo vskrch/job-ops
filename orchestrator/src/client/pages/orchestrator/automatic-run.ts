@@ -20,6 +20,7 @@ export interface AutomaticRunValues {
   country: string;
   cityLocations: string[];
   workplaceTypes: WorkplaceType[];
+  hoursOld: number | null;
 }
 
 export interface AutomaticPresetValues {
@@ -66,6 +67,7 @@ export const RUN_MEMORY_STORAGE_KEY = "jobops.pipeline.run-memory.v1";
 export interface AutomaticRunMemory {
   topN: number;
   minSuitabilityScore: number;
+  hoursOld: number | null;
 }
 
 export function normalizeWorkplaceTypes(
@@ -276,6 +278,7 @@ export function loadAutomaticRunMemory(): AutomaticRunMemory | null {
         100,
         Math.max(0, Math.round(parsed.minSuitabilityScore)),
       ),
+      hoursOld: typeof parsed.hoursOld === "number" ? parsed.hoursOld : null,
     };
   } catch {
     return null;

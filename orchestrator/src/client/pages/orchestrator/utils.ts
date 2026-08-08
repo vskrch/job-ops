@@ -247,7 +247,12 @@ export const getEnabledSources = (
     if (
       source === "indeed" ||
       source === "linkedin" ||
-      source === "glassdoor"
+      source === "glassdoor" ||
+      source === "ziprecruiter" ||
+      source === "google" ||
+      source === "bayt" ||
+      source === "bdjobs" ||
+      source === "naukri"
     ) {
       enabled.push(source);
     }

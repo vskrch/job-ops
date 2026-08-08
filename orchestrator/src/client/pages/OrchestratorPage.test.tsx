@@ -840,6 +840,7 @@ describe("OrchestratorPage", () => {
       expect(api.updateSettings).toHaveBeenCalledWith({
         searchTerms: ["backend"],
         workplaceTypes: ["remote", "hybrid", "onsite"],
+        hoursOld: null,
         jobspyResultsWanted: 150,
         gradcrackerMaxJobsPerTerm: 150,
         ukvisajobsMaxJobs: 150,
@@ -872,6 +873,7 @@ describe("OrchestratorPage", () => {
       country: "united kingdom",
       cityLocations: ["London", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
+hoursOld: null,
     };
 
     render(
@@ -907,6 +909,7 @@ describe("OrchestratorPage", () => {
       country: "united kingdom",
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
+hoursOld: null,
     };
 
     render(
@@ -942,6 +945,7 @@ describe("OrchestratorPage", () => {
       country: "united kingdom",
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
+hoursOld: null,
     };
 
     render(
@@ -1049,6 +1053,7 @@ describe("OrchestratorPage", () => {
       country: "united states",
       cityLocations: [],
       workplaceTypes: ["remote", "hybrid", "onsite"],
+hoursOld: null,
     };
 
     render(

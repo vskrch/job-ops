@@ -188,6 +188,10 @@ export async function discoverJobsStep(args: {
           ),
         ) as Record<string, string | undefined>;
 
+        if (args.mergedConfig.hoursOld != null) {
+          filteredSettings.jobspyHoursOld = String(args.mergedConfig.hoursOld);
+        }
+
         const result = await manifest.run({
           source: grouped.sources[0],
           selectedSources: grouped.sources,

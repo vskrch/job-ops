@@ -21,6 +21,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -65,6 +72,7 @@ const DEFAULT_VALUES: AutomaticRunValues = {
   country: "united kingdom",
   cityLocations: [],
   workplaceTypes: ["remote", "hybrid", "onsite"],
+  hoursOld: null,
 };
 
 interface AutomaticRunFormValues {
@@ -77,6 +85,8 @@ interface AutomaticRunFormValues {
   workplaceTypes: WorkplaceType[];
   searchTerms: string[];
   searchTermDraft: string;
+  hoursOld: string;
+  isCustomHours: boolean;
 }
 
 type AutomaticPresetSelection = AutomaticPresetId | "custom";
@@ -173,6 +183,8 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       workplaceTypes: DEFAULT_VALUES.workplaceTypes,
       searchTerms: DEFAULT_VALUES.searchTerms,
       searchTermDraft: "",
+      hoursOld: DEFAULT_VALUES.hoursOld ? String(DEFAULT_VALUES.hoursOld) : "any",
+      isCustomHours: false,
     },
   });
 
@@ -185,6 +197,8 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
   const workplaceTypes = watch("workplaceTypes");
   const searchTerms = watch("searchTerms");
   const searchTermDraft = watch("searchTermDraft");
+  const hoursOldInput = watch("hoursOld");
+  const isCustomHours = watch("isCustomHours");
 
   useEffect(() => {
     if (!open) return;
@@ -192,6 +206,9 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
     const topN = memory?.topN ?? DEFAULT_VALUES.topN;
     const minSuitabilityScore =
       memory?.minSuitabilityScore ?? DEFAULT_VALUES.minSuitabilityScore;
+    const memoryHoursOld = memory?.hoursOld ?? DEFAULT_VALUES.hoursOld;
+    const defaultHoursOldStr = memoryHoursOld ? String(memoryHoursOld) : "any";
+    const isStandardHours = ["24", "72", "168", "336", "any"].includes(defaultHoursOldStr);
 
     const rememberedRunBudget =
       settings?.jobspyResultsWanted?.value ??
@@ -239,12 +256,24 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       workplaceTypes: rememberedWorkplaceTypes,
       searchTerms: settings?.searchTerms?.value ?? DEFAULT_VALUES.searchTerms,
       searchTermDraft: "",
+      hoursOld: isStandardHours ? defaultHoursOldStr : String(memoryHoursOld),
+      isCustomHours: !isStandardHours,
     });
     setAdvancedOpen(false);
   }, [open, settings, reset]);
 
   const values = useMemo<AutomaticRunValues>(() => {
     const normalizedCountry = normalizeUiCountryKey(countryInput);
+    
+    let hoursOld: number | null = null;
+    if (isCustomHours) {
+      const parsed = Number.parseInt(hoursOldInput, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) hoursOld = parsed;
+    } else if (hoursOldInput !== "any") {
+      const parsed = Number.parseInt(hoursOldInput, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) hoursOld = parsed;
+    }
+
     return {
       topN: toNumber(topNInput, 1, 50, DEFAULT_VALUES.topN),
       minSuitabilityScore: toNumber(
@@ -258,6 +287,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       cityLocations,
       workplaceTypes: normalizeWorkplaceTypes(workplaceTypes),
       searchTerms,
+      hoursOld,
     };
   }, [
     topNInput,
@@ -267,6 +297,8 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
     cityLocations,
     workplaceTypes,
     searchTerms,
+    hoursOldInput,
+    isCustomHours,
   ]);
 
   const workplaceTypeSelectionInvalid = workplaceTypes.length === 0;
@@ -366,6 +398,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       saveAutomaticRunMemory({
         topN: values.topN,
         minSuitabilityScore: values.minSuitabilityScore,
+        hoursOld: values.hoursOld,
       });
       await onSaveAndRun(values);
     } finally {
@@ -494,6 +527,48 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
                           setValue("runBudget", event.target.value)
                         }
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time-posted">Time posted</Label>
+                      <Select
+                        value={isCustomHours ? "custom" : hoursOldInput}
+                        onValueChange={(val) => {
+                          if (val === "custom") {
+                            setValue("isCustomHours", true, { shouldDirty: true });
+                          } else {
+                            setValue("isCustomHours", false, { shouldDirty: true });
+                            setValue("hoursOld", val, { shouldDirty: true });
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="time-posted">
+                          <SelectValue placeholder="Select time..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any time</SelectItem>
+                          <SelectItem value="24">Last 24 hours</SelectItem>
+                          <SelectItem value="72">Last 3 days</SelectItem>
+                          <SelectItem value="168">Last 7 days</SelectItem>
+                          <SelectItem value="336">Last 14 days</SelectItem>
+                          <SelectItem value="custom">Custom (hours)...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isCustomHours && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={8760}
+                            placeholder="e.g. 48"
+                            value={hoursOldInput !== "any" ? hoursOldInput : ""}
+                            onChange={(e) =>
+                              setValue("hoursOld", e.target.value, { shouldDirty: true })
+                            }
+                            className="h-9"
+                          />
+                          <span className="text-sm text-muted-foreground">hours</span>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2 md:col-span-3">
                       <Label htmlFor="city-locations-input">Cities</Label>
