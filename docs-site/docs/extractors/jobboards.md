@@ -33,7 +33,12 @@ The regional boards maximize search depth for USA, Canada, and India job markets
 Defaults and constraints:
 
 - No credentials required for any of the boards.
-- Each source/term combination is fetched directly first; if the board blocks us (403/429/5xx) or returns an empty client-side shell, the engine retries through the Jina renderer.
+- Each source/term is fetched via a 3-backend escalation chain: `direct` HTTP (fingerprinted) → `crawl4ai` (self-hosted headless browser, when `CRAWL4AI_BASE_URL` is set) → `jina` (Jina Reader proxy). A 200-OK CAPTCHA/block page is detected heuristically and skipped to the next backend.
+- Structured data wins: when a board embeds schema.org `JobPosting` JSON-LD, fields (title, employer, location, salary, description) come from that with zero regex or LLM cost; regex and LLM parsing are fallbacks.
+- The crawl engine caches responses per run, honors `Retry-After`, times out and size-caps bodies, and drops an invalid `JINA_API_KEY` automatically when configured.
+- Anti-detection is layered: ~20 rotating browser fingerprints (UA + `sec-ch-ua` + platform), organic headers (`sec-fetch-*`, Google referer on first visit, same-origin on subsequent, occasional `DNT`), behavioral pacing profiles (`fast` / `normal` / `cautious` / `stealth`) with human-like inter-request spacing and occasional long pauses, and heuristic block/CAPTCHA detection (no LLM cost at the transport layer).
+- Crawl4AI is optional: run `docker compose up crawl4ai` and set `CRAWL4AI_BASE_URL=http://crawl4ai:11235`. Without it the chain degrades to `direct` → `jina`. The browser backend provides stealth JS rendering for SPA boards (Monster, Instahyre).
+- When an LLM is configured the run defaults to the `normal` behavioral profile; without an LLM it uses `fast`. Pass `behaviorProfile` explicitly to override.
 - If an LLM is configured, list results are re-extracted with structured parsing and job detail pages are opened for descriptions, capped by the detail-page limit.
 - Search results are de-duplicated by `sourceJobId` or `jobUrl`.
 - Monster currently returns a page shell, so it usually yields zero jobs; it is kept so results are picked up automatically if Monster ever serves them.

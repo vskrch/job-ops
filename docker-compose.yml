@@ -66,6 +66,26 @@ services:
           target: /app/extractors/jobspy
           action: sync+restart
 
+  # =============================================================================
+  # Crawl4AI - self-hosted headless browser crawling backend (optional)
+  # =============================================================================
+  # Provides JS rendering + stealth for the crawl engine's `crawl4ai` backend.
+  # Enabled automatically when CRAWL4AI_BASE_URL is set on the job-ops service.
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    container_name: crawl4ai
+    ports:
+      - "11235:11235"
+    shm_size: 1g
+    environment:
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_API_TOKEN:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11235/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 # Volumes for data persistence
 volumes:
   data:

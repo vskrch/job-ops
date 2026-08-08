@@ -9,14 +9,14 @@ export interface JobBoardSite {
   parse(text: string): CreateJobInput[];
 }
 
-function slug(value: string): string {
+export function slug(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
 
-function uniqueJobs(jobs: CreateJobInput[]): CreateJobInput[] {
+export function uniqueJobs(jobs: CreateJobInput[]): CreateJobInput[] {
   const seen = new Set<string>();
   const out: CreateJobInput[] = [];
   for (const job of jobs) {

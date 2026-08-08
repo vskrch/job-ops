@@ -1,4 +1,10 @@
-import { CrawlEngine } from "@shared/crawl/engine.js";
+import type { Crawl4AIConfig } from "@shared/crawl/crawl4ai-backend.js";
+import { CrawlEngine, type CrawlRequestResult } from "@shared/crawl/engine.js";
+import {
+  extractJsonLdJobPostings,
+  isHtmlText,
+  type JsonLdJobPosting,
+} from "@shared/crawl/structured.js";
 import type { ExtractorSourceId } from "@shared/extractors";
 import type { LlmClientConfig } from "@shared/llm/chat.js";
 import {
@@ -8,7 +14,8 @@ import {
   llmParseJobs,
 } from "@shared/llm/job-parser.js";
 import type { CreateJobInput } from "@shared/types/jobs";
-import { JOB_BOARD_SITES } from "./sites.js";
+import type { JobBoardSite } from "./sites.js";
+import { JOB_BOARD_SITES, slug, uniqueJobs } from "./sites.js";
 
 export type JobBoardsProgressEvent =
   | {
@@ -42,6 +49,8 @@ export interface RunJobBoardsOptions {
   shouldCancel?: () => boolean;
   /** UI/settings-provided LLM config; falls back to env vars. */
   llm?: LlmClientConfig;
+  /** Behavioral pacing profile (default `normal` when an LLM is configured). */
+  behaviorProfile?: "fast" | "normal" | "cautious" | "stealth";
 }
 
 export interface JobBoardsResult {
@@ -54,9 +63,63 @@ function truncate(value: string, max = 200): string {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
+/** Read Crawl4AI server config from env; returns undefined when unconfigured. */
+function readCrawl4aiConfig(): Crawl4AIConfig | undefined {
+  const baseUrl = process.env.CRAWL4AI_BASE_URL?.trim();
+  if (!baseUrl) return undefined;
+  return {
+    baseUrl,
+    apiToken: process.env.CRAWL4AI_API_TOKEN?.trim() || undefined,
+  };
+}
+
+/** Map a JSON-LD JobPosting to a normalized job input. */
+function jobFromPosting(args: {
+  source: ExtractorSourceId;
+  posting: JsonLdJobPosting;
+  fallbackUrl: string;
+}): CreateJobInput | null {
+  const { source, posting, fallbackUrl } = args;
+  const title = posting.title?.trim();
+  if (!title) return null;
+  const jobUrl = posting.url?.trim() || fallbackUrl;
+  const employer = posting.employer?.trim() || "Unknown Employer";
+  return {
+    source,
+    sourceJobId: slug(jobUrl) || slug(`${employer}-${title}`),
+    title,
+    employer,
+    jobUrl,
+    applicationLink: jobUrl,
+    location: posting.location,
+    salary: posting.salary,
+    jobType: posting.employmentType,
+    datePosted: posting.datePosted,
+    jobDescription: posting.description?.trim() || undefined,
+  };
+}
+
+/** Parse a fetched body: JSON-LD first for HTML, then the site's regex. */
+function parseFetched(
+  source: ExtractorSourceId,
+  site: JobBoardSite,
+  result: CrawlRequestResult,
+): CreateJobInput[] {
+  if (!isHtmlText(result.text, result.contentType)) {
+    return site.parse(result.text);
+  }
+  const structured = extractJsonLdJobPostings(result.text)
+    .map((posting) =>
+      jobFromPosting({ source, posting, fallbackUrl: site.searchUrl("") }),
+    )
+    .filter((job): job is CreateJobInput => job !== null);
+  return uniqueJobs([...structured, ...site.parse(result.text)]);
+}
+
 /**
- * Fetch up to `limit` detail pages and LLM-extract descriptions. Jobs whose
- * detail fetch or extraction fails are returned unchanged (lights on).
+ * Fetch up to `limit` detail pages and extract descriptions: JSON-LD when the
+ * page embeds it (zero LLM cost), otherwise LLM extraction. Jobs whose detail
+ * fetch or extraction fails are returned unchanged (lights on).
  */
 async function fetchDescriptions(
   engine: CrawlEngine,
@@ -73,6 +136,16 @@ async function fetchDescriptions(
         thinkTimeMs: { min: 1200, max: 2600 },
       });
       if (detail.ok) {
+        if (isHtmlText(detail.text, detail.contentType)) {
+          const postings = extractJsonLdJobPostings(detail.text);
+          const description = postings.find(
+            (posting) => posting.description,
+          )?.description;
+          if (description) {
+            out.push({ ...job, jobDescription: description });
+            continue;
+          }
+        }
         const extracted = await llmExtractDescription({
           jobUrl: job.jobUrl,
           title: job.title,
@@ -103,7 +176,18 @@ export async function runJobBoards(
       : ["web developer"];
   const maxJobsPerTerm = Math.max(1, options.maxJobsPerTerm ?? 200);
   const termTotal = sources.length * searchTerms.length;
-  const engine = new CrawlEngine();
+  const behaviorProfile =
+    options.behaviorProfile ??
+    (llmJobsConfigured(options.llm) ? "normal" : "fast");
+  const crawl4aiConfig = readCrawl4aiConfig();
+  const engine = new CrawlEngine({
+    behaviorProfile,
+    crawl4ai: crawl4aiConfig,
+  });
+  // Escalate direct → crawl4ai (browser) → jina when Crawl4AI is configured.
+  const backends = crawl4aiConfig
+    ? (["direct", "crawl4ai", "jina"] as const)
+    : (["direct", "jina"] as const);
 
   const jobs: CreateJobInput[] = [];
   const failures: string[] = [];
@@ -122,30 +206,33 @@ export async function runJobBoards(
       });
 
       let collected = 0;
+      let parsed: CreateJobInput[] = [];
       let fetchedText = "";
       try {
-        // Direct fetch first; the engine falls back to Jina internally when
-        // the site blocks us (403/429/5xx).
+        // Escalation: direct → crawl4ai (browser) → jina, tried in order by
+        // the engine. A 200-OK challenge page is detected and skipped.
         const direct = await engine.request({
           url: site.searchUrl(searchTerm),
-          backends: ["direct", "jina"],
+          backends,
           maxAttempts: 2,
           thinkTimeMs: { min: 1200, max: 2600 },
         });
 
-        let parsed = direct.ok ? site.parse(direct.text) : [];
-        fetchedText = direct.ok ? direct.text : "";
-        // SPA boards return a 200 shell with zero jobs; fetch the Jina-
-        // rendered version before giving up.
+        if (direct.ok) {
+          parsed = parseFetched(source, site, direct);
+          fetchedText = direct.text;
+        }
+        // SPA boards return a 200 shell with zero jobs; fetch a browser- or
+        // Jina-rendered version before giving up.
         if (parsed.length === 0) {
           const rendered = await engine.request({
             url: site.searchUrl(searchTerm),
-            backends: ["jina"],
+            backends: crawl4aiConfig ? ["crawl4ai", "jina"] : ["jina"],
             maxAttempts: 2,
             thinkTimeMs: { min: 1200, max: 2600 },
           });
           if (rendered.ok) {
-            parsed = site.parse(rendered.text);
+            parsed = parseFetched(source, site, rendered);
             fetchedText = rendered.text;
           } else {
             failures.push(`${site.label}: ${truncate(rendered.text)}`);
