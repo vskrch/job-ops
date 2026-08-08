@@ -252,7 +252,16 @@ export const getEnabledSources = (
       source === "google" ||
       source === "bayt" ||
       source === "bdjobs" ||
-      source === "naukri"
+      source === "naukri" ||
+      source === "dice" ||
+      source === "monster" ||
+      source === "instahyre" ||
+      source === "eluta" ||
+      source === "builtin" ||
+      source === "simplyhired" ||
+      source === "jobbank" ||
+      source === "foundit" ||
+      source === "shine"
     ) {
       enabled.push(source);
     }

@@ -21,6 +21,7 @@ Extractor integrations are now registered through manifests and loaded automatic
 | [Working Nomads](/docs/next/extractors/working-nomads) | Remote-only discovery through the public Working Nomads jobs API | Public API is curated and remote-only; available fields are limited to API payload shape | existing pipeline `searchTerms`, selected country/cities, `jobspyResultsWanted`, workplace type | Fetches a single public JSON feed, filters locally by terms/location, infers job type when possible, and de-duplicates by source id / URL |
 | [Golang Jobs](/docs/next/extractors/golang-jobs) | Go-specific discovery through the public Golang Jobs feed | Depends on the site's public Supabase-backed schema staying stable; no credentials required | existing pipeline `searchTerms`, selected country/cities, `jobspyResultsWanted`, workplace type | Paginates the public jobs feed, maps location through the linked city record, then filters locally and de-duplicates by source id / URL |
 | [UKVisaJobs](/docs/next/extractors/ukvisajobs) | UK visa sponsorship-focused roles | Requires authenticated session and periodic token/cookie refresh | `UKVISAJOBS_EMAIL`, `UKVISAJOBS_PASSWORD`, `UKVISAJOBS_MAX_JOBS`, `UKVISAJOBS_SEARCH_KEYWORD` | API pagination + dataset output; orchestrator de-dupes and may fetch missing descriptions |
+| [Job Boards](/docs/next/extractors/jobboards) | Regional board discovery for USA (Built In, Dice, SimplyHired), Canada (Job Bank, Eluta), and India (foundit, Shine, Instahyre) | No credentials; some boards render client-side and depend on the Jina fallback; Monster currently yields no results | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Crawl-engine fetch with direct → Jina fallback, regex + optional LLM structured parsing, optional detail-page description extraction; de-duplicates by `sourceJobId`/`jobUrl` |
 | [Manual Import](/docs/next/extractors/manual) | One-off jobs not covered by scrapers | Inference quality depends on model/provider and input quality; some URLs cannot be fetched reliably | App/API endpoints (`/api/manual-jobs/infer`, `/api/manual-jobs/import`) | Accepts text/HTML/URL, runs inference, then saves and scores job after review |
 
 ## Which extractor should I use?
@@ -33,6 +34,7 @@ Extractor integrations are now registered through manifests and loaded automatic
 - Use **Golang Jobs** when you want a niche Go-focused board that broad aggregators often miss.
 - Use **Gradcracker** when targeting graduate pipelines in the UK.
 - Use **UKVisaJobs** for sponsorship-specific UK searches.
+- Use **Job Boards** when targeting USA, Canada, or India markets: Built In and Dice for US tech, Job Bank/Eluta for Canada, foundit/Shine/Instahyre for India.
 - Use **Manual Import** when you already have a specific posting and need direct import.
 
 Many runs combine sources: broad discovery first, then manual import for high-priority jobs that scraping misses.
@@ -58,5 +60,6 @@ Many runs combine sources: broad discovery first, then manual import for high-pr
 - [Working Nomads](/docs/next/extractors/working-nomads)
 - [Golang Jobs](/docs/next/extractors/golang-jobs)
 - [UKVisaJobs](/docs/next/extractors/ukvisajobs)
+- [Job Boards](/docs/next/extractors/jobboards)
 - [Manual Import](/docs/next/extractors/manual)
 - [Add an Extractor](/docs/next/workflows/add-an-extractor)

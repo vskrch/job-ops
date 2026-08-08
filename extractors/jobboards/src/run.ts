@@ -50,6 +50,10 @@ export interface JobBoardsResult {
   error?: string;
 }
 
+function truncate(value: string, max = 200): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
 /**
  * Fetch up to `limit` detail pages and LLM-extract descriptions. Jobs whose
  * detail fetch or extraction fails are returned unchanged (lights on).
@@ -144,7 +148,7 @@ export async function runJobBoards(
             parsed = site.parse(rendered.text);
             fetchedText = rendered.text;
           } else {
-            failures.push(`${site.label}: ${rendered.text}`);
+            failures.push(`${site.label}: ${truncate(rendered.text)}`);
           }
         }
 
@@ -185,7 +189,9 @@ export async function runJobBoards(
         }
       } catch (error) {
         failures.push(
-          `${site.label}: ${error instanceof Error ? error.message : "unknown error"}`,
+          `${site.label}: ${truncate(
+            error instanceof Error ? error.message : "unknown error",
+          )}`,
         );
       }
 

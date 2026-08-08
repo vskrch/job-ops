@@ -29,6 +29,23 @@ describe("orchestrator utils", () => {
     expect(getEnabledSources(createAppSettings())).toContain("golangjobs");
   });
 
+  it("enables all jobboards regional sources without credentials", () => {
+    const enabled = getEnabledSources(createAppSettings());
+    for (const source of [
+      "dice",
+      "monster",
+      "instahyre",
+      "eluta",
+      "builtin",
+      "simplyhired",
+      "jobbank",
+      "foundit",
+      "shine",
+    ] as const) {
+      expect(enabled).toContain(source);
+    }
+  });
+
   it("counts processing jobs in ready and discovered tabs", () => {
     const jobs = [
       createJob({ id: "ready", status: "ready", closedAt: null }),
