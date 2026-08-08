@@ -8,6 +8,7 @@ import { useSettings } from "@client/hooks/useSettings";
 import type {
   DesignResumeDocument,
   DesignResumeJson,
+  LatexTemplate,
   PdfRenderer,
 } from "@shared/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -73,6 +74,7 @@ export const DesignResumePage: React.FC = () => {
   draftRef.current = draft;
 
   const pdfRenderer = settings?.pdfRenderer?.value ?? "rxresume";
+  const latexTemplate = settings?.latexTemplate?.value ?? "jake";
   const rxresumeMode = settings?.rxresumeMode?.value ?? "v5";
   const isRxResumeV4Mode = rxresumeMode === "v4";
   const importBlockedMessage = isRxResumeV4Mode
@@ -385,14 +387,35 @@ export const DesignResumePage: React.FC = () => {
       queryClient.setQueryData(queryKeys.settings.current(), updatedSettings);
       toast.success(
         nextRenderer === "latex"
-          ? "Jake's template is now active."
-          : "React Resume Renderer is now active.",
+          ? "LaTeX renderer is now active."
+          : "RxResume renderer is now active.",
       );
     } catch (updateError) {
       toast.error(
         updateError instanceof Error
           ? updateError.message
           : "Failed to update the resume template.",
+      );
+    } finally {
+      setRendererUpdating(false);
+    }
+  };
+
+  const handleLatexTemplateChange = async (nextTemplate: LatexTemplate) => {
+    if (settingsLoading || nextTemplate === latexTemplate) return;
+
+    try {
+      setRendererUpdating(true);
+      const updatedSettings = await api.updateSettings({
+        latexTemplate: nextTemplate,
+      });
+      queryClient.setQueryData(queryKeys.settings.current(), updatedSettings);
+      toast.success(`LaTeX template set to ${nextTemplate}.`);
+    } catch (updateError) {
+      toast.error(
+        updateError instanceof Error
+          ? updateError.message
+          : "Failed to update the LaTeX template.",
       );
     } finally {
       setRendererUpdating(false);
@@ -603,11 +626,13 @@ export const DesignResumePage: React.FC = () => {
             <DesignResumePreviewPanel
               draft={draft}
               pdfRenderer={pdfRenderer}
+              latexTemplate={latexTemplate}
               isUpdatingRenderer={rendererUpdating || settingsLoading}
               isDirty={dirty}
               saveState={saveState}
               blockedMessage={previewBlockedMessage}
               onPdfRendererChange={handlePdfRendererChange}
+              onLatexTemplateChange={handleLatexTemplateChange}
             />
           </div>
         )}

@@ -5,6 +5,8 @@ import {
   CHAT_STYLE_MANUAL_LANGUAGE_VALUES,
   type ChatStyleLanguageMode,
   type ChatStyleManualLanguage,
+  LATEX_TEMPLATE_VALUES,
+  type LatexTemplate,
   PDF_RENDERER_VALUES,
   type PdfRenderer,
   type ResumeProjectsSettings,
@@ -130,6 +132,7 @@ const parseChatStyleManualLanguageOrNull = createEnumParser(
   CHAT_STYLE_MANUAL_LANGUAGE_VALUES,
 );
 const parsePdfRendererOrNull = createEnumParser(PDF_RENDERER_VALUES);
+const parseLatexTemplateOrNull = createEnumParser(LATEX_TEMPLATE_VALUES);
 
 const WORKPLACE_TYPE_VALUES = ["remote", "hybrid", "onsite"] as const;
 const parseWorkplaceTypesOrNull = createEnumArrayParser(WORKPLACE_TYPE_VALUES);
@@ -259,6 +262,14 @@ export const settingsRegistry = {
     default: (): PdfRenderer => "rxresume",
     parse: parsePdfRendererOrNull,
     serialize: (value: PdfRenderer | null | undefined): string | null =>
+      value ?? null,
+  },
+  latexTemplate: {
+    kind: "typed" as const,
+    schema: z.enum(LATEX_TEMPLATE_VALUES),
+    default: (): LatexTemplate => "jake",
+    parse: parseLatexTemplateOrNull,
+    serialize: (value: LatexTemplate | null | undefined): string | null =>
       value ?? null,
   },
   ukvisajobsMaxJobs: {

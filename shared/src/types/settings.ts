@@ -17,7 +17,14 @@ export const PDF_RENDERER_VALUES = ["rxresume", "latex"] as const;
 export type PdfRenderer = (typeof PDF_RENDERER_VALUES)[number];
 export const PDF_RENDERER_LABELS: Record<PdfRenderer, string> = {
   rxresume: "RxResume export",
-  latex: "Local LaTeX (Jake template)",
+  latex: "Local LaTeX (tectonic)",
+};
+
+export const LATEX_TEMPLATE_VALUES = ["jake", "modern"] as const;
+export type LatexTemplate = (typeof LATEX_TEMPLATE_VALUES)[number];
+export const LATEX_TEMPLATE_LABELS: Record<LatexTemplate, string> = {
+  jake: "Jake (classic single-column)",
+  modern: "Modern (two-column sans)",
 };
 
 export const CHAT_STYLE_LANGUAGE_MODE_VALUES = [
@@ -157,6 +164,7 @@ export interface AppSettings {
   jobCompleteWebhookUrl: Resolved<string>;
   resumeProjects: Resolved<ResumeProjectsSettings>;
   pdfRenderer: Resolved<PdfRenderer>;
+  latexTemplate: Resolved<LatexTemplate>;
   ukvisajobsMaxJobs: Resolved<number>;
   adzunaMaxJobsPerTerm: Resolved<number>;
   gradcrackerMaxJobsPerTerm: Resolved<number>;

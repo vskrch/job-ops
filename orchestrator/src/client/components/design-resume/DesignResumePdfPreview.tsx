@@ -1,11 +1,16 @@
 import * as api from "@client/api";
-import type { DesignResumeDocument, PdfRenderer } from "@shared/types";
+import type {
+  DesignResumeDocument,
+  LatexTemplate,
+  PdfRenderer,
+} from "@shared/types";
 import { FileText, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type DesignResumePdfPreviewProps = {
   draft: DesignResumeDocument;
   pdfRenderer: PdfRenderer;
+  latexTemplate: LatexTemplate;
   isUpdatingRenderer: boolean;
   isDirty: boolean;
   saveState: "idle" | "saving" | "saved" | "error";
@@ -16,6 +21,7 @@ type PreviewState = "idle" | "waiting-for-save" | "loading" | "ready" | "error";
 export function DesignResumePdfPreview({
   draft,
   pdfRenderer,
+  latexTemplate,
   isUpdatingRenderer,
   isDirty,
   saveState,
@@ -28,8 +34,8 @@ export function DesignResumePdfPreview({
   const lastLoadedKey = useRef<string | null>(null);
 
   const revisionKey = useMemo(
-    () => `${draft.id}:${draft.revision}:${pdfRenderer}`,
-    [draft.id, draft.revision, pdfRenderer],
+    () => `${draft.id}:${draft.revision}:${pdfRenderer}:${latexTemplate}`,
+    [draft.id, draft.revision, pdfRenderer, latexTemplate],
   );
 
   useEffect(() => {

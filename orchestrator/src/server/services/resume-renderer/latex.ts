@@ -10,19 +10,21 @@ import type {
   LatexResumeContactItem,
   LatexResumeDocument,
   LatexResumeEntry,
+  LatexTemplateId,
   ResumeRenderer,
 } from "./types";
 
-function resolveTemplatePath(): string {
+const TEMPLATE_FILES: Record<LatexTemplateId, string> = {
+  jake: "jake-resume.tex",
+  modern: "modern-resume.tex",
+};
+
+function resolveTemplatePath(templateId: LatexTemplateId): string {
+  const fileName = TEMPLATE_FILES[templateId] ?? TEMPLATE_FILES.jake;
   try {
     if (import.meta.url.startsWith("file:")) {
       const modulePath = fileURLToPath(import.meta.url);
-      const moduleRelativePath = join(
-        modulePath,
-        "..",
-        "templates",
-        "jake-resume.tex",
-      );
+      const moduleRelativePath = join(modulePath, "..", "templates", fileName);
       if (existsSync(moduleRelativePath)) {
         return moduleRelativePath;
       }
@@ -35,16 +37,15 @@ function resolveTemplatePath(): string {
   if (cwd.endsWith("/orchestrator")) {
     return join(
       cwd,
-      "src/server/services/resume-renderer/templates/jake-resume.tex",
+      `src/server/services/resume-renderer/templates/${fileName}`,
     );
   }
   return join(
     cwd,
-    "orchestrator/src/server/services/resume-renderer/templates/jake-resume.tex",
+    `orchestrator/src/server/services/resume-renderer/templates/${fileName}`,
   );
 }
 
-const TEMPLATE_PATH = resolveTemplatePath();
 const TECTONIC_TIMEOUT_MS = 120_000;
 const OUTPUT_FILENAME = "resume.pdf";
 
@@ -187,8 +188,8 @@ function renderSkillsSection(document: LatexResumeDocument): string {
   ].join("\n");
 }
 
-async function loadTemplate(): Promise<string> {
-  return await readFile(TEMPLATE_PATH, "utf8");
+async function loadTemplate(templateId: LatexTemplateId): Promise<string> {
+  return await readFile(resolveTemplatePath(templateId), "utf8");
 }
 
 function buildLatexDocument(
@@ -312,7 +313,7 @@ async function runTectonic(args: {
 }
 
 export const latexResumeRenderer: ResumeRenderer = {
-  async render({ document, outputPath, jobId }) {
+  async render({ document, outputPath, jobId, templateId = "jake" }) {
     const tempDir = await mkdtemp(
       join(tmpdir(), `job-ops-resume-render-${jobId}-`),
     );
@@ -320,7 +321,7 @@ export const latexResumeRenderer: ResumeRenderer = {
     const compiledPdfPath = join(tempDir, OUTPUT_FILENAME);
 
     try {
-      const template = await loadTemplate();
+      const template = await loadTemplate(templateId);
       const latex = buildLatexDocument(document, template);
 
       await writeFile(texPath, latex, "utf8");
@@ -330,11 +331,13 @@ export const latexResumeRenderer: ResumeRenderer = {
       logger.info("Rendered LaTeX resume PDF", {
         jobId,
         outputPath,
+        templateId,
       });
     } catch (error) {
       logger.error("Failed to render LaTeX resume PDF", {
         jobId,
         outputPath,
+        templateId,
         error,
         document: sanitizeUnknown({
           name: document.name,
@@ -364,18 +367,23 @@ export async function renderLatexPdf(args: {
   document: LatexResumeDocument;
   outputPath: string;
   jobId: string;
+  templateId?: LatexTemplateId;
 }): Promise<void> {
   await latexResumeRenderer.render(args);
 }
 
-export function getLatexTemplatePath(): string {
-  return TEMPLATE_PATH;
+export function getLatexTemplatePath(
+  templateId: LatexTemplateId = "jake",
+): string {
+  return resolveTemplatePath(templateId);
 }
 
 export function getTectonicBinary(): string {
   return process.env.TECTONIC_BIN?.trim() || "tectonic";
 }
 
-export async function readLatexTemplate(): Promise<string> {
-  return await loadTemplate();
+export async function readLatexTemplate(
+  templateId: LatexTemplateId = "jake",
+): Promise<string> {
+  return await loadTemplate(templateId);
 }

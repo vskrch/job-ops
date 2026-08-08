@@ -154,6 +154,11 @@ export const createAppSettings = (
     default: "rxresume",
     override: null,
   },
+  latexTemplate: {
+    value: "jake",
+    default: "jake",
+    override: null,
+  },
   rxresumeBaseResumeId: null,
   rxresumeBaseResumeIdV4: null,
   rxresumeBaseResumeIdV5: null,

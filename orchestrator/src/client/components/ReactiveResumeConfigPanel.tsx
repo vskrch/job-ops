@@ -6,6 +6,8 @@ import {
 } from "@client/pages/settings/resume-projects-state";
 import type { ResumeProjectsSettingsInput } from "@shared/settings-schema.js";
 import {
+  LATEX_TEMPLATE_LABELS,
+  type LatexTemplate,
   PDF_RENDERER_LABELS,
   type PdfRenderer,
   type ResumeProjectCatalogItem,
@@ -62,6 +64,8 @@ type ReactiveResumeConfigPanelProps = {
   pdfRenderer: PdfRenderer;
   onPdfRendererChange: (renderer: PdfRenderer) => void;
   pdfRendererError?: string;
+  latexTemplate: LatexTemplate;
+  onLatexTemplateChange: (template: LatexTemplate) => void;
   disabled?: boolean;
   hasRxResumeAccess?: boolean;
   showValidationStatus?: boolean;
@@ -138,6 +142,8 @@ export const ReactiveResumeConfigPanel: React.FC<
   pdfRenderer,
   onPdfRendererChange,
   pdfRendererError,
+  latexTemplate,
+  onLatexTemplateChange,
   disabled = false,
   hasRxResumeAccess = false,
   showValidationStatus = false,
@@ -201,10 +207,39 @@ export const ReactiveResumeConfigPanel: React.FC<
         ) : null}
         <p className="text-xs text-muted-foreground">
           {latexSelected
-            ? "LaTeX renders PDFs locally with Jake's template and requires tectonic on the JobOps host."
+            ? "LaTeX renders PDFs locally and requires tectonic on the JobOps host."
             : "RxResume export uses the upstream print/export endpoint for the final PDF."}
         </p>
       </div>
+
+      {latexSelected ? (
+        <div className="space-y-2">
+          <label htmlFor="latexTemplate" className="text-sm font-medium">
+            LaTeX template
+          </label>
+          <Select
+            value={latexTemplate}
+            onValueChange={(value) =>
+              onLatexTemplateChange(value === "modern" ? "modern" : "jake")
+            }
+            disabled={disabled}
+          >
+            <SelectTrigger id="latexTemplate">
+              <SelectValue placeholder="Choose LaTeX template" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="jake">{LATEX_TEMPLATE_LABELS.jake}</SelectItem>
+              <SelectItem value="modern">
+                {LATEX_TEMPLATE_LABELS.modern}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Preset .tex template compiled by tectonic. More presets can be added
+            later.
+          </p>
+        </div>
+      ) : null}
 
       <Tabs value={mode} onValueChange={handleModeChange}>
         <TabsList className="grid h-auto w-full grid-cols-2">

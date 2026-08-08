@@ -1,5 +1,9 @@
-import type { DesignResumeDocument, PdfRenderer } from "@shared/types";
-import { PDF_RENDERER_LABELS } from "@shared/types";
+import type {
+  DesignResumeDocument,
+  LatexTemplate,
+  PdfRenderer,
+} from "@shared/types";
+import { LATEX_TEMPLATE_LABELS, PDF_RENDERER_LABELS } from "@shared/types";
 import { Eye } from "lucide-react";
 import {
   Select,
@@ -13,21 +17,25 @@ import { DesignResumePdfPreview } from "./DesignResumePdfPreview";
 type DesignResumePreviewPanelProps = {
   draft: DesignResumeDocument;
   pdfRenderer: PdfRenderer;
+  latexTemplate: LatexTemplate;
   isUpdatingRenderer: boolean;
   isDirty: boolean;
   saveState: "idle" | "saving" | "saved" | "error";
   blockedMessage?: string | null;
   onPdfRendererChange: (renderer: PdfRenderer) => void;
+  onLatexTemplateChange: (template: LatexTemplate) => void;
 };
 
 export function DesignResumePreviewPanel({
   draft,
   pdfRenderer,
+  latexTemplate,
   isUpdatingRenderer,
   isDirty,
   saveState,
   blockedMessage,
   onPdfRendererChange,
+  onLatexTemplateChange,
 }: DesignResumePreviewPanelProps) {
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-muted/20">
@@ -66,6 +74,35 @@ export function DesignResumePreviewPanel({
               <SelectItem value="latex">{PDF_RENDERER_LABELS.latex}</SelectItem>
             </SelectContent>
           </Select>
+          {pdfRenderer === "latex" ? (
+            <>
+              <label
+                htmlFor="design-resume-latex-template"
+                className="pt-1 text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground"
+              >
+                LaTeX preset
+              </label>
+              <Select
+                value={latexTemplate}
+                onValueChange={(value) =>
+                  onLatexTemplateChange(value === "modern" ? "modern" : "jake")
+                }
+                disabled={isUpdatingRenderer}
+              >
+                <SelectTrigger id="design-resume-latex-template">
+                  <SelectValue placeholder="Choose LaTeX preset" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="jake">
+                    {LATEX_TEMPLATE_LABELS.jake}
+                  </SelectItem>
+                  <SelectItem value="modern">
+                    {LATEX_TEMPLATE_LABELS.modern}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -86,6 +123,7 @@ export function DesignResumePreviewPanel({
           <DesignResumePdfPreview
             draft={draft}
             pdfRenderer={pdfRenderer}
+            latexTemplate={latexTemplate}
             isUpdatingRenderer={isUpdatingRenderer}
             isDirty={isDirty}
             saveState={saveState}

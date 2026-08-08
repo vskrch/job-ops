@@ -10,7 +10,11 @@ import { notFound } from "@infra/errors";
 import { logger } from "@infra/logger";
 import { getSetting } from "@server/repositories/settings";
 import { settingsRegistry } from "@shared/settings-registry";
-import type { DesignResumePdfResponse, PdfRenderer } from "@shared/types";
+import type {
+  DesignResumePdfResponse,
+  LatexTemplate,
+  PdfRenderer,
+} from "@shared/types";
 import { getDataDir } from "../config/dataDir";
 import { getCurrentDesignResume } from "./design-resume";
 import { renderResumePdf } from "./resume-renderer";
@@ -70,6 +74,14 @@ async function resolvePdfRenderer(): Promise<PdfRenderer> {
   return (
     settingsRegistry.pdfRenderer.parse(storedValue ?? undefined) ??
     settingsRegistry.pdfRenderer.default()
+  );
+}
+
+async function resolveLatexTemplate(): Promise<LatexTemplate> {
+  const storedValue = await getSetting("latexTemplate");
+  return (
+    settingsRegistry.latexTemplate.parse(storedValue ?? undefined) ??
+    settingsRegistry.latexTemplate.default()
   );
 }
 
@@ -343,11 +355,13 @@ export async function generatePdf(
 
     const outputPath = join(OUTPUT_DIR, `resume_${jobId}.pdf`);
     if (renderer === "latex") {
+      const templateId = await resolveLatexTemplate();
       await renderResumePdf({
         resumeJson: preparedResume.data,
         outputPath,
         jobId,
         mode: preparedResume.mode,
+        templateId,
       });
     } else {
       await renderRxResumePdf({
@@ -393,11 +407,13 @@ export async function generateDesignResumePdf(options?: {
   });
 
   if (renderer === "latex") {
+    const templateId = await resolveLatexTemplate();
     await renderResumePdf({
       resumeJson: designResume.data,
       outputPath,
       jobId: "design-resume",
       mode: designResume.mode,
+      templateId,
     });
   } else {
     await renderRxResumePdf({

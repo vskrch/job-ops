@@ -67,6 +67,20 @@ describe("latex resume renderer", () => {
     expect(template).toContain("__BODY__");
   });
 
+  it("exposes the Modern template", async () => {
+    expect(getLatexTemplatePath("modern")).toContain("modern-resume.tex");
+    const template = await readLatexTemplate("modern");
+    expect(template).toContain("__BODY__");
+    expect(template).toContain("__NAME__");
+  });
+
+  it("falls back to Jake for unknown template ids", async () => {
+    // ponytail: getLatexTemplatePath coerces unknown ids to jake via TEMPLATE_FILES fallback
+    expect(getLatexTemplatePath("nonexistent" as never)).toContain(
+      "jake-resume.tex",
+    );
+  });
+
   it("uses the TECTONIC_BIN override when present", () => {
     const previous = process.env.TECTONIC_BIN;
     process.env.TECTONIC_BIN = "/tmp/custom-tectonic";

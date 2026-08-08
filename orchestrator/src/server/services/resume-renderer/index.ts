@@ -16,6 +16,7 @@ export async function renderResumePdf(args: {
   outputPath: string;
   jobId: string;
   mode?: "v4" | "v5";
+  templateId?: "jake" | "modern";
 }): Promise<void> {
   const document =
     args.mode === "v4"
@@ -30,5 +31,6 @@ export async function renderResumePdf(args: {
     document,
     outputPath: args.outputPath,
     jobId: args.jobId,
+    templateId: args.templateId,
   });
 }

@@ -2,6 +2,7 @@ import { ReactiveResumeConfigPanel } from "@client/components/ReactiveResumeConf
 import { SettingsSectionFrame } from "@client/pages/settings/components/SettingsSectionFrame";
 import type { UpdateSettingsInput } from "@shared/settings-schema.js";
 import type {
+  LatexTemplate,
   PdfRenderer,
   ResumeProjectCatalogItem,
   RxResumeMode,
@@ -73,6 +74,10 @@ export const ReactiveResumeSection: React.FC<ReactiveResumeSectionProps> = ({
     control,
     name: "pdfRenderer",
   }) ?? "rxresume") as PdfRenderer;
+  const latexTemplateValue = (useWatch({
+    control,
+    name: "latexTemplate",
+  }) ?? "jake") as LatexTemplate;
   const rxresumeApiKeyValue =
     useWatch({ control, name: "rxresumeApiKey" }) ?? "";
   const rxresumeEmailValue = useWatch({ control, name: "rxresumeEmail" }) ?? "";
@@ -115,6 +120,10 @@ export const ReactiveResumeSection: React.FC<ReactiveResumeSectionProps> = ({
           setDirtyTouchedValue("pdfRenderer", value)
         }
         pdfRendererError={errors.pdfRenderer?.message as string | undefined}
+        latexTemplate={latexTemplateValue}
+        onLatexTemplateChange={(value) =>
+          setDirtyTouchedValue("latexTemplate", value)
+        }
         disabled={isLoading || isSaving}
         hasRxResumeAccess={hasRxResumeAccess}
         showValidationStatus={Boolean(validationStatuses)}

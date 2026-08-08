@@ -19,6 +19,8 @@ export interface LatexResumeSkillGroup {
   keywords: string[];
 }
 
+export type LatexTemplateId = "jake" | "modern";
+
 export interface LatexResumeDocument {
   name: string;
   headline?: string | null;
@@ -34,6 +36,7 @@ export interface RenderResumePdfArgs {
   document: LatexResumeDocument;
   outputPath: string;
   jobId: string;
+  templateId?: LatexTemplateId;
 }
 
 export interface ResumeRenderer {

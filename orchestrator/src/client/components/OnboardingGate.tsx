@@ -20,6 +20,7 @@ import {
 import { getDefaultModelForProvider } from "@shared/settings-registry";
 import type { UpdateSettingsInput } from "@shared/settings-schema.js";
 import type {
+  LatexTemplate,
   PdfRenderer,
   RxResumeMode,
   ValidationResult,
@@ -63,6 +64,7 @@ type OnboardingFormData = {
   llmBaseUrl: string;
   llmApiKey: string;
   pdfRenderer: PdfRenderer;
+  latexTemplate: LatexTemplate;
   rxresumeMode: RxResumeMode;
   rxresumeEmail: string;
   rxresumeUrl: string;
@@ -141,6 +143,7 @@ export const OnboardingGate: React.FC = () => {
         llmBaseUrl: "",
         llmApiKey: "",
         pdfRenderer: "rxresume",
+        latexTemplate: "jake",
         rxresumeMode: "v5",
         rxresumeEmail: "",
         rxresumeUrl: "",
@@ -295,6 +298,7 @@ export const OnboardingGate: React.FC = () => {
         llmBaseUrl: settings.llmBaseUrl?.value || "",
         llmApiKey: "",
         pdfRenderer: settings.pdfRenderer?.value ?? "rxresume",
+        latexTemplate: settings.latexTemplate?.value ?? "jake",
         rxresumeMode: initialMode,
         rxresumeEmail: "",
         rxresumeUrl: settings.rxresumeUrl ?? "",
@@ -493,6 +497,7 @@ export const OnboardingGate: React.FC = () => {
             await api.updateSettings({
               ...update,
               pdfRenderer: values.pdfRenderer,
+              latexTemplate: values.latexTemplate,
             });
             await refreshSettings();
           } finally {
@@ -556,6 +561,7 @@ export const OnboardingGate: React.FC = () => {
       setIsSavingEnv(true);
       await api.updateSettings({
         pdfRenderer: values.pdfRenderer,
+        latexTemplate: values.latexTemplate,
         rxresumeMode: values.rxresumeMode,
         rxresumeBaseResumeId: values.rxresumeBaseResumeId,
       });
@@ -784,6 +790,10 @@ export const OnboardingGate: React.FC = () => {
                 pdfRenderer={watch("pdfRenderer")}
                 onPdfRendererChange={(renderer) =>
                   setValue("pdfRenderer", renderer)
+                }
+                latexTemplate={watch("latexTemplate")}
+                onLatexTemplateChange={(template) =>
+                  setValue("latexTemplate", template)
                 }
                 disabled={isSavingEnv}
                 showValidationStatus
