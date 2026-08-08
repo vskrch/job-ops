@@ -25,6 +25,11 @@ export const EXTRACTOR_SOURCE_IDS = [
   "jobbank",
   "foundit",
   "shine",
+  "remotive",
+  "remoteok",
+  "hnhiring",
+  "weworkremotely",
+  "usajobs",
   "manual",
 ] as const;
 
@@ -103,6 +108,28 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
   jobbank: { label: "Job Bank Canada", order: 230, category: "pipeline" },
   foundit: { label: "foundit (India)", order: 240, category: "pipeline" },
   shine: { label: "Shine (India)", order: 250, category: "pipeline" },
+  remotive: {
+    label: "Remotive (Remote)",
+    order: 260,
+    category: "pipeline",
+  },
+  remoteok: { label: "RemoteOK", order: 270, category: "pipeline" },
+  hnhiring: {
+    label: "HN Who's Hiring",
+    order: 280,
+    category: "pipeline",
+  },
+  weworkremotely: {
+    label: "We Work Remotely",
+    order: 290,
+    category: "pipeline",
+  },
+  usajobs: {
+    label: "USAJOBS (Federal)",
+    order: 300,
+    category: "pipeline",
+    requiresCredentials: true,
+  },
 };
 
 export const PIPELINE_EXTRACTOR_SOURCE_IDS = EXTRACTOR_SOURCE_IDS.filter(

@@ -22,6 +22,11 @@ Extractor integrations are now registered through manifests and loaded automatic
 | [Golang Jobs](/docs/next/extractors/golang-jobs) | Go-specific discovery through the public Golang Jobs feed | Depends on the site's public Supabase-backed schema staying stable; no credentials required | existing pipeline `searchTerms`, selected country/cities, `jobspyResultsWanted`, workplace type | Paginates the public jobs feed, maps location through the linked city record, then filters locally and de-duplicates by source id / URL |
 | [UKVisaJobs](/docs/next/extractors/ukvisajobs) | UK visa sponsorship-focused roles | Requires authenticated session and periodic token/cookie refresh | `UKVISAJOBS_EMAIL`, `UKVISAJOBS_PASSWORD`, `UKVISAJOBS_MAX_JOBS`, `UKVISAJOBS_SEARCH_KEYWORD` | API pagination + dataset output; orchestrator de-dupes and may fetch missing descriptions |
 | [Job Boards](/docs/next/extractors/jobboards) | Regional board discovery for USA (Built In, Dice, SimplyHired), Canada (Job Bank, Eluta), and India (foundit, Shine, Instahyre) | No credentials; some boards render client-side and depend on the Jina fallback; Monster currently yields no results | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Crawl-engine fetch with direct → Jina fallback, regex + optional LLM structured parsing, optional detail-page description extraction; de-duplicates by `sourceJobId`/`jobUrl` |
+| [Remotive](/docs/next/extractors/remotive) | Curated remote roles via public JSON API, filtered by country | No credentials; API returns a bounded feed per query | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Fetches per-term, filters locally (country + worldwide-remote), maps salary/type/skills, de-duplicates |
+| [RemoteOK](/docs/next/extractors/remoteok) | Remote startup roles with salary bands via public JSON feed | No credentials; feed is a rolling snapshot of ~100 listings | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Fetches the feed once, filters locally (flag-emoji country hints), maps structured salary fields, de-duplicates |
+| [HN Who's Hiring](/docs/next/extractors/hnhiring) | Hidden startup market from the monthly Hacker News hiring thread | No credentials; only `Company | Role | Location` table lines are imported | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Finds the latest thread via Algolia HN API, parses comment tables, extracts apply links, de-duplicates |
+| [We Work Remotely](/docs/next/extractors/weworkremotely) | Established remote board via public RSS feed | No credentials; feed covers recent listings only | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Parses RSS, splits `Company: Role` titles, de-duplicates by URL |
+| [USAJOBS](/docs/next/extractors/usajobs) | US federal government jobs via the official API | Requires free `USAJOBS_API_KEY`; US-only by design | `USAJOBS_API_KEY`, existing `searchTerms`, `jobspyResultsWanted` | Queries the official search API, maps salary/grade/deadline/remote offering, de-duplicates |
 | [Manual Import](/docs/next/extractors/manual) | One-off jobs not covered by scrapers | Inference quality depends on model/provider and input quality; some URLs cannot be fetched reliably | App/API endpoints (`/api/manual-jobs/infer`, `/api/manual-jobs/import`) | Accepts text/HTML/URL, runs inference, then saves and scores job after review |
 
 ## Which extractor should I use?
@@ -35,6 +40,9 @@ Extractor integrations are now registered through manifests and loaded automatic
 - Use **Gradcracker** when targeting graduate pipelines in the UK.
 - Use **UKVisaJobs** for sponsorship-specific UK searches.
 - Use **Job Boards** when targeting USA, Canada, or India markets: Built In and Dice for US tech, Job Bank/Eluta for Canada, foundit/Shine/Instahyre for India.
+- Use **Remotive**, **RemoteOK**, or **We Work Remotely** when you want remote-first roles that general boards under-represent.
+- Use **HN Who's Hiring** when you want startup roles that never reach job boards — the deepest hidden market in the list.
+- Use **USAJOBS** when targeting US federal and public-sector roles (requires a free API key).
 - Use **Manual Import** when you already have a specific posting and need direct import.
 
 Many runs combine sources: broad discovery first, then manual import for high-priority jobs that scraping misses.
@@ -61,5 +69,10 @@ Many runs combine sources: broad discovery first, then manual import for high-pr
 - [Golang Jobs](/docs/next/extractors/golang-jobs)
 - [UKVisaJobs](/docs/next/extractors/ukvisajobs)
 - [Job Boards](/docs/next/extractors/jobboards)
+- [Remotive](/docs/next/extractors/remotive)
+- [RemoteOK](/docs/next/extractors/remoteok)
+- [HN Who's Hiring](/docs/next/extractors/hnhiring)
+- [We Work Remotely](/docs/next/extractors/weworkremotely)
+- [USAJOBS](/docs/next/extractors/usajobs)
 - [Manual Import](/docs/next/extractors/manual)
 - [Add an Extractor](/docs/next/workflows/add-an-extractor)

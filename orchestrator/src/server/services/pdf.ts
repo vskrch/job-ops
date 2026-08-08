@@ -274,7 +274,9 @@ async function loadBaseResumeSource(args: {
   const { resumeId: baseResumeId } = await getConfiguredRxResumeBaseResumeId();
   if (!baseResumeId) {
     throw new Error(
-      "No Design Resume found, and no Reactive Resume base resume is configured. Import a Design Resume or select a base resume in Settings.",
+      args.renderer === "latex"
+        ? "No Design Resume found. Import a Design Resume in Settings to use the built-in LaTeX PDF exporter."
+        : "No Design Resume found, and no Reactive Resume base resume is configured. Import a Design Resume or select a base resume in Settings.",
     );
   }
 

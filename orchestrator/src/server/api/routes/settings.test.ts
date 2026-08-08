@@ -98,8 +98,8 @@ describe.sequential("Settings API routes", () => {
     expect(Array.isArray(body.data.searchTerms.value)).toBe(true);
     expect(body.data.rxresumeEmail).toBe("resume@example.com");
     expect(body.data.rxresumeUrl).toBe("https://env.rxresume.example.com");
-    expect(body.data.pdfRenderer.value).toBe("rxresume");
-    expect(body.data.pdfRenderer.default).toBe("rxresume");
+    expect(body.data.pdfRenderer.value).toBe("latex");
+    expect(body.data.pdfRenderer.default).toBe("latex");
     expect(body.data.latexTemplate.value).toBe("jake");
     expect(body.data.latexTemplate.default).toBe("jake");
     expect(body.data.llmApiKeyHint).toBe("secr");

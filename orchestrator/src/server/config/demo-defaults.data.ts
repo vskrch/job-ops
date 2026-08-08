@@ -272,6 +272,11 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   jobbank: "https://www.jobbank.gc.ca",
   foundit: "https://www.foundit.in",
   shine: "https://www.shine.com",
+  remotive: "https://remotive.com",
+  remoteok: "https://remoteok.com",
+  hnhiring: "https://news.ycombinator.com",
+  weworkremotely: "https://weworkremotely.com",
+  usajobs: "https://www.usajobs.gov",
   manual: "https://example.com",
 };
 

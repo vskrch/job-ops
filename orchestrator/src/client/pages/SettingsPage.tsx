@@ -78,7 +78,7 @@ const DEFAULT_FORM_VALUES: UpdateSettingsInput = {
   pipelineWebhookUrl: "",
   jobCompleteWebhookUrl: "",
   resumeProjects: null,
-  pdfRenderer: "rxresume",
+  pdfRenderer: "latex",
   rxresumeMode: "v5",
   rxresumeBaseResumeId: null,
   showSponsorInfo: null,

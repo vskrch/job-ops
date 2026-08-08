@@ -129,7 +129,7 @@ docker compose up -d
 
 ## Self-hosted Reactive Resume
 
-If you self-host Reactive Resume, set:
+The built-in LaTeX exporter is the default PDF renderer and needs no external service. If you still want Reactive Resume, set:
 
 - `RXRESUME_URL=http://rxresume.local.net`
 - `RXRESUME_MODE=auto` (recommended) or `v5`/`v4` to force a specific API version
@@ -144,9 +144,11 @@ JobOps supports 2 PDF renderers:
 - `rxresume`: export the final PDF through RxResume
 - `latex`: render locally from tailored resume data using LaTeX and `tectonic`
 
-When using the LaTeX renderer:
+When using the LaTeX renderer (the default):
 
 - The Docker image installs `tectonic` for you.
 - For non-Docker local runs, install `tectonic` yourself and optionally set `TECTONIC_BIN` if it is not on your `PATH`.
 
-RxResume remains the source of truth for base resume data, project visibility, and tailoring inputs in both modes.
+With `latex` as the renderer, resume data comes from your local Design Resume; RxResume is not required.
+
+See [Built-in LaTeX Resume Export](/docs/next/features/latex-resume-export) for templates, custom `.tex` support, and troubleshooting.

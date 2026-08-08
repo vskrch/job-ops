@@ -262,7 +262,7 @@ export const settingsRegistry = {
   pdfRenderer: {
     kind: "typed" as const,
     schema: z.enum(PDF_RENDERER_VALUES),
-    default: (): PdfRenderer => "rxresume",
+    default: (): PdfRenderer => "latex",
     parse: parsePdfRendererOrNull,
     serialize: (value: PdfRenderer | null | undefined): string | null =>
       value ?? null,
