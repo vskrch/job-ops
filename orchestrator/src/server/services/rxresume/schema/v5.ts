@@ -63,7 +63,7 @@ export const basicsSchema = z.object({
 
 export const summarySchema = z.object({
   title: z.string(),
-  columns: z.number(),
+  columns: z.number().catch(1),
   hidden: z.boolean(),
   content: z.string(),
 });
@@ -193,7 +193,7 @@ export type CoverLetterItem = z.infer<typeof coverLetterItemSchema>;
 
 export const baseSectionSchema = z.object({
   title: z.string(),
-  columns: z.number(),
+  columns: z.number().catch(1),
   hidden: z.boolean(),
 });
 
@@ -353,8 +353,8 @@ export const cssSchema = z.object({
 export const pageSchema = z.object({
   gapX: z.number().min(0),
   gapY: z.number().min(0),
-  marginX: z.number().min(0),
-  marginY: z.number().min(0),
+  marginX: z.number().min(0).catch(14),
+  marginY: z.number().min(0).catch(12),
   format: z.enum(["a4", "letter", "free-form"]).catch("a4"),
   locale: z.string().catch("en-US"),
   hideIcons: z.boolean().catch(false),
@@ -392,7 +392,9 @@ export const typographySchema = z.object({
 export const metadataSchema = z.object({
   template: templateSchema.catch("onyx"),
   layout: layoutSchema,
-  css: cssSchema,
+  // RxResume v5 removed metadata.css (replaced by styleRules); keep it
+  // optional so old resumes still parse while current ones validate.
+  css: cssSchema.optional(),
   page: pageSchema,
   design: designSchema,
   typography: typographySchema,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultReactiveResumeDocument } from "./document";
+import { parseV5ResumeData, safeParseV5ResumeData } from "./schema/v5";
 import {
   deleteResume,
   exportResumePdf,
@@ -141,5 +142,21 @@ describe("rxresume v5 endpoints", () => {
         upstreamError: errorPayload,
       }),
     );
+  });
+});
+
+describe("v5 resume schema vs current RxResume data", () => {
+  it("accepts resumes without metadata.css (removed in current v5)", () => {
+    const resume = buildDefaultReactiveResumeDocument();
+    const metadata = (resume.metadata as Record<string, unknown>) ?? {};
+    delete metadata.css;
+
+    expect(safeParseV5ResumeData(resume).success).toBe(true);
+    expect(() => parseV5ResumeData(resume)).not.toThrow();
+  });
+
+  it("accepts resumes that still include metadata.css", () => {
+    const resume = buildDefaultReactiveResumeDocument();
+    expect(safeParseV5ResumeData(resume).success).toBe(true);
   });
 });

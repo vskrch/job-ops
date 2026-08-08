@@ -11,7 +11,9 @@ import {
   validateCredentials as validateRxResumeCredentials,
 } from "@server/services/rxresume";
 import { getConfiguredRxResumeBaseResumeId } from "@server/services/rxresume/baseResumeId";
+import { getResumeSchemaValidationMessage } from "@server/services/rxresume/schema";
 import { type Request, type Response, Router } from "express";
+import { ZodError } from "zod";
 
 export const onboardingRouter = Router();
 
@@ -124,6 +126,14 @@ async function validateResumeConfig(): Promise<ValidationResponse> {
         return {
           valid: false,
           message: error.message,
+        };
+      }
+      // getResume parses strictly and can throw a raw ZodError whose message
+      // is a JSON blob; surface a readable field-level message instead.
+      if (error instanceof ZodError) {
+        return {
+          valid: false,
+          message: getResumeSchemaValidationMessage(error),
         };
       }
       const message =
