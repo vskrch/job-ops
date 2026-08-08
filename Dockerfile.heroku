@@ -73,6 +73,7 @@ COPY extractors/startupjobs/package*.json ./extractors/startupjobs/
 COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
 COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
+COPY extractors/jobboards/package*.json ./extractors/jobboards/
 
 # Install Node dependencies (dev deps needed for client + docs builds).
 # HOME=/app (inherited) so camoufox downloads to /app/.cache, and the same
@@ -121,6 +122,7 @@ COPY extractors/startupjobs/package*.json ./extractors/startupjobs/
 COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
 COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
+COPY extractors/jobboards/package*.json ./extractors/jobboards/
 
 # Install production Node dependencies only.
 RUN npm ci --workspaces --include-workspace-root --omit=dev \

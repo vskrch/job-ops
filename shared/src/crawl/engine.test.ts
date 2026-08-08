@@ -113,4 +113,57 @@ describe("CrawlEngine", () => {
 
     expect(seen).toEqual(["a", "b"]);
   });
+
+  it("fails over to the jina backend when the direct fetch is blocked", async () => {
+    const urls: string[] = [];
+    const fetchImpl: CrawlFetch = (url, _init) => {
+      urls.push(url);
+      if (url.startsWith("https://r.jina.ai/")) {
+        return Promise.resolve(fakeResponse(200, "# jobs here", "text/plain"));
+      }
+      return Promise.resolve(fakeResponse(403, "blocked"));
+    };
+    const engine = new CrawlEngine({
+      fetchImpl,
+      throttleMinMs: 0,
+      throttleMaxMs: 0,
+    });
+
+    const result = await engine.request({
+      url: "https://blocked.example/jobs?q=dev",
+      backends: ["direct", "jina"],
+      maxAttempts: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.backend).toBe("jina");
+    expect(result.text).toBe("# jobs here");
+    expect(urls).toEqual([
+      "https://blocked.example/jobs?q=dev",
+      "https://r.jina.ai/https%3A%2F%2Fblocked.example%2Fjobs%3Fq%3Ddev",
+    ]);
+  });
+
+  it("skips the jina backend when the direct fetch succeeds", async () => {
+    const urls: string[] = [];
+    const fetchImpl: CrawlFetch = (url, _init) => {
+      urls.push(url);
+      return Promise.resolve(fakeResponse(200, "ok"));
+    };
+    const engine = new CrawlEngine({
+      fetchImpl,
+      throttleMinMs: 0,
+      throttleMaxMs: 0,
+    });
+
+    const result = await engine.request({
+      url: "https://example.com",
+      backends: ["direct", "jina"],
+      maxAttempts: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.backend).toBe("direct");
+    expect(urls).toEqual(["https://example.com"]);
+  });
 });

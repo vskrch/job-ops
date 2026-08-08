@@ -10,6 +10,9 @@
  *                re-probes with half-open checks before resuming.
  * - Self-healing: every request is classified as transient vs permanent;
  *                transient errors retry with exponential backoff + jitter.
+ * - Backend fallback: when one backend is blocked (403/429/5xx/network),
+ *                requests fail over to the next ordered backend (e.g. the
+ *                Jina Reader proxy at r.jina.ai) before giving up.
  *
  * Keep this dependency-free (no fetch impl bundled) so tests can inject
  * fetch. Extractors own their own error strings; nothing here throws.
@@ -24,6 +27,13 @@ export const DEFAULT_USER_AGENTS = [
 
 export interface CrawlRequestOptions {
   url: string;
+  /**
+   * Ordered backends tried in sequence. When a backend exhausts its retries
+   * with a block/transient failure, the next backend is attempted.
+   * `jina` proxies the URL through r.jina.ai (renders JS, bypasses IP blocks).
+   * Defaults to `["direct"]`.
+   */
+  backends?: readonly CrawlBackend[];
   /** Extra headers merged over the rotated User-Agent. */
   headers?: Record<string, string>;
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -40,6 +50,8 @@ export interface CrawlRequestOptions {
   thinkTimeMs?: { min: number; max: number };
 }
 
+export type CrawlBackend = "direct" | "jina";
+
 export interface CrawlRequestResult {
   ok: boolean;
   status: number;
@@ -49,6 +61,8 @@ export interface CrawlRequestResult {
   attempt: number;
   /** How long the successful/failed call took (ms). */
   elapsedMs: number;
+  /** Which backend produced this result (diagnostics). */
+  backend: CrawlBackend;
 }
 
 export type CrawlFetch = (
@@ -120,8 +134,9 @@ export class CrawlEngine {
 
   /**
    * Perform one HTTP call with humanized pacing, adaptive per-call backoff
-   * across attempts, and transient-error retry. Never throws at the caller:
-   * returns a result with `ok:false` and the last status/text on exhaustion.
+   * across attempts, ordered backend fallback, and transient-error retry.
+   * Never throws at the caller: returns a result with `ok:false` and the
+   * last status/text on exhaustion.
    */
   async request(options: CrawlRequestOptions): Promise<CrawlRequestResult> {
     if (options.signal?.aborted) {
@@ -132,11 +147,51 @@ export class CrawlEngine {
         text: "Aborted",
         attempt: 0,
         elapsedMs: 0,
+        backend: "direct",
       };
     }
 
+    const backends =
+      options.backends && options.backends.length > 0
+        ? options.backends
+        : (["direct"] as const);
+    let lastResult: CrawlRequestResult | null = null;
+
+    for (const backend of backends) {
+      if (options.signal?.aborted) break;
+      lastResult = await this.requestOnBackend(backend, options);
+      if (lastResult.ok || options.signal?.aborted) break;
+    }
+
+    return (
+      lastResult ?? {
+        ok: false,
+        status: 0,
+        data: undefined,
+        text: "No backends available",
+        attempt: 0,
+        elapsedMs: 0,
+        backend: backends[0],
+      }
+    );
+  }
+
+  private async requestOnBackend(
+    backend: CrawlBackend,
+    options: CrawlRequestOptions,
+  ): Promise<CrawlRequestResult> {
+    const url =
+      backend === "jina"
+        ? `https://r.jina.ai/${encodeURIComponent(options.url)}`
+        : options.url;
+
     const headers: Record<string, string> = {
-      "user-agent": this.nextUserAgent(),
+      // Jina serves Cloudflare challenges to browser-like UAs; use a neutral
+      // reader UA on the proxy backend only.
+      "user-agent":
+        backend === "jina"
+          ? "Mozilla/5.0 (compatible; job-ops-crawler/1.0)"
+          : this.nextUserAgent(),
       accept:
         "text/html,application/json,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "accept-language": "en-GB,en;q=0.9,en-US;q=0.8",
@@ -162,7 +217,7 @@ export class CrawlEngine {
       let status = 0;
 
       try {
-        const response = await this.fetchImpl(options.url, {
+        const response = await this.fetchImpl(url, {
           method: options.method ?? "GET",
           headers,
           body:
@@ -205,6 +260,7 @@ export class CrawlEngine {
           text,
           attempt,
           elapsedMs,
+          backend,
         };
       }
 
@@ -221,6 +277,7 @@ export class CrawlEngine {
       text: lastText,
       attempt: maxAttempts,
       elapsedMs: 0,
+      backend,
     };
   }
 
