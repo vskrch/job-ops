@@ -1074,7 +1074,7 @@ describe("OrchestratorPage", () => {
     ) as unknown as typeof window.matchMedia;
 
     render(
-      <MemoryRouter initialEntries={["/jobs/ready"]}>
+      <MemoryRouter initialEntries={["/jobs/all"]}>
         <LocationWatcher />
         <Routes>
           <Route path="/jobs/:tab" element={<OrchestratorPage />} />
@@ -1085,13 +1085,11 @@ describe("OrchestratorPage", () => {
 
     fireEvent.click(screen.getByTestId("toggle-select-all-on"));
 
-    // FIXME: This assertion fails because processingJob seems to be considered valid for rescoring?
-    // or test setup issue. Commenting out to unblock.
-    // await waitFor(() => {
-    //   expect(
-    //     screen.queryByRole("button", { name: "Recalculate match" }),
-    //   ).not.toBeInTheDocument();
-    // });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Recalculate match" }),
+      ).not.toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByTestId("toggle-select-all-off"));
     fireEvent.click(screen.getByTestId("toggle-select-job-1"));
