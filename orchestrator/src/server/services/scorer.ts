@@ -285,24 +285,45 @@ function sanitizeProfileForPrompt(
       projects?: { items?: unknown[] };
       education?: { items?: unknown[] };
     };
+    experience?: unknown[];
+    work?: unknown[];
+    projects?: unknown[];
+    skills?: unknown;
+    education?: unknown[];
   };
 
   const experienceItems = Array.isArray(p.sections?.experience?.items)
     ? p.sections?.experience?.items.slice(0, 5)
-    : [];
+    : Array.isArray(p.experience)
+      ? p.experience.slice(0, 5)
+      : Array.isArray(p.work)
+        ? p.work.slice(0, 5)
+        : [];
+
   const projectItems = Array.isArray(p.sections?.projects?.items)
     ? p.sections?.projects?.items.slice(0, 6)
-    : [];
+    : Array.isArray(p.projects)
+      ? p.projects.slice(0, 6)
+      : [];
+
+  const educationItems = Array.isArray(p.sections?.education?.items)
+    ? p.sections?.education?.items
+    : Array.isArray(p.education)
+      ? p.education
+      : [];
+
+  const skillsData = p.sections?.skills ?? p.skills ?? null;
 
   return {
     basics: {
+      name: p.basics?.name,
       label: p.basics?.label,
       summary: p.basics?.summary,
     },
-    skills: p.sections?.skills ?? null,
+    skills: skillsData,
     experience: experienceItems,
     projects: projectItems,
-    education: p.sections?.education?.items ?? [],
+    education: educationItems,
   };
 }
 

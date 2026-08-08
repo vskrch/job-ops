@@ -20,6 +20,11 @@ export const EXTRACTOR_SOURCE_IDS = [
   "monster",
   "instahyre",
   "eluta",
+  "builtin",
+  "simplyhired",
+  "jobbank",
+  "foundit",
+  "shine",
   "manual",
 ] as const;
 
@@ -93,6 +98,11 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
     category: "pipeline",
   },
   eluta: { label: "Eluta", order: 200, category: "pipeline" },
+  builtin: { label: "Built In (US)", order: 210, category: "pipeline" },
+  simplyhired: { label: "SimplyHired", order: 220, category: "pipeline" },
+  jobbank: { label: "Job Bank Canada", order: 230, category: "pipeline" },
+  foundit: { label: "foundit (India)", order: 240, category: "pipeline" },
+  shine: { label: "Shine (India)", order: 250, category: "pipeline" },
 };
 
 export const PIPELINE_EXTRACTOR_SOURCE_IDS = EXTRACTOR_SOURCE_IDS.filter(

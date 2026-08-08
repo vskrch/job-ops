@@ -267,6 +267,11 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   monster: "https://www.monster.com",
   instahyre: "https://www.instahyre.com",
   eluta: "https://www.eluta.ca",
+  builtin: "https://builtin.com",
+  simplyhired: "https://www.simplyhired.com",
+  jobbank: "https://www.jobbank.gc.ca",
+  foundit: "https://www.foundit.in",
+  shine: "https://www.shine.com",
   manual: "https://example.com",
 };
 

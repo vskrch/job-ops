@@ -76,4 +76,39 @@ describe("jobboards parsers", () => {
       ),
     ).toHaveLength(0);
   });
+
+  it("parses builtin markdown", () => {
+    const fixture = `[Senior Fullstack Engineer](https://builtin.com/job/engineer/123)\n\n[Acme Corp]`;
+    const jobs = JOB_BOARD_SITES.builtin.parse(fixture);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "builtin",
+      title: "Senior Fullstack Engineer",
+      employer: "Acme Corp",
+      jobUrl: "https://builtin.com/job/engineer/123",
+    });
+  });
+
+  it("parses jobbank canada markdown", () => {
+    const fixture = `[Software Developer](https://www.jobbank.gc.ca/jobsearch/jobposting/98765432)`;
+    const jobs = JOB_BOARD_SITES.jobbank.parse(fixture);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "jobbank",
+      title: "Software Developer",
+      sourceJobId: "98765432",
+      location: "Canada",
+    });
+  });
+
+  it("parses shine india markdown", () => {
+    const fixture = `[Full Stack Developer](https://www.shine.com/jobs/full-stack-developer/12345)`;
+    const jobs = JOB_BOARD_SITES.shine.parse(fixture);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      source: "shine",
+      title: "Full Stack Developer",
+      location: "India",
+    });
+  });
 });

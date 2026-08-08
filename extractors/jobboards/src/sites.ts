@@ -176,9 +176,164 @@ const monster: JobBoardSite = {
   },
 };
 
+/**
+ * Built In (US) covers top tech hubs (NYC, SF, Austin, LA, Chicago, Boston, Seattle).
+ */
+const builtin: JobBoardSite = {
+  source: "builtin",
+  label: "Built In (US)",
+  searchUrl: (term) => `https://builtin.com/jobs?q=${encodeURIComponent(term)}`,
+  parse: (text) => {
+    const re =
+      /\[([^\]]+)\]\((https:\/\/builtin\.com\/job\/[^)]+)\)\n\n\[([^\]]+)\]/g;
+    const jobs: CreateJobInput[] = [];
+    for (const match of text.matchAll(re)) {
+      const title = match[1]?.trim();
+      const jobUrl = match[2];
+      const employer = match[3]?.trim() ?? "Unknown Employer";
+      if (!title || !jobUrl) continue;
+      const sourceJobId = slug(`${employer}-${title}`);
+      jobs.push({
+        source: "builtin",
+        sourceJobId,
+        title,
+        employer,
+        jobUrl,
+        applicationLink: jobUrl,
+      });
+    }
+    return uniqueJobs(jobs);
+  },
+};
+
+/**
+ * SimplyHired (US & Canada aggregator).
+ */
+const simplyhired: JobBoardSite = {
+  source: "simplyhired",
+  label: "SimplyHired",
+  searchUrl: (term) =>
+    `https://www.simplyhired.com/search?q=${encodeURIComponent(term)}`,
+  parse: (text) => {
+    const re = /\[([^\]]+)\]\((https:\/\/www\.simplyhired\.com\/job\/[^)]+)\)/g;
+    const jobs: CreateJobInput[] = [];
+    for (const match of text.matchAll(re)) {
+      const title = match[1]?.trim();
+      const jobUrl = match[2];
+      if (!title || !jobUrl) continue;
+      const sourceJobId = slug(jobUrl.split("/job/")[1] || title);
+      jobs.push({
+        source: "simplyhired",
+        sourceJobId,
+        title,
+        employer: "Unknown Employer",
+        jobUrl,
+        applicationLink: jobUrl,
+      });
+    }
+    return uniqueJobs(jobs);
+  },
+};
+
+/**
+ * Job Bank Canada (Official Government of Canada job board).
+ */
+const jobbank: JobBoardSite = {
+  source: "jobbank",
+  label: "Job Bank Canada",
+  searchUrl: (term) =>
+    `https://www.jobbank.gc.ca/jobsearch/jobsearch?searchstring=${encodeURIComponent(term)}`,
+  parse: (text) => {
+    const re =
+      /\[([^\]]+)\]\((https:\/\/www\.jobbank\.gc\.ca\/jobsearch\/jobposting\/(\d+)[^)]*)\)/g;
+    const jobs: CreateJobInput[] = [];
+    for (const match of text.matchAll(re)) {
+      const title = match[1]?.trim();
+      const jobUrl = match[2];
+      const jobId = match[3];
+      if (!title || !jobUrl) continue;
+      jobs.push({
+        source: "jobbank",
+        sourceJobId: jobId || slug(title),
+        title,
+        employer: "Government / Employer (Canada)",
+        jobUrl,
+        applicationLink: jobUrl,
+        location: "Canada",
+      });
+    }
+    return uniqueJobs(jobs);
+  },
+};
+
+/**
+ * foundit India (formerly Monster India / APAC).
+ */
+const foundit: JobBoardSite = {
+  source: "foundit",
+  label: "foundit (India)",
+  searchUrl: (term) =>
+    `https://www.foundit.in/srp/results?query=${encodeURIComponent(term)}`,
+  parse: (text) => {
+    const re = /\[([^\]]+)\]\((https:\/\/www\.foundit\.in\/job\/[^)]+)\)/g;
+    const jobs: CreateJobInput[] = [];
+    for (const match of text.matchAll(re)) {
+      const title = match[1]?.trim();
+      const jobUrl = match[2];
+      if (!title || !jobUrl) continue;
+      const sourceJobId = slug(jobUrl);
+      jobs.push({
+        source: "foundit",
+        sourceJobId,
+        title,
+        employer: "Unknown Employer",
+        jobUrl,
+        applicationLink: jobUrl,
+        location: "India",
+      });
+    }
+    return uniqueJobs(jobs);
+  },
+};
+
+/**
+ * Shine (India major tech portal).
+ */
+const shine: JobBoardSite = {
+  source: "shine",
+  label: "Shine (India)",
+  searchUrl: (term) =>
+    `https://www.shine.com/job-search/${encodeURIComponent(term.toLowerCase().replace(/\s+/g, "-"))}-jobs`,
+  parse: (text) => {
+    const re = /\[([^\]]+)\]\((https:\/\/www\.shine\.com\/jobs\/[^)]+)\)/g;
+    const jobs: CreateJobInput[] = [];
+    for (const match of text.matchAll(re)) {
+      const title = match[1]?.trim();
+      const jobUrl = match[2];
+      if (!title || !jobUrl) continue;
+      const sourceJobId = slug(jobUrl);
+      jobs.push({
+        source: "shine",
+        sourceJobId,
+        title,
+        employer: "Unknown Employer",
+        jobUrl,
+        applicationLink: jobUrl,
+        location: "India",
+      });
+    }
+    return uniqueJobs(jobs);
+  },
+};
+
 export const JOB_BOARD_SITES: Record<string, JobBoardSite> = {
   eluta,
   dice,
   instahyre,
   monster,
+  builtin,
+  simplyhired,
+  jobbank,
+  foundit,
+  shine,
 };

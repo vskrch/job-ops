@@ -170,6 +170,23 @@ async function buildTailoringPrompt(
       stripKeywordLimitFromConstraints(effectiveConstraints);
   }
 
+  const pRecord = profile as Record<string, unknown>;
+  const rawProjects = Array.isArray(profile.sections?.projects?.items)
+    ? profile.sections?.projects?.items
+    : Array.isArray(pRecord.projects)
+      ? (pRecord.projects as unknown[])
+      : [];
+
+  const rawExperience = Array.isArray(profile.sections?.experience?.items)
+    ? profile.sections?.experience?.items
+    : Array.isArray(pRecord.experience)
+      ? (pRecord.experience as unknown[])
+      : Array.isArray(pRecord.work)
+        ? (pRecord.work as unknown[])
+        : [];
+
+  const rawSkills = profile.sections?.skills ?? pRecord.skills ?? null;
+
   // Extract only needed parts of profile to save tokens
   const relevantProfile = {
     basics: {
@@ -177,17 +194,26 @@ async function buildTailoringPrompt(
       label: profile.basics?.label, // Original headline
       summary: profile.basics?.summary,
     },
-    skills: profile.sections?.skills,
-    projects: profile.sections?.projects?.items?.map((p) => ({
-      name: p.name,
-      description: p.description,
-      keywords: p.keywords,
-    })),
-    experience: profile.sections?.experience?.items?.map((e) => ({
-      company: e.company,
-      position: e.position,
-      summary: e.summary,
-    })),
+    skills: rawSkills,
+    projects: rawProjects.map((p) => {
+      const item = p as Record<string, unknown>;
+      return {
+        name: String(item.name || ""),
+        description: item.description ? String(item.description) : undefined,
+        keywords: item.keywords as string[] | undefined,
+      };
+    }),
+    experience: rawExperience.map((e) => {
+      const item = e as Record<string, unknown>;
+      return {
+        company: String(item.company || item.name || ""),
+        position: String(item.position || item.role || ""),
+        summary:
+          item.summary || item.description
+            ? String(item.summary || item.description)
+            : undefined,
+      };
+    }),
   };
 
   const template = await getEffectivePromptTemplate("tailoringPromptTemplate");
