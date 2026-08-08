@@ -98,6 +98,22 @@ Use it when you already have a specific job description or link and do not want 
 
 For accepted input formats, inference behavior, and limits, see [Manual Import Extractor](/docs/next/extractors/manual).
 
+### Overnight schedule
+
+Instead of running the scan on demand, you can schedule it to run automatically at a set time:
+
+1. Open the **Run jobs** modal → **Automatic** tab.
+2. Scroll to the **Overnight schedule** card.
+3. Toggle **Run on schedule** on, pick a start time (UTC hour), and optionally click **Use current sources** to copy the selected sources into the schedule.
+4. Click **Save schedule**. The next run time is shown under the card.
+
+Behavior:
+
+- The schedule runs in UTC. Pick the hour that matches your local overnight window (e.g. `02:00 UTC`).
+- When enabled, the server runs the full discovery/processing pipeline automatically at that hour every day — no manual trigger needed.
+- Saved sources are used for the scheduled scan; with no saved sources the pipeline uses its defaults.
+- The schedule survives restarts (stored in settings) and can be disabled any time from the same card.
+
 ## Common problems
 
 ### Start button stays disabled

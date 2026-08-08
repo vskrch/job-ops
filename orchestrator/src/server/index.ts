@@ -16,6 +16,7 @@ import {
 } from "./services/backup/index";
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
+import { refreshPipelineScheduler } from "./services/pipeline-scheduler";
 import { initialize as initializeVisaSponsors } from "./services/visa-sponsors/index";
 
 async function startServer() {
@@ -134,6 +135,16 @@ async function startServer() {
       await initializeDemoModeServices();
     } catch (error) {
       logger.warn("Failed to initialize demo mode services", {
+        error: sanitizeUnknown(error),
+      });
+    }
+
+    // Initialize the scheduled pipeline runner (overnight scan at a
+    // configurable UTC hour instead of only ad-hoc manual runs).
+    try {
+      await refreshPipelineScheduler();
+    } catch (error) {
+      logger.warn("Failed to initialize scheduled pipeline runner", {
         error: sanitizeUnknown(error),
       });
     }

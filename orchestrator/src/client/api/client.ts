@@ -33,6 +33,7 @@ import type {
   ManualJobDraft,
   ManualJobFetchResponse,
   ManualJobInferenceResponse,
+  PipelineScheduleResponse,
   PipelineStatusResponse,
   PostApplicationAction,
   PostApplicationActionResponse,
@@ -50,6 +51,7 @@ import type {
   StageTransitionTarget,
   TracerAnalyticsResponse,
   TracerReadinessResponse,
+  UpdatePipelineScheduleInput,
   ValidationResult,
   VisaSponsor,
   VisaSponsorSearchResponse,
@@ -993,6 +995,19 @@ export async function updateJobOutcome(
 // Pipeline API
 export async function getPipelineStatus(): Promise<PipelineStatusResponse> {
   return fetchApi<PipelineStatusResponse>("/pipeline/status");
+}
+
+export async function getPipelineSchedule(): Promise<PipelineScheduleResponse> {
+  return fetchApi<PipelineScheduleResponse>("/pipeline/schedule");
+}
+
+export async function updatePipelineSchedule(
+  input: UpdatePipelineScheduleInput,
+): Promise<PipelineScheduleResponse> {
+  return fetchApi<PipelineScheduleResponse>("/pipeline/schedule", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function runPipeline(config?: {

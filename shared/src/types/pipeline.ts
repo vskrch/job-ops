@@ -29,6 +29,19 @@ export interface PipelineStatusResponse {
   nextScheduledRun: string | null;
 }
 
+export interface PipelineScheduleResponse {
+  enabled: boolean;
+  hour: number;
+  sources: ExtractorSourceId[];
+  nextRun: string | null;
+}
+
+export interface UpdatePipelineScheduleInput {
+  enabled?: boolean;
+  hour?: number;
+  sources?: ExtractorSourceId[];
+}
+
 export interface JobsListResponse<TJob = Job> {
   jobs: TJob[];
   total: number;

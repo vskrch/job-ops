@@ -13,6 +13,7 @@ import { isDemoMode, sendDemoBlocked } from "@server/config/demo";
 import { getSetting } from "@server/repositories/settings";
 import { setBackupSettings } from "@server/services/backup/index";
 import { LlmService } from "@server/services/llm/service";
+import { refreshPipelineScheduler } from "@server/services/pipeline-scheduler";
 import { clearProfileCache } from "@server/services/profile";
 import {
   clearRxResumeResumeCache,
@@ -240,6 +241,10 @@ settingsRouter.patch(
         hour: data.backupHour.value,
         maxCount: data.backupMaxCount.value,
       });
+    }
+
+    if (plan.shouldRefreshPipelineScheduler) {
+      await refreshPipelineScheduler();
     }
     ok(res, data);
   }),

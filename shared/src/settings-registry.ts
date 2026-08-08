@@ -37,6 +37,9 @@ function parseBitBoolOrNull(raw: string | undefined): boolean | null {
   return raw === "true" || raw === "1";
 }
 
+/** Max extractor sources that can be selected for a scheduled pipeline run. */
+const PIPELINE_SOURCE_LIMIT = 25;
+
 function normalizeLlmProviderOrNull(raw: string | undefined): string | null {
   if (raw === undefined) return null;
   const normalized = raw.trim().toLowerCase().replace(/-/g, "_");
@@ -564,6 +567,47 @@ export const settingsRegistry = {
       return Math.min(5, Math.max(1, parsed));
     },
     serialize: serializeNullableNumber,
+  },
+  pipelineScheduleEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): boolean => false,
+    parse: parseBitBoolOrNull,
+    serialize: serializeBitBool,
+  },
+  pipelineScheduleHour: {
+    kind: "typed" as const,
+    schema: z.number().int().min(0).max(23),
+    default: (): number => 2,
+    parse: (raw: string | undefined): number | null => {
+      const parsed = raw ? parseInt(raw, 10) : NaN;
+      if (Number.isNaN(parsed)) return null;
+      return Math.min(23, Math.max(0, parsed));
+    },
+    serialize: serializeNullableNumber,
+  },
+  pipelineScheduleSources: {
+    kind: "typed" as const,
+    schema: z.array(z.string()).min(1).max(PIPELINE_SOURCE_LIMIT),
+    default: (): string[] => [],
+    parse: (raw: string | undefined): string[] | null => {
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (
+          !Array.isArray(parsed) ||
+          parsed.length === 0 ||
+          parsed.length > PIPELINE_SOURCE_LIMIT ||
+          parsed.some((s) => typeof s !== "string")
+        ) {
+          return null;
+        }
+        return parsed;
+      } catch {
+        return null;
+      }
+    },
+    serialize: serializeNullableJsonArray,
   },
   penalizeMissingSalary: {
     kind: "typed" as const,

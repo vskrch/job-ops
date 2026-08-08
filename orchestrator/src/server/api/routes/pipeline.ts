@@ -21,9 +21,18 @@ import {
   subscribeToProgress,
 } from "@server/pipeline/index";
 import * as pipelineRepo from "@server/repositories/pipeline";
+import * as settingsRepo from "@server/repositories/settings";
 import { simulatePipelineRun } from "@server/services/demo-simulator";
+import {
+  getPipelineSchedule,
+  refreshPipelineScheduler,
+} from "@server/services/pipeline-scheduler";
 import { PIPELINE_EXTRACTOR_SOURCE_IDS } from "@shared/extractors";
-import type { PipelineStatusResponse } from "@shared/types";
+import type {
+  PipelineScheduleResponse,
+  PipelineStatusResponse,
+  UpdatePipelineScheduleInput,
+} from "@shared/types";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 
@@ -36,13 +45,100 @@ pipelineRouter.get("/status", async (_req: Request, res: Response) => {
   try {
     const { isRunning } = getPipelineStatus();
     const lastRun = await pipelineRepo.getLatestPipelineRun();
+    const schedule = getPipelineSchedule();
     const data: PipelineStatusResponse = {
       isRunning,
       lastRun,
-      nextScheduledRun: null,
+      nextScheduledRun: schedule.nextRun,
     };
     ok(res, data);
   } catch (error) {
+    fail(
+      res,
+      new AppError({
+        status: 500,
+        code: "INTERNAL_ERROR",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+  }
+});
+
+/**
+ * GET /api/pipeline/schedule - Read the scheduled pipeline configuration.
+ */
+pipelineRouter.get("/schedule", async (_req: Request, res: Response) => {
+  try {
+    const schedule = getPipelineSchedule();
+    const data: PipelineScheduleResponse = schedule;
+    ok(res, data);
+  } catch (error) {
+    fail(
+      res,
+      new AppError({
+        status: 500,
+        code: "INTERNAL_ERROR",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+  }
+});
+
+/**
+ * PUT /api/pipeline/schedule - Update the scheduled pipeline configuration.
+ */
+const updateScheduleSchema = z.object({
+  enabled: z.boolean().optional(),
+  hour: z.number().int().min(0).max(23).optional(),
+  sources: z
+    .array(
+      z.enum(
+        PIPELINE_EXTRACTOR_SOURCE_IDS as [
+          (typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number],
+          ...(typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number][],
+        ],
+      ),
+    )
+    .min(1)
+    .optional(),
+});
+
+pipelineRouter.put("/schedule", async (req: Request, res: Response) => {
+  try {
+    const input: UpdatePipelineScheduleInput = updateScheduleSchema.parse(
+      req.body,
+    );
+
+    if (isDemoMode()) {
+      return fail(res, badRequest("Scheduling is not available in demo mode."));
+    }
+
+    if (input.enabled !== undefined) {
+      await settingsRepo.setSetting(
+        "pipelineScheduleEnabled",
+        input.enabled ? "1" : "0",
+      );
+    }
+    if (input.hour !== undefined) {
+      await settingsRepo.setSetting("pipelineScheduleHour", String(input.hour));
+    }
+    if (input.sources !== undefined) {
+      await settingsRepo.setSetting(
+        "pipelineScheduleSources",
+        JSON.stringify(input.sources),
+      );
+    }
+
+    // Restart the scheduler with the new configuration.
+    await refreshPipelineScheduler();
+
+    const schedule = getPipelineSchedule();
+    const data: PipelineScheduleResponse = schedule;
+    ok(res, data);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail(res, badRequest(error.message, error.flatten()));
+    }
     fail(
       res,
       new AppError({

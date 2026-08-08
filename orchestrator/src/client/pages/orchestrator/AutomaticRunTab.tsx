@@ -51,6 +51,7 @@ import {
   WORKPLACE_TYPE_OPTIONS,
   type WorkplaceType,
 } from "./automatic-run";
+import { SchedulePipelineCard } from "./SchedulePipelineCard";
 import { TokenizedInput } from "./TokenizedInput";
 
 interface AutomaticRunTabProps {
@@ -681,13 +682,15 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
           </CardContent>
         </Card>
 
+        <SchedulePipelineCard pipelineSources={compatiblePipelineSources} />
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle>
               Sources ({compatiblePipelineSources.length}/
               {compatibleEnabledSources.length})
             </CardTitle>
-          </CardHeader>
+          </CardHeader>{" "}
           <CardContent className="flex flex-wrap gap-2">
             <TooltipProvider>
               {enabledSources.map((source) => {

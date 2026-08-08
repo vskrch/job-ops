@@ -22,6 +22,61 @@ describe.sequential("Pipeline API routes", () => {
     expect(body.ok).toBe(true);
     expect(body.data.isRunning).toBe(false);
     expect(body.data.lastRun).toBeNull();
+    expect(body.data.nextScheduledRun).toBeNull();
+  });
+
+  it("reads and updates the pipeline schedule", async () => {
+    // Initial schedule (disabled by default)
+    const getRes = await fetch(`${baseUrl}/api/pipeline/schedule`);
+    const getBody = await getRes.json();
+    expect(getBody.ok).toBe(true);
+    expect(getBody.data.enabled).toBe(false);
+    expect(getBody.data.nextRun).toBeNull();
+
+    // Enable a schedule
+    const putRes = await fetch(`${baseUrl}/api/pipeline/schedule`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true, hour: 22, sources: ["linkedin"] }),
+    });
+    const putBody = await putRes.json();
+    expect(putBody.ok).toBe(true);
+    expect(putBody.data.enabled).toBe(true);
+    expect(putBody.data.hour).toBe(22);
+    expect(putBody.data.sources).toEqual(["linkedin"]);
+    expect(putBody.data.nextRun).not.toBeNull();
+
+    // Status now reports the scheduled run
+    const statusRes = await fetch(`${baseUrl}/api/pipeline/status`);
+    const statusBody = await statusRes.json();
+    expect(statusBody.data.nextScheduledRun).not.toBeNull();
+
+    // Disable again
+    const disableRes = await fetch(`${baseUrl}/api/pipeline/schedule`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+    const disableBody = await disableRes.json();
+    expect(disableBody.ok).toBe(true);
+    expect(disableBody.data.enabled).toBe(false);
+    expect(disableBody.data.nextRun).toBeNull();
+  });
+
+  it("rejects invalid schedule payloads", async () => {
+    const badHour = await fetch(`${baseUrl}/api/pipeline/schedule`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hour: 25 }),
+    });
+    expect(badHour.status).toBe(400);
+
+    const badSource = await fetch(`${baseUrl}/api/pipeline/schedule`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sources: ["not-a-source"] }),
+    });
+    expect(badSource.status).toBe(400);
   });
 
   it("validates pipeline run payloads", async () => {
