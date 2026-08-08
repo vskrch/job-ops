@@ -18,6 +18,12 @@ const DesignResumePage = lazy(() =>
     default: m.DesignResumePage,
   })),
 );
+const LoginPage = lazy(() =>
+  import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })),
+);
+const RegisterPage = lazy(() =>
+  import("./pages/RegisterPage").then((m) => ({ default: m.RegisterPage })),
+);
 const GmailOauthCallbackPage = lazy(() =>
   import("./pages/GmailOauthCallbackPage").then((m) => ({
     default: m.GmailOauthCallbackPage,
@@ -167,6 +173,8 @@ export const App: React.FC = () => {
                   ))}
 
                   {/* Application routes */}
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
                   <Route path="/overview" element={<HomePage />} />
                   <Route
                     path="/oauth/gmail/callback"

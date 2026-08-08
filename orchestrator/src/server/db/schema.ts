@@ -28,8 +28,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+});
+
 export const jobs = sqliteTable("jobs", {
   id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default("default-user"),
 
   // From crawler
   source: text("source").notNull().default("gradcracker"),
@@ -39,7 +49,7 @@ export const jobs = sqliteTable("jobs", {
   title: text("title").notNull(),
   employer: text("employer").notNull(),
   employerUrl: text("employer_url"),
-  jobUrl: text("job_url").notNull().unique(),
+  jobUrl: text("job_url").notNull(),
   applicationLink: text("application_link"),
   disciplines: text("disciplines"),
   deadline: text("deadline"),
@@ -154,6 +164,7 @@ export const interviews = sqliteTable("interviews", {
 
 export const pipelineRuns = sqliteTable("pipeline_runs", {
   id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default("default-user"),
   startedAt: text("started_at").notNull().default(sql`(datetime('now'))`),
   completedAt: text("completed_at"),
   status: text("status", {
@@ -250,15 +261,27 @@ export const jobChatRuns = sqliteTable(
   }),
 );
 
-export const settings = sqliteTable("settings", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
-});
+export const settings = sqliteTable(
+  "settings",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    userKeyUnique: uniqueIndex("idx_settings_user_key_unique").on(
+      table.userId,
+      table.key,
+    ),
+  }),
+);
 
 export const designResumeDocuments = sqliteTable("design_resume_documents", {
   id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default("default-user"),
   title: text("title").notNull(),
   resumeJson: text("resume_json", { mode: "json" }).notNull(),
   revision: integer("revision").notNull().default(1),
@@ -475,6 +498,8 @@ export const tracerClickEvents = sqliteTable(
   }),
 );
 
+export type UserRow = typeof users.$inferSelect;
+export type NewUserRow = typeof users.$inferInsert;
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;
 export type StageEventRow = typeof stageEvents.$inferSelect;

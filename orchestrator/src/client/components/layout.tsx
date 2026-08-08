@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useVersionCheck } from "../hooks/useVersionCheck";
+import { UserDropdown } from "../UserDropdown";
 import { isNavActive, NAV_LINKS } from "./navigation";
 import { StatusBadgeIndicator } from "./StatusIndicator";
 
@@ -162,6 +163,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
           {actions}
+          <UserDropdown />
         </div>
       </div>
     </header>

@@ -3,6 +3,7 @@
  */
 
 import { Router } from "express";
+import { authRouter } from "./routes/auth";
 import { backupRouter } from "./routes/backup";
 import { databaseRouter } from "./routes/database";
 import { demoRouter } from "./routes/demo";
@@ -23,6 +24,7 @@ import { webhookRouter } from "./routes/webhook";
 
 export const apiRouter = Router();
 
+apiRouter.use("/auth", authRouter);
 apiRouter.use("/jobs", jobsRouter);
 apiRouter.use("/jobs/:id/chat", ghostwriterRouter);
 apiRouter.use("/demo", demoRouter);
