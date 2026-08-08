@@ -2,6 +2,7 @@
  * API routes for the orchestrator.
  */
 
+import { rateLimitMiddleware } from "@infra/rate-limit";
 import { Router } from "express";
 import { authRouter } from "./routes/auth";
 import { backupRouter } from "./routes/backup";
@@ -23,6 +24,11 @@ import { visaSponsorsRouter } from "./routes/visa-sponsors";
 import { webhookRouter } from "./routes/webhook";
 
 export const apiRouter = Router();
+
+// Brute-force protection on credential endpoints: 10 attempts / minute / IP.
+const authLimiter = rateLimitMiddleware({ max: 10, windowMs: 60_000 });
+apiRouter.use("/auth/login", authLimiter);
+apiRouter.use("/auth/register", authLimiter);
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/jobs", jobsRouter);

@@ -3,11 +3,17 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type { PipelineRun } from "@shared/types";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { pipelineRuns } = schema;
+
+/** Resolve the owning user for the current request/flow. */
+function currentUserId(): string {
+  return getCurrentUserId();
+}
 
 /**
  * Create a new pipeline run.
@@ -15,9 +21,11 @@ const { pipelineRuns } = schema;
 export async function createPipelineRun(): Promise<PipelineRun> {
   const id = randomUUID();
   const now = new Date().toISOString();
+  const userId = currentUserId();
 
   await db.insert(pipelineRuns).values({
     id,
+    userId,
     startedAt: now,
     status: "running",
   });
@@ -46,7 +54,12 @@ export async function updatePipelineRun(
     errorMessage: string;
   }>,
 ): Promise<void> {
-  await db.update(pipelineRuns).set(update).where(eq(pipelineRuns.id, id));
+  await db
+    .update(pipelineRuns)
+    .set(update)
+    .where(
+      and(eq(pipelineRuns.id, id), eq(pipelineRuns.userId, currentUserId())),
+    );
 }
 
 /**
@@ -56,6 +69,7 @@ export async function getLatestPipelineRun(): Promise<PipelineRun | null> {
   const [row] = await db
     .select()
     .from(pipelineRuns)
+    .where(eq(pipelineRuns.userId, currentUserId()))
     .orderBy(desc(pipelineRuns.startedAt))
     .limit(1);
 
@@ -81,6 +95,7 @@ export async function getRecentPipelineRuns(
   const rows = await db
     .select()
     .from(pipelineRuns)
+    .where(eq(pipelineRuns.userId, currentUserId()))
     .orderBy(desc(pipelineRuns.startedAt))
     .limit(limit);
 

@@ -18,6 +18,7 @@ import {
 } from "@infra/http";
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
+import { securityHeaders } from "@infra/security-headers";
 import cors from "cors";
 import express from "express";
 import { apiRouter } from "./api/index";
@@ -269,6 +270,7 @@ export function createApp() {
     }
     corsMiddleware(req, res, next);
   });
+  app.use(securityHeaders());
   app.use(requestContextMiddleware());
   app.use("/stats", express.raw({ limit: "1mb", type: "*/*" }));
   app.use(express.json({ limit: "5mb" }));

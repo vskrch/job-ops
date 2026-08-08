@@ -3,6 +3,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type {
   CreateJobInput,
   Job,
@@ -16,6 +17,11 @@ import { db, schema } from "../db/index";
 
 const { jobs } = schema;
 
+/** Resolve the owning user for the current request/flow (per-user isolation). */
+function currentUserId(): string {
+  return getCurrentUserId();
+}
+
 function normalizeStatusFilter(statuses?: JobStatus[]): string | null {
   if (!statuses || statuses.length === 0) return null;
   return Array.from(new Set(statuses)).sort().join(",");
@@ -25,14 +31,20 @@ function normalizeStatusFilter(statuses?: JobStatus[]): string | null {
  * Get all jobs, optionally filtered by status.
  */
 export async function getAllJobs(statuses?: JobStatus[]): Promise<Job[]> {
+  const userId = currentUserId();
+  const userFilter = eq(jobs.userId, userId);
   const query =
     statuses && statuses.length > 0
       ? db
           .select()
           .from(jobs)
-          .where(inArray(jobs.status, statuses))
+          .where(and(userFilter, inArray(jobs.status, statuses)))
           .orderBy(desc(jobs.discoveredAt))
-      : db.select().from(jobs).orderBy(desc(jobs.discoveredAt));
+      : db
+          .select()
+          .from(jobs)
+          .where(userFilter)
+          .orderBy(desc(jobs.discoveredAt));
 
   const rows = await query;
   return rows.map(mapRowToJob);
@@ -44,6 +56,8 @@ export async function getAllJobs(statuses?: JobStatus[]): Promise<Job[]> {
 export async function getJobListItems(
   statuses?: JobStatus[],
 ): Promise<JobListItem[]> {
+  const userId = currentUserId();
+  const userFilter = eq(jobs.userId, userId);
   const selection = {
     id: jobs.id,
     source: jobs.source,
@@ -76,9 +90,13 @@ export async function getJobListItems(
       ? db
           .select(selection)
           .from(jobs)
-          .where(inArray(jobs.status, statuses))
+          .where(and(userFilter, inArray(jobs.status, statuses)))
           .orderBy(desc(jobs.discoveredAt))
-      : db.select(selection).from(jobs).orderBy(desc(jobs.discoveredAt));
+      : db
+          .select(selection)
+          .from(jobs)
+          .where(userFilter)
+          .orderBy(desc(jobs.discoveredAt));
 
   const rows = await query;
   return rows.map((row) => ({
@@ -94,11 +112,13 @@ export async function getJobListItems(
 export async function getJobsRevision(
   statuses?: JobStatus[],
 ): Promise<JobsRevisionResponse> {
+  const userId = currentUserId();
   const statusFilter = normalizeStatusFilter(statuses);
+  const userFilter = eq(jobs.userId, userId);
   const whereClause =
     statuses && statuses.length > 0
-      ? inArray(jobs.status, statuses)
-      : undefined;
+      ? and(userFilter, inArray(jobs.status, statuses))
+      : userFilter;
 
   const baseQuery = db
     .select({
@@ -126,7 +146,10 @@ export async function getJobsRevision(
  * Get a single job by ID.
  */
 export async function getJobById(id: string): Promise<Job | null> {
-  const [row] = await db.select().from(jobs).where(eq(jobs.id, id));
+  const [row] = await db
+    .select()
+    .from(jobs)
+    .where(and(eq(jobs.id, id), eq(jobs.userId, currentUserId())));
   return row ? mapRowToJob(row) : null;
 }
 
@@ -146,14 +169,17 @@ export async function listJobSummariesByIds(jobIds: string[]): Promise<
       employer: jobs.employer,
     })
     .from(jobs)
-    .where(inArray(jobs.id, jobIds));
+    .where(and(inArray(jobs.id, jobIds), eq(jobs.userId, currentUserId())));
 }
 
 /**
  * Get a job by its URL (for deduplication).
  */
 export async function getJobByUrl(jobUrl: string): Promise<Job | null> {
-  const [row] = await db.select().from(jobs).where(eq(jobs.jobUrl, jobUrl));
+  const [row] = await db
+    .select()
+    .from(jobs)
+    .where(and(eq(jobs.jobUrl, jobUrl), eq(jobs.userId, currentUserId())));
   return row ? mapRowToJob(row) : null;
 }
 
@@ -161,7 +187,10 @@ export async function getJobByUrl(jobUrl: string): Promise<Job | null> {
  * Get all known job URLs (for deduplication / crawler optimizations).
  */
 export async function getAllJobUrls(): Promise<string[]> {
-  const rows = await db.select({ jobUrl: jobs.jobUrl }).from(jobs);
+  const rows = await db
+    .select({ jobUrl: jobs.jobUrl })
+    .from(jobs)
+    .where(eq(jobs.userId, currentUserId()));
   return rows.map((r) => r.jobUrl);
 }
 
@@ -171,6 +200,7 @@ async function insertJob(input: CreateJobInput): Promise<Job> {
 
   await db.insert(jobs).values({
     id,
+    userId: currentUserId(),
     source: input.source,
     sourceJobId: input.sourceJobId ?? null,
     jobUrlDirect: input.jobUrlDirect ?? null,
@@ -284,7 +314,9 @@ export async function createJobs(
   const existingRows = await db
     .select({ jobUrl: jobs.jobUrl })
     .from(jobs)
-    .where(inArray(jobs.jobUrl, uniqueUrls));
+    .where(
+      and(inArray(jobs.jobUrl, uniqueUrls), eq(jobs.userId, currentUserId())),
+    );
   const existingUrlSet = new Set(existingRows.map((row) => row.jobUrl));
 
   for (const { input, count } of byUrl.values()) {
@@ -343,7 +375,7 @@ export async function updateJob(
       ...readyAtUpdate,
       ...appliedAtUpdate,
     })
-    .where(eq(jobs.id, id));
+    .where(and(eq(jobs.id, id), eq(jobs.userId, currentUserId())));
 
   return getJobById(id);
 }
@@ -358,6 +390,7 @@ export async function getJobStats(): Promise<Record<JobStatus, number>> {
       count: sql<number>`count(*)`,
     })
     .from(jobs)
+    .where(eq(jobs.userId, currentUserId()))
     .groupBy(jobs.status);
 
   const stats: Record<JobStatus, number> = {
@@ -386,6 +419,7 @@ export async function getJobsForProcessing(limit: number = 10): Promise<Job[]> {
     .from(jobs)
     .where(
       and(
+        eq(jobs.userId, currentUserId()),
         eq(jobs.status, "discovered"),
         sql`${jobs.jobDescription} IS NOT NULL`,
       ),
@@ -405,7 +439,13 @@ export async function getUnscoredDiscoveredJobs(
   const query = db
     .select()
     .from(jobs)
-    .where(and(eq(jobs.status, "discovered"), isNull(jobs.suitabilityScore)))
+    .where(
+      and(
+        eq(jobs.userId, currentUserId()),
+        eq(jobs.status, "discovered"),
+        isNull(jobs.suitabilityScore),
+      ),
+    )
     .orderBy(desc(jobs.discoveredAt));
 
   const rows =
@@ -417,7 +457,10 @@ export async function getUnscoredDiscoveredJobs(
  * Delete jobs by status.
  */
 export async function deleteJobsByStatus(status: JobStatus): Promise<number> {
-  const result = await db.delete(jobs).where(eq(jobs.status, status)).run();
+  const result = await db
+    .delete(jobs)
+    .where(and(eq(jobs.userId, currentUserId()), eq(jobs.status, status)))
+    .run();
   return result.changes;
 }
 
@@ -429,6 +472,7 @@ export async function deleteJobsBelowScore(threshold: number): Promise<number> {
     .delete(jobs)
     .where(
       and(
+        eq(jobs.userId, currentUserId()),
         lt(jobs.suitabilityScore, threshold),
         ne(jobs.status, "applied"),
         ne(jobs.status, "in_progress"),

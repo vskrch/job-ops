@@ -4,6 +4,8 @@ export type RequestContext = {
   requestId: string;
   pipelineRunId?: string;
   jobId?: string;
+  /** Authenticated user id for this request/flow; "default-user" when anon. */
+  userId?: string;
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -27,4 +29,14 @@ export function runWithRequestContext<T>(
 
 export function getRequestId(): string | undefined {
   return storage.getStore()?.requestId;
+}
+
+/**
+ * Returns the authenticated user id for the current request or background
+ * flow. Falls back to "default-user" for unauthenticated access and for
+ * background work (pipeline runs, backup scheduler) that runs outside a
+ * request's async chain — keeping single-user installs working.
+ */
+export function getCurrentUserId(): string {
+  return storage.getStore()?.userId ?? "default-user";
 }

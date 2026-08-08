@@ -1,4 +1,10 @@
 import { asyncRoute, ok } from "@infra/http";
+import { getCurrentUserId } from "@infra/request-context";
+import {
+  createSessionToken,
+  sessionClearCookieHeader,
+  sessionSetCookieHeader,
+} from "@infra/session";
 import {
   authenticateUser,
   createUser,
@@ -13,8 +19,10 @@ authRouter.post(
   asyncRoute(async (req: Request, res: Response) => {
     const { email, password, name } = req.body || {};
     const user = await createUser({ email, password, name });
-    req.session = req.session || {};
-    req.session.userId = user.id;
+    res.setHeader(
+      "Set-Cookie",
+      sessionSetCookieHeader(createSessionToken(user.id)),
+    );
     ok(res, { user });
   }),
 );
@@ -24,27 +32,29 @@ authRouter.post(
   asyncRoute(async (req: Request, res: Response) => {
     const { email, password } = req.body || {};
     const user = await authenticateUser({ email, password });
-    req.session = req.session || {};
-    req.session.userId = user.id;
+    res.setHeader(
+      "Set-Cookie",
+      sessionSetCookieHeader(createSessionToken(user.id)),
+    );
     ok(res, { user });
   }),
 );
 
 authRouter.post(
   "/logout",
-  asyncRoute(async (req: Request, res: Response) => {
-    if (req.session) {
-      req.session.userId = undefined;
-    }
+  asyncRoute(async (_req: Request, res: Response) => {
+    res.setHeader("Set-Cookie", sessionClearCookieHeader());
     ok(res, { loggedOut: true });
   }),
 );
 
 authRouter.get(
   "/me",
-  asyncRoute(async (req: Request, res: Response) => {
-    const userId = req.session?.userId || req.user?.id;
-    if (!userId) {
+  asyncRoute(async (_req: Request, res: Response) => {
+    // userId is loaded from the signed-cookie session by the request-context
+    // middleware and stored in AsyncLocalStorage.
+    const userId = getCurrentUserId();
+    if (userId === "default-user") {
       ok(res, { user: null });
       return;
     }

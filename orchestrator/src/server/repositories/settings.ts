@@ -3,6 +3,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type { settingsRegistry } from "@shared/settings-registry";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db/index";
@@ -20,7 +21,7 @@ export type SettingKey = Exclude<
 
 export async function getSetting(
   key: SettingKey,
-  userId: string = "default-user",
+  userId: string = getCurrentUserId(),
 ): Promise<string | null> {
   const [row] = await db
     .select()
@@ -30,7 +31,7 @@ export async function getSetting(
 }
 
 export async function getAllSettings(
-  userId: string = "default-user",
+  userId: string = getCurrentUserId(),
 ): Promise<Partial<Record<SettingKey, string>>> {
   const rows = await db
     .select()
@@ -48,7 +49,7 @@ export async function getAllSettings(
 export async function setSetting(
   key: SettingKey,
   value: string | null,
-  userId: string = "default-user",
+  userId: string = getCurrentUserId(),
 ): Promise<void> {
   const now = new Date().toISOString();
 

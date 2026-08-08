@@ -12,6 +12,7 @@ import { notFound, toAppError } from "./errors";
 import { logger } from "./logger";
 import { getRequestId, runWithRequestContext } from "./request-context";
 import { sanitizeUnknown } from "./sanitize";
+import { readSessionFromCookieHeader } from "./session";
 
 function getResponseRequestId(res: Response): string {
   return (
@@ -84,7 +85,13 @@ export function requestContextMiddleware(): RequestHandler {
         : crypto.randomUUID();
 
     res.setHeader("x-request-id", requestId);
-    runWithRequestContext({ requestId }, () => next());
+
+    // Load the signed-cookie session so the userId flows through the
+    // request's AsyncLocalStorage into repositories (per-user isolation).
+    const session = readSessionFromCookieHeader(req.headers.cookie);
+    const userId = session?.userId;
+
+    runWithRequestContext({ requestId, userId }, () => next());
   };
 }
 
