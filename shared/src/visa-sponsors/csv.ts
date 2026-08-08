@@ -30,6 +30,19 @@ function parseCsvLine(line: string): string[] {
   return fields;
 }
 
+export function parseCsvRows(content: string): string[][] {
+  const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const rows: string[][] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    rows.push(parseCsvLine(trimmed));
+  }
+
+  return rows;
+}
+
 export function parseVisaSponsorsCsv(content: string): VisaSponsor[] {
   const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
   const sponsors: VisaSponsor[] = [];

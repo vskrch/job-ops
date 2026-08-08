@@ -333,7 +333,7 @@ describe("CrawlEngine", () => {
     let calls = 0;
     const fetchImpl: CrawlFetch = (_url, init) => {
       calls += 1;
-      authHeaders.push(init.headers["authorization"]);
+      authHeaders.push(init.headers.authorization);
       return Promise.resolve(
         fakeResponse(calls === 1 ? 401 : 200, "ok", "text/plain"),
       );

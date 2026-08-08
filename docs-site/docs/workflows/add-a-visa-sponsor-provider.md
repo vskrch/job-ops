@@ -68,11 +68,12 @@ export default manifest;
 Example catalog update in `shared/src/visa-sponsor-providers/index.ts`:
 
 ```ts
-export const VISA_SPONSOR_PROVIDER_IDS = ["uk", "au"] as const;
+export const VISA_SPONSOR_PROVIDER_IDS = ["uk", "us", "ca"] as const;
 
 export const VISA_SPONSOR_PROVIDER_METADATA = {
   uk: { label: "United Kingdom", countryKey: "united kingdom" },
-  au: { label: "Australia", countryKey: "australia" },
+  us: { label: "United States", countryKey: "united states" },
+  ca: { label: "Canada", countryKey: "canada" },
 };
 ```
 
@@ -99,6 +100,15 @@ export const VISA_SPONSOR_PROVIDER_METADATA = {
 
 - The `countryKey` must produce the same output as `normalizeCountryKey()` when called on job location strings.
 - Use lowercase, no diacritics, matching the canonical country name used in job data.
+
+### Upstream changed its file name or format
+
+- Upstream sources occasionally rename files or change column layouts. The manifests for `us` and `ca` are written to tolerate this: the US provider discovers the latest annual file from the USCIS archive page, and the Canada provider picks the newest quarter from the open.canada.ca API and maps columns by header name rather than position.
+- If a provider still fails, check the error message on `GET /api/visa-sponsors/status` and update the manifest's link pattern or parser.
+
+### A country has no official register
+
+- Some countries (e.g. India) do not publish an official employer register for work visas. Do not add a provider that scrapes unofficial or paid lists; document the gap instead.
 
 ## Related pages
 

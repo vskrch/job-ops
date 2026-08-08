@@ -11,6 +11,16 @@ The Visa Sponsors page lets you search official licensed sponsor registers from 
 
 Each provider corresponds to a country's official register and is auto-discovered at startup from the `visa-sponsor-providers/` directory.
 
+Currently registered providers:
+
+| Provider | Source |
+| --- | --- |
+| `uk` — United Kingdom | [gov.uk register of licensed sponsors (workers)](https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers) |
+| `us` — United States | [USCIS H-1B Employer Data Hub](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub) (latest annual file) |
+| `ca` — Canada | [IRCC positive LMIA employers list](https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97) (latest quarter) |
+
+India has no official public employer register for work visas, so no India provider is registered. For jobs in the US/Canada, the US and Canada providers are the practical sponsor sources.
+
 For each company, it shows:
 
 - Match score against your query
@@ -81,7 +91,8 @@ curl -X POST http://localhost:3001/api/visa-sponsors/update/uk
 
 - Run a manual refresh with the header update button (or `POST /api/visa-sponsors/update`).
 - Check `GET /api/visa-sponsors/status` to see per-provider error details.
-- Verify the server can reach the upstream source for that provider (e.g. `gov.uk` for the UK provider).
+- Verify the server can reach the upstream source for that provider (e.g. `gov.uk` for the UK provider, `uscis.gov` for the US provider, `open.canada.ca` for the Canada provider).
+- Upstreams occasionally change file names or formats. If a provider starts failing with a "Could not find ... link" error, the manifest's link pattern likely needs updating; see [Add a Visa Sponsor Provider](/docs/next/workflows/add-a-visa-sponsor-provider).
 
 ### Company appears once but has multiple routes
 

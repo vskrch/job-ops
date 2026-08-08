@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseVisaSponsorsCsv } from "./csv";
+import { parseCsvRows, parseVisaSponsorsCsv } from "./csv";
 
 describe("parseVisaSponsorsCsv", () => {
   it("parses CRLF files and strips a UTF-8 BOM", () => {
@@ -25,5 +25,28 @@ describe("parseVisaSponsorsCsv", () => {
         route: "Graduate",
       },
     ]);
+  });
+});
+
+describe("parseCsvRows", () => {
+  it("preserves quoted commas and skips blank lines", () => {
+    const csv = [
+      "Employer,City,State",
+      '"Acme, Inc.","New York, NY",NY',
+      '"Beta Corp",Chicago,IL',
+      "",
+    ].join("\n");
+
+    expect(parseCsvRows(csv)).toEqual([
+      ["Employer", "City", "State"],
+      ["Acme, Inc.", "New York, NY", "NY"],
+      ["Beta Corp", "Chicago", "IL"],
+    ]);
+  });
+
+  it("handles double-quoted quotes inside fields", () => {
+    const csv = '"She said ""hi""",A,B';
+
+    expect(parseCsvRows(csv)).toEqual([['She said "hi"', "A", "B"]]);
   });
 });

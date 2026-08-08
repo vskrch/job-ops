@@ -8,7 +8,7 @@ const GOV_UK_PAGE_URL =
   "https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers";
 
 const CSV_LINK_PATTERN =
-  /href="(https:\/\/assets\.publishing\.service\.gov\.uk\/media\/[^"]+Worker_and_Temporary_Worker\.csv)"/;
+  /href="(https:\/\/assets\.publishing\.service\.gov\.uk\/media\/[^"]+\.csv)"/g;
 
 async function extractCsvUrl(): Promise<string> {
   const response = await fetch(GOV_UK_PAGE_URL);
@@ -19,14 +19,19 @@ async function extractCsvUrl(): Promise<string> {
   }
 
   const html = await response.text();
-  const match = html.match(CSV_LINK_PATTERN);
-  if (!match) {
+  const candidates = [...html.matchAll(CSV_LINK_PATTERN)].map(
+    (match) => match[1],
+  );
+  if (candidates.length === 0) {
     throw new Error(
       "Could not find Worker and Temporary Worker CSV link on gov.uk page",
     );
   }
 
-  return match[1];
+  return (
+    candidates.find((url) => url.includes("Worker_and_Temporary_Worker")) ??
+    candidates[0]
+  );
 }
 
 export const manifest: VisaSponsorProviderManifest = {

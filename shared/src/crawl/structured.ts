@@ -43,7 +43,7 @@ function firstString(value: unknown): string | undefined {
     return trimmed.length > 0 ? trimmed : undefined;
   }
   const record = asRecord(value);
-  return record ? firstString(record["name"]) : undefined;
+  return record ? firstString(record.name) : undefined;
 }
 
 function mapLocation(value: unknown): string | undefined {
@@ -56,11 +56,11 @@ function mapLocation(value: unknown): string | undefined {
   if (typeof value === "string") return value.trim() || undefined;
   const record = asRecord(value);
   if (!record) return undefined;
-  if (record["address"]) return mapLocation(record["address"]);
+  if (record.address) return mapLocation(record.address);
   const parts = [
-    firstString(record["addressLocality"]),
-    firstString(record["addressRegion"]),
-    firstString(record["addressCountry"]),
+    firstString(record.addressLocality),
+    firstString(record.addressRegion),
+    firstString(record.addressCountry),
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(", ") : undefined;
 }
@@ -68,17 +68,17 @@ function mapLocation(value: unknown): string | undefined {
 function mapSalary(value: unknown): string | undefined {
   const record = asRecord(value);
   if (!record) return undefined;
-  let raw = record["value"];
-  let period = firstString(record["unitText"]);
+  let raw = record.value;
+  let period = firstString(record.unitText);
   const rawRecord = asRecord(raw);
   if (rawRecord) {
-    period ??= firstString(rawRecord["unitText"]);
-    raw = rawRecord["value"];
+    period ??= firstString(rawRecord.unitText);
+    raw = rawRecord.value;
   }
   const base =
     typeof raw === "number" ? String(raw) : (firstString(raw) ?? undefined);
   if (!base) return undefined;
-  const parts = [base, firstString(record["currency"])].filter(
+  const parts = [base, firstString(record.currency)].filter(
     (part): part is string => Boolean(part),
   );
   return parts.length > 0
@@ -87,19 +87,19 @@ function mapSalary(value: unknown): string | undefined {
 }
 
 function mapPosting(record: Record<string, unknown>): JsonLdJobPosting {
-  const organization = asRecord(record["hiringOrganization"]);
-  const employmentType = record["employmentType"];
+  const organization = asRecord(record.hiringOrganization);
+  const employmentType = record.employmentType;
   return {
-    title: firstString(record["title"]),
-    employer: organization ? firstString(organization["name"]) : undefined,
-    url: firstString(record["url"]) ?? firstString(record["sameAs"]),
-    location: mapLocation(record["jobLocation"]),
-    salary: mapSalary(record["baseSalary"]),
-    datePosted: firstString(record["datePosted"]),
+    title: firstString(record.title),
+    employer: organization ? firstString(organization.name) : undefined,
+    url: firstString(record.url) ?? firstString(record.sameAs),
+    location: mapLocation(record.jobLocation),
+    salary: mapSalary(record.baseSalary),
+    datePosted: firstString(record.datePosted),
     employmentType: Array.isArray(employmentType)
       ? employmentType.map(String).join(", ") || undefined
       : firstString(employmentType),
-    description: firstString(record["description"]),
+    description: firstString(record.description),
   };
 }
 

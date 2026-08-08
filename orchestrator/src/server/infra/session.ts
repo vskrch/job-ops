@@ -27,10 +27,6 @@ function sessionSecret(): string {
   return secret;
 }
 
-function base64Url(input: string): string {
-  return Buffer.from(input, "utf-8").toString("base64url");
-}
-
 function sign(userId: string, expiresAt: number): string {
   const payload = `${userId}.${expiresAt}`;
   const sig = createHmac("sha256", sessionSecret())

@@ -55,8 +55,9 @@ export const DisplaySettingsSection: React.FC<DisplaySettingsSectionProps> = ({
             </label>
             <p className="text-xs text-muted-foreground">
               Display a badge next to the employer name showing the match
-              percentage with the UK visa sponsor list. This helps identify
-              employers that are licensed to sponsor work visas.
+              percentage against official sponsor lists (UK, US, and Canada).
+              This helps identify employers that are licensed to sponsor work
+              visas.
             </p>
           </div>
         </div>
