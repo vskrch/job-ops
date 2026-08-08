@@ -1,12 +1,35 @@
 import { asyncRoute, fail, ok } from "@infra/http";
 import { runWithRequestContext } from "@infra/request-context";
-import { setupSse, writeSseData } from "@infra/sse";
+import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import { badRequest, toAppError } from "@server/infra/errors";
 import * as ghostwriterService from "@server/services/ghostwriter";
-import { type Request, Router } from "express";
+import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 
 export const ghostwriterRouter = Router({ mergeParams: true });
+
+/**
+ * Sets up SSE with heartbeat and client-disconnect detection.
+ * Returns a cleanup function to call in finally.
+ */
+function setupGhostSse(res: Response): () => void {
+  setupSse(res, {
+    cacheControl: "no-cache, no-transform",
+    flushHeaders: true,
+  });
+  const stopHeartbeat = startSseHeartbeat(res);
+  let closed = false;
+  res.on("close", () => {
+    closed = true;
+    stopHeartbeat();
+  });
+  return () => {
+    if (!closed) {
+      stopHeartbeat();
+      res.end();
+    }
+  };
+}
 
 const createThreadSchema = z.object({
   title: z.string().trim().max(200).nullable().optional(),
@@ -77,10 +100,7 @@ ghostwriterRouter.post(
 
     await runWithRequestContext({ jobId }, async () => {
       if (parsed.data.stream) {
-        setupSse(res, {
-          cacheControl: "no-cache, no-transform",
-          flushHeaders: true,
-        });
+        const cleanup = setupGhostSse(res);
 
         try {
           await ghostwriterService.sendMessageForJob({
@@ -133,7 +153,7 @@ ghostwriterRouter.post(
             requestId: res.getHeader("x-request-id") || "unknown",
           });
         } finally {
-          res.end();
+          cleanup();
         }
 
         return;
@@ -192,10 +212,7 @@ ghostwriterRouter.post(
 
     await runWithRequestContext({ jobId }, async () => {
       if (parsed.data.stream) {
-        setupSse(res, {
-          cacheControl: "no-cache, no-transform",
-          flushHeaders: true,
-        });
+        const cleanup = setupGhostSse(res);
 
         try {
           await ghostwriterService.regenerateMessageForJob({
@@ -248,7 +265,7 @@ ghostwriterRouter.post(
             requestId: res.getHeader("x-request-id") || "unknown",
           });
         } finally {
-          res.end();
+          cleanup();
         }
 
         return;
@@ -283,10 +300,7 @@ ghostwriterRouter.post(
 
     await runWithRequestContext({ jobId }, async () => {
       if (parsed.data.stream) {
-        setupSse(res, {
-          cacheControl: "no-cache, no-transform",
-          flushHeaders: true,
-        });
+        const cleanup = setupGhostSse(res);
 
         try {
           await ghostwriterService.editMessageForJob({
@@ -340,7 +354,7 @@ ghostwriterRouter.post(
             requestId: res.getHeader("x-request-id") || "unknown",
           });
         } finally {
-          res.end();
+          cleanup();
         }
 
         return;
@@ -478,10 +492,7 @@ ghostwriterRouter.post(
 
     await runWithRequestContext({ jobId }, async () => {
       if (parsed.data.stream) {
-        setupSse(res, {
-          cacheControl: "no-cache, no-transform",
-          flushHeaders: true,
-        });
+        const cleanup = setupGhostSse(res);
 
         try {
           await ghostwriterService.sendMessage({
@@ -535,7 +546,7 @@ ghostwriterRouter.post(
             requestId: res.getHeader("x-request-id") || "unknown",
           });
         } finally {
-          res.end();
+          cleanup();
         }
 
         return;
@@ -600,10 +611,7 @@ ghostwriterRouter.post(
 
     await runWithRequestContext({ jobId }, async () => {
       if (parsed.data.stream) {
-        setupSse(res, {
-          cacheControl: "no-cache, no-transform",
-          flushHeaders: true,
-        });
+        const cleanup = setupGhostSse(res);
 
         try {
           await ghostwriterService.regenerateMessage({
@@ -657,7 +665,7 @@ ghostwriterRouter.post(
             requestId: res.getHeader("x-request-id") || "unknown",
           });
         } finally {
-          res.end();
+          cleanup();
         }
 
         return;

@@ -33,6 +33,8 @@ export interface LlmRequestOptions<_T> {
   jobId?: string;
   /** Optional abort signal for cancellation */
   signal?: AbortSignal;
+  /** Per-request timeout in ms (default: 90000; 0 disables) */
+  timeoutMs?: number;
 }
 
 export interface LlmResult<T> {

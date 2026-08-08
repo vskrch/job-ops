@@ -70,15 +70,26 @@ export async function scoreJobsStep(args: {
       let sponsorMatchNames: string | undefined;
 
       if (job.employer) {
-        const sponsorResults = await visaSponsors.searchSponsors(job.employer, {
-          limit: 10,
-          minScore: 50,
-        });
+        try {
+          const sponsorResults = await visaSponsors.searchSponsors(
+            job.employer,
+            {
+              limit: 10,
+              minScore: 50,
+            },
+          );
 
-        const summary =
-          visaSponsors.calculateSponsorMatchSummary(sponsorResults);
-        sponsorMatchScore = summary.sponsorMatchScore;
-        sponsorMatchNames = summary.sponsorMatchNames ?? undefined;
+          const summary =
+            visaSponsors.calculateSponsorMatchSummary(sponsorResults);
+          sponsorMatchScore = summary.sponsorMatchScore;
+          sponsorMatchNames = summary.sponsorMatchNames ?? undefined;
+        } catch (error) {
+          logger.warn("Sponsor search failed for job, continuing without it", {
+            jobId: job.id,
+            employer: job.employer,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
 
       // Check if job should be auto-skipped based on score threshold
@@ -88,13 +99,27 @@ export async function scoreJobsStep(args: {
         !Number.isNaN(autoSkipThreshold) &&
         score < autoSkipThreshold;
 
-      await jobsRepo.updateJob(job.id, {
-        suitabilityScore: score,
-        suitabilityReason: reason,
-        sponsorMatchScore,
-        sponsorMatchNames,
-        ...(shouldAutoSkip ? { status: "skipped" } : {}),
-      });
+      try {
+        await jobsRepo.updateJob(job.id, {
+          suitabilityScore: score,
+          suitabilityReason: reason,
+          sponsorMatchScore,
+          sponsorMatchNames,
+          ...(shouldAutoSkip ? { status: "skipped" } : {}),
+        });
+      } catch (error) {
+        logger.warn("Failed to persist score for job, skipping", {
+          jobId: job.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        completed += 1;
+        progressHelpers.scoringJob(
+          completed,
+          unprocessedJobs.length,
+          `${job.title} (persist failed)`,
+        );
+        return;
+      }
 
       if (shouldAutoSkip) {
         logger.info("Auto-skipped job due to low score", {

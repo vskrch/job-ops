@@ -1,5 +1,6 @@
 import { toAppError } from "@infra/errors";
 import { fail, ok } from "@infra/http";
+import { logger } from "@infra/logger";
 import { isDemoMode } from "@server/config/demo";
 import { DEMO_PROJECT_CATALOG } from "@server/config/demo-defaults";
 import { getDesignResumeStatus } from "@server/services/design-resume";
@@ -87,8 +88,13 @@ profileRouter.get("/status", async (_req: Request, res: Response) => {
       throw error;
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    ok(res, { exists: false, error: message });
+    logger.error("Profile status check failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    ok(res, {
+      exists: false,
+      error: "Unable to check resume status. Check server logs.",
+    });
   }
 });
 

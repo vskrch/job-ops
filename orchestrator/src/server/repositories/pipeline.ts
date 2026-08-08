@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { PipelineRun } from "@shared/types";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { pipelineRuns } = schema;
@@ -93,4 +93,23 @@ export async function getRecentPipelineRuns(
     jobsProcessed: row.jobsProcessed,
     errorMessage: row.errorMessage,
   }));
+}
+
+/**
+ * Mark any runs left in "running" state as "failed" — call once at boot to
+ * recover from unclean shutdowns (crash, SIGKILL, power loss).
+ */
+export async function markOrphanedRunsAsFailed(): Promise<number> {
+  const now = new Date().toISOString();
+  const result = await db
+    .update(pipelineRuns)
+    .set({
+      status: "failed",
+      completedAt: now,
+      errorMessage: "Run interrupted by server restart",
+    })
+    .where(inArray(pipelineRuns.status, ["running"]))
+    .returning({ id: pipelineRuns.id });
+
+  return result.length;
 }

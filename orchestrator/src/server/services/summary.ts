@@ -113,17 +113,22 @@ export async function generateTailoring(
 
   const { summary, headline, skills } = result.data;
 
-  // Basic validation
+  // Basic validation — treat missing required fields as a failed generation
   if (!summary || !headline || !Array.isArray(skills)) {
     logger.warn("AI response missing required tailoring fields", result.data);
+    return {
+      success: false,
+      error:
+        "AI response missing required tailoring fields (summary, headline, or skills)",
+    };
   }
 
   return {
     success: true,
     data: {
-      summary: sanitizeText(summary || ""),
-      headline: sanitizeText(headline || ""),
-      skills: skills || [],
+      summary: sanitizeText(summary),
+      headline: sanitizeText(headline),
+      skills,
     },
   };
 }

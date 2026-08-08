@@ -26,6 +26,8 @@ import {
 import { parseJsonContent } from "./utils/json";
 import { parseErrorMessage, truncate } from "./utils/string";
 
+const DEFAULT_LLM_TIMEOUT_MS = 90_000;
+
 export class LlmService {
   private readonly provider: LlmProvider;
   private readonly baseUrl: string;
@@ -85,6 +87,7 @@ export class LlmService {
       maxRetries = 0,
       retryDelayMs = 500,
       signal,
+      timeoutMs,
     } = options;
     const jobId = options.jobId;
 
@@ -101,6 +104,7 @@ export class LlmService {
         retryDelayMs,
         jobId,
         signal,
+        timeoutMs,
       });
 
       if (result.success) {
@@ -218,6 +222,7 @@ export class LlmService {
     retryDelayMs: number;
     jobId?: string;
     signal?: AbortSignal;
+    timeoutMs?: number;
   }): Promise<LlmResponse<T>> {
     const {
       mode,
@@ -227,9 +232,17 @@ export class LlmService {
       maxRetries,
       retryDelayMs,
       signal,
+      timeoutMs,
     } = args;
     const jobId = args.jobId;
     const model = normalizeModelForProvider(this.provider, rawModel);
+
+    // ponytail: AbortSignal.any composes caller signal with a default timeout.
+    // Caller signal (cancellation) takes precedence; timeout is a safety net.
+    const effectiveTimeout = timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
+    const timeoutSignal =
+      effectiveTimeout > 0 ? AbortSignal.timeout(effectiveTimeout) : null;
+    const combinedSignal = composeSignals(signal, timeoutSignal);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -255,7 +268,7 @@ export class LlmService {
           method: "POST",
           headers,
           body: JSON.stringify(body),
-          signal,
+          signal: combinedSignal,
         });
 
         if (!response.ok) {
@@ -423,6 +436,20 @@ function normalizeProvider(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Compose optional caller and timeout abort signals.
+ * Returns undefined when neither is provided so fetch uses its default behavior.
+ */
+function composeSignals(
+  callerSignal: AbortSignal | undefined,
+  timeoutSignal: AbortSignal | null,
+): AbortSignal | undefined {
+  if (callerSignal && timeoutSignal) {
+    return AbortSignal.any([callerSignal, timeoutSignal]);
+  }
+  return callerSignal ?? timeoutSignal ?? undefined;
 }
 
 function normalizeModelForProvider(

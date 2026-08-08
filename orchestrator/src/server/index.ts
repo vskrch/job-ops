@@ -7,6 +7,7 @@ import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { createApp } from "./app";
 import { initializeExtractorRegistry } from "./extractors/registry";
+import * as pipelineRepo from "./repositories/pipeline";
 import * as settingsRepo from "./repositories/settings";
 import {
   getBackupSettings,
@@ -37,6 +38,20 @@ async function startServer() {
       "Extractor registry initialization failed outside production. Server startup aborted.",
     );
     return;
+  }
+
+  // Recover from unclean shutdown: mark any orphaned pipeline runs as failed
+  try {
+    const orphaned = await pipelineRepo.markOrphanedRunsAsFailed();
+    if (orphaned > 0) {
+      logger.warn("Marked orphaned pipeline runs as failed", {
+        count: orphaned,
+      });
+    }
+  } catch (error) {
+    logger.warn("Failed to recover orphaned pipeline runs", {
+      error: sanitizeUnknown(error),
+    });
   }
 
   const app = createApp();

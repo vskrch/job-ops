@@ -238,4 +238,59 @@ describe("scoreJobsStep auto-skip behavior", () => {
     expect(vi.mocked(scorer.scoreJobSuitability)).not.toHaveBeenCalled();
     expect(vi.mocked(jobsRepo.updateJob)).not.toHaveBeenCalled();
   });
+
+  it("continues scoring other jobs when one job's DB update fails", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const scorer = await import("@server/services/scorer");
+    const { logger } = await import("@infra/logger");
+
+    vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
+      createJob({ id: "job-fail", title: "Failing", employer: "Acme" }),
+      createJob({ id: "job-ok", title: "Good", employer: "Beta" }),
+    ]);
+
+    vi.mocked(scorer.scoreJobSuitability)
+      .mockResolvedValueOnce({ score: 50, reason: "ok" })
+      .mockResolvedValueOnce({ score: 80, reason: "good" });
+
+    vi.mocked(jobsRepo.updateJob)
+      .mockRejectedValueOnce(new Error("DB locked"))
+      .mockResolvedValueOnce(null);
+
+    const result = await scoreJobsStep({ profile: {} });
+
+    expect(result.scoredJobs).toHaveLength(1);
+    expect(vi.mocked(jobsRepo.updateJob)).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Failed to persist score for job, skipping",
+      expect.objectContaining({ jobId: "job-fail" }),
+    );
+  });
+
+  it("continues scoring when sponsor search throws", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const scorer = await import("@server/services/scorer");
+    const visaSponsors = await import("@server/services/visa-sponsors/index");
+    const { logger } = await import("@infra/logger");
+
+    vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
+      createJob({ id: "job-1", title: "Role", employer: "Acme" }),
+    ]);
+    vi.mocked(scorer.scoreJobSuitability).mockResolvedValue({
+      score: 70,
+      reason: "good",
+    });
+    vi.mocked(visaSponsors.searchSponsors).mockRejectedValue(
+      new Error("Sponsor index corrupted"),
+    );
+
+    const result = await scoreJobsStep({ profile: {} });
+
+    expect(result.scoredJobs).toHaveLength(1);
+    expect(result.scoredJobs[0].suitabilityScore).toBe(70);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Sponsor search failed for job, continuing without it",
+      expect.objectContaining({ jobId: "job-1" }),
+    );
+  });
 });

@@ -217,6 +217,26 @@ describe.sequential("Profile API routes", () => {
       expect(body.data.exists).toBe(false);
       expect(body.data.error).toContain("empty or invalid");
     });
+
+    it("returns generic error when upstream fails (no internal leak)", async () => {
+      vi.mocked(getSetting).mockResolvedValue("test-resume-id");
+      vi.mocked(getResume).mockRejectedValue(
+        new Error("SQLITE_ERROR: database /data/jobs.db is locked"),
+      );
+
+      const res = await fetch(`${baseUrl}/api/profile/status`);
+      const body = await res.json();
+
+      expect(res.ok).toBe(true);
+      expect(body.ok).toBe(true);
+      expect(body.data.exists).toBe(false);
+      expect(body.data.error).toBe(
+        "Unable to check resume status. Check server logs.",
+      );
+      // The internal error message must NOT be reflected in the response
+      expect(body.data.error).not.toContain("SQLITE_ERROR");
+      expect(body.data.error).not.toContain("database");
+    });
   });
 
   // Note: POST /api/profile/refresh tests skipped because basic auth blocks POST in test environment

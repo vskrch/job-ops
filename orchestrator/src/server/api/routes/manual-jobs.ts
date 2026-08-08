@@ -23,6 +23,9 @@ const manualJobFetchSchema = z.object({
   url: z.string().trim().url().max(2000),
 });
 
+const MAX_FETCH_BYTES = 2_000_000; // 2 MB cap on upstream HTML to protect the event loop
+const FETCH_TIMEOUT_MS = 15_000;
+
 const manualJobInferenceSchema = z.object({
   jobDescription: z.string().trim().min(1).max(60000),
 });
@@ -57,7 +60,7 @@ const cleanOptional = (value?: string | null) => {
  */
 manualJobsRouter.post("/fetch", async (req: Request, res: Response) => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
     const input = manualJobFetchSchema.parse(req.body ?? {});
@@ -83,7 +86,7 @@ manualJobsRouter.post("/fetch", async (req: Request, res: Response) => {
       );
     }
 
-    const html = await response.text();
+    const html = await readBoundedText(response, MAX_FETCH_BYTES);
     const dom = new JSDOM(html);
     const document = dom.window.document;
 
@@ -197,6 +200,43 @@ manualJobsRouter.post("/infer", async (req: Request, res: Response) => {
     fail(res, toAppError(error));
   }
 });
+
+/**
+ * Read at most maxBytes from a fetch Response as text, aborting early if exceeded.
+ * Prevents huge upstream pages from blocking the event loop during JSDOM parse.
+ */
+async function readBoundedText(
+  response: globalThis.Response,
+  maxBytes: number,
+): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // No streaming body available — fall back to text() which is already loaded.
+    return response.text();
+  }
+
+  const decoder = new TextDecoder();
+  let result = "";
+  let totalBytes = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      result += decoder.decode(value, { stream: true });
+      if (totalBytes >= maxBytes) {
+        await reader.cancel();
+        break;
+      }
+    }
+    result += decoder.decode(); // flush
+  } finally {
+    reader.releaseLock();
+  }
+
+  return result;
+}
 
 /**
  * POST /api/manual-jobs/import - Import a manually curated job into the DB
