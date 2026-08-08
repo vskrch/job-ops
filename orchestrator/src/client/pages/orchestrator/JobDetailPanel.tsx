@@ -4,6 +4,7 @@ import {
   FitAssessment,
   JobHeader,
   TailoredSummary,
+  TailoringChanges,
 } from "@client/components";
 import { JobDetailsEditDrawer } from "@client/components/JobDetailsEditDrawer";
 import { ReadyPanel } from "@client/components/ReadyPanel";
@@ -605,6 +606,7 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
         <TabsContent value="overview" className="space-y-3 pt-2">
           <FitAssessment job={selectedJob} />
           <TailoredSummary job={selectedJob} />
+          <TailoringChanges job={selectedJob} />
 
           <div className="grid gap-2 text-xs sm:grid-cols-2">
             <div>
