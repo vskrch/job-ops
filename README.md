@@ -13,7 +13,7 @@
 
 Stop applying blind.
 
-Scrapes major job boards (LinkedIn, Indeed, Glassdoor & more), AI-scores suitability, tailors resumes (RxResume), and tracks application emails automatically.
+Scrapes major job boards (LinkedIn, Indeed, Glassdoor & more), AI-scores suitability, tailors resumes, and generates PDFs with a built-in LaTeX exporter, and tracks application emails automatically.
 
 You still apply to every job yourself. JobOps just finds jobs, makes sure you're applying to the right ones with a tailored CV, and not losing track of where you're at.
 
@@ -67,6 +67,19 @@ docker compose up -d
 # Open http://localhost:3005 to start the onboarding wizard
 
 ```
+
+### Deploy to Heroku
+
+```bash
+# Requires the Heroku CLI and a container-stack app (heroku.yml included).
+heroku create your-app --stack container
+heroku config:set SESSION_SECRET="$(openssl rand -hex 32)" NODE_ENV=production
+git push heroku main
+```
+
+- The container bundles the built-in LaTeX PDF exporter (Tectonic), Playwright/Python sources, and a production client build.
+- Set `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` (Cloudflare R2 or any S3-compatible store) for durable database backups across dyno restarts.
+- `USAJOBS_API_KEY` enables the US federal job source; set LLM keys in **Settings → Environment & Accounts**.
 
 ## Why JobOps?
 
