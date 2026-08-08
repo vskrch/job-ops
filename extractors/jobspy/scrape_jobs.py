@@ -121,6 +121,17 @@ def _scrape_for_sites(
     return scrape_jobs(**kwargs)
 
 
+def _scrape_google(*, search_term: str, results_wanted: int, is_remote: bool) -> pd.DataFrame:
+    # Google Jobs accepts google_search_term instead of search_term and
+    # ignores location/country/hours_old.
+    return scrape_jobs(
+        site_name=["google"],
+        google_search_term=search_term,
+        results_wanted=results_wanted,
+        is_remote=is_remote,
+    )
+
+
 def main() -> int:
     sites = _parse_sites(_env_str("JOBSPY_SITES", "indeed,linkedin"))
     search_term = _env_str("JOBSPY_SEARCH_TERM", "web developer")
@@ -152,6 +163,16 @@ def main() -> int:
     )
     frames: list[pd.DataFrame] = []
     non_glassdoor_sites = [site for site in sites if site != "glassdoor"]
+
+    if "google" in non_glassdoor_sites:
+        frames.append(
+            _scrape_google(
+                search_term=search_term,
+                results_wanted=results_wanted,
+                is_remote=is_remote,
+            )
+        )
+        non_glassdoor_sites = [site for site in non_glassdoor_sites if site != "google"]
 
     if non_glassdoor_sites:
         frames.append(

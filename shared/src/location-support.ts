@@ -100,6 +100,11 @@ export const SUPPORTED_COUNTRY_INPUTS = [
 ] as const;
 
 const UK_ONLY_SOURCES = new Set<JobSource>(["gradcracker", "ukvisajobs"]);
+const US_ONLY_SOURCES = new Set<JobSource>(["dice"]);
+const US_CA_SOURCES = new Set<JobSource>(["ziprecruiter"]);
+const INDIA_SOURCES = new Set<JobSource>(["naukri", "instahyre"]);
+const BANGLADESH_SOURCES = new Set<JobSource>(["bdjobs"]);
+const CANADA_SOURCES = new Set<JobSource>(["eluta"]);
 const GLASSDOOR_SUPPORTED_COUNTRIES = new Set(
   [
     "australia",
@@ -170,6 +175,24 @@ export function isUkCountry(country: string | null | undefined): boolean {
   return normalizeCountryKey(country) === "united kingdom";
 }
 
+export function isUsCountry(country: string | null | undefined): boolean {
+  return normalizeCountryKey(country) === "united states";
+}
+
+export function isCanadaCountry(country: string | null | undefined): boolean {
+  return normalizeCountryKey(country) === "canada";
+}
+
+export function isIndiaCountry(country: string | null | undefined): boolean {
+  return normalizeCountryKey(country) === "india";
+}
+
+export function isBangladeshCountry(
+  country: string | null | undefined,
+): boolean {
+  return normalizeCountryKey(country) === "bangladesh";
+}
+
 export function isGlassdoorCountry(
   country: string | null | undefined,
 ): boolean {
@@ -187,6 +210,12 @@ export function isSourceAllowedForCountry(
   country: string | null | undefined,
 ): boolean {
   if (UK_ONLY_SOURCES.has(source)) return isUkCountry(country);
+  if (US_ONLY_SOURCES.has(source)) return isUsCountry(country);
+  if (US_CA_SOURCES.has(source))
+    return isUsCountry(country) || isCanadaCountry(country);
+  if (INDIA_SOURCES.has(source)) return isIndiaCountry(country);
+  if (BANGLADESH_SOURCES.has(source)) return isBangladeshCountry(country);
+  if (CANADA_SOURCES.has(source)) return isCanadaCountry(country);
   if (source === "glassdoor") return isGlassdoorCountry(country);
   if (source === "adzuna") return getAdzunaCountryCode(country) !== null;
   return true;

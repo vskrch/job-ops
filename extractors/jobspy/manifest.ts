@@ -6,7 +6,16 @@ import { runJobSpy } from "./src/run";
 
 type JobSpySite = NonNullable<Parameters<typeof runJobSpy>[0]["sites"]>[number];
 
-const JOBSPY_SOURCES = new Set<JobSpySite>(["indeed", "linkedin", "glassdoor"]);
+const JOBSPY_SOURCES = new Set<JobSpySite>([
+  "indeed",
+  "linkedin",
+  "glassdoor",
+  "ziprecruiter",
+  "bayt",
+  "bdjobs",
+  "naukri",
+  "google",
+]);
 
 function isJobSpySite(source: string): source is JobSpySite {
   return JOBSPY_SOURCES.has(source as JobSpySite);
@@ -15,7 +24,16 @@ function isJobSpySite(source: string): source is JobSpySite {
 export const manifest: ExtractorManifest = {
   id: "jobspy",
   displayName: "JobSpy",
-  providesSources: ["indeed", "linkedin", "glassdoor"],
+  providesSources: [
+    "indeed",
+    "linkedin",
+    "glassdoor",
+    "ziprecruiter",
+    "bayt",
+    "bdjobs",
+    "naukri",
+    "google",
+  ],
   async run(context: ExtractorRuntimeContext) {
     if (context.shouldCancel?.()) {
       return { success: true, jobs: [] };

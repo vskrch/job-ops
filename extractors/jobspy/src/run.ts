@@ -88,14 +88,34 @@ function toJsonStringOrNull(value: unknown): string | null {
   }
 }
 
-function toJobSource(site: unknown): JobSource | null {
+const JOBSPY_SITE_TO_SOURCE: Record<string, JobSource> = {
+  indeed: "indeed",
+  linkedin: "linkedin",
+  glassdoor: "glassdoor",
+  zip_recruiter: "ziprecruiter",
+  ziprecruiter: "ziprecruiter",
+  bayt: "bayt",
+  bdjobs: "bdjobs",
+  naukri: "naukri",
+  google: "google",
+};
+
+export function toJobSource(site: unknown): JobSource | null {
   const raw = toStringOrNull(site)?.toLowerCase();
-  if (raw === "gradcracker") return "gradcracker";
-  if (raw === "indeed") return "indeed";
-  if (raw === "linkedin") return "linkedin";
-  if (raw === "glassdoor") return "glassdoor";
-  return null;
+  return JOBSPY_SITE_TO_SOURCE[raw] ?? null;
 }
+
+/** Sites the JobSpy Python library can drive with the standard params. */
+export const JOBSPY_SUPPORTED_SITES: readonly JobSource[] = [
+  "indeed",
+  "linkedin",
+  "glassdoor",
+  "ziprecruiter",
+  "bayt",
+  "bdjobs",
+  "naukri",
+  "google",
+] as const;
 
 function formatSalary(params: {
   minAmount: number | null;
@@ -156,11 +176,14 @@ export async function runJobSpy(
 ): Promise<JobSpyResult> {
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  const sites = (options.sites ?? ["indeed", "linkedin", "glassdoor"])
-    .filter(
-      (site) =>
-        site === "indeed" || site === "linkedin" || site === "glassdoor",
-    )
+  const sites = (
+    (options.sites ?? ["indeed", "linkedin", "glassdoor"]) as JobSource[]
+  )
+    .filter((site) => JOBSPY_SUPPORTED_SITES.includes(site))
+    .map((site) => {
+      if (site === "ziprecruiter") return "zip_recruiter";
+      return site;
+    })
     .join(",");
 
   const searchTerms = resolveSearchTerms(options);

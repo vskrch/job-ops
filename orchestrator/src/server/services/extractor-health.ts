@@ -106,6 +106,69 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
       jobspyResultsWanted: "1",
     },
   },
+  ziprecruiter: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "united states",
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  google: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  bayt: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  bdjobs: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "bangladesh",
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  naukri: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "india",
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  dice: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "united states",
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  monster: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  instahyre: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "india",
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
+  eluta: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: "canada",
+    settings: {
+      jobspyResultsWanted: "1",
+    },
+  },
   manual: {
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
