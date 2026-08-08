@@ -21,6 +21,7 @@ vi.mock("@infra/logger", () => ({
     debug: vi.fn(),
     child: vi.fn(),
   },
+  isDebugLoggingEnabled: vi.fn(() => false),
 }));
 
 function jsonResponse(data: unknown, ok = true, status = 200) {

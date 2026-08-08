@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import { logger } from "./logger";
 
 interface SetupSseOptions {
   cacheControl?: string;
@@ -13,6 +14,10 @@ export function setupSse(res: Response, options: SetupSseOptions = {}): void {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", options.cacheControl ?? "no-cache");
   res.setHeader("Connection", "keep-alive");
+
+  logger.debug("SSE connection opened", {
+    path: res.req?.originalUrl ?? res.req?.url,
+  });
 
   if (options.disableBuffering) {
     res.setHeader("X-Accel-Buffering", "no");

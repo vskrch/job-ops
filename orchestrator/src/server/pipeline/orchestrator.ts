@@ -106,46 +106,77 @@ export async function runPipeline(
       sources: mergedConfig.sources,
     });
 
+    const stepStartTimes = new Map<string, number>();
+    const startStep = (name: string): void => {
+      stepStartTimes.set(name, Date.now());
+      pipelineLogger.debug("Pipeline step started", { step: name });
+    };
+    const finishStep = (
+      name: string,
+      extra: Record<string, unknown> = {},
+    ): void => {
+      pipelineLogger.debug("Pipeline step completed", {
+        step: name,
+        durationMs: Date.now() - (stepStartTimes.get(name) ?? Date.now()),
+        ...extra,
+      });
+    };
+
     try {
       ensureNotCancelled();
+      startStep("load-profile");
       const profile = await loadProfileStep();
+      finishStep("load-profile");
 
       ensureNotCancelled();
+      startStep("discover-jobs");
       const { discoveredJobs } = await discoverJobsStep({
         mergedConfig,
         shouldCancel: () => cancelRequestedAt !== null,
       });
+      finishStep("discover-jobs", { discovered: discoveredJobs.length });
 
       ensureNotCancelled();
+      startStep("import-jobs");
       const { created } = await importJobsStep({ discoveredJobs });
       jobsDiscovered = created;
+      finishStep("import-jobs", { created });
 
       await pipelineRepo.updatePipelineRun(pipelineRun.id, {
         jobsDiscovered: created,
       });
 
       ensureNotCancelled();
+      startStep("score-jobs");
       const { unprocessedJobs, scoredJobs } = await scoreJobsStep({
         profile,
         shouldCancel: () => cancelRequestedAt !== null,
       });
+      finishStep("score-jobs", {
+        scored: scoredJobs.length,
+        unprocessed: unprocessedJobs.length,
+      });
 
       ensureNotCancelled();
+      startStep("select-jobs");
       const jobsToProcess = selectJobsStep({
         scoredJobs,
         mergedConfig,
       });
+      finishStep("select-jobs", { selected: jobsToProcess.length });
 
       pipelineLogger.info("Selected jobs for processing", {
         candidates: jobsToProcess.length,
       });
 
+      startStep("process-jobs");
       const { processedCount } = await processJobsStep({
         jobsToProcess,
         processJob,
         shouldCancel: () => cancelRequestedAt !== null,
       });
       jobsProcessed = processedCount;
+      finishStep("process-jobs", { processed: processedCount });
 
       await pipelineRepo.updatePipelineRun(pipelineRun.id, {
         status: "completed",

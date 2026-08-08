@@ -4,6 +4,7 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isDebugLoggingEnabled, logger } from "@infra/logger";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { getDataDir } from "../config/dataDir";
@@ -22,7 +23,17 @@ const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
 let isClosed = false;
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(sqlite, {
+  schema,
+  ...(isDebugLoggingEnabled()
+    ? {
+        logger: {
+          logQuery: (query: string, params: unknown[]) =>
+            logger.debug("SQL query", { query, params }),
+        },
+      }
+    : {}),
+});
 
 export { schema };
 

@@ -82,11 +82,16 @@ export function createScheduler(
 
     state.timer = setTimeout(async () => {
       logger.info("Scheduler task starting", { scheduler: name });
+      const startedAt = Date.now();
       try {
         await callback();
       } catch (error) {
         logger.error("Scheduled task failed", { scheduler: name, error });
       }
+      logger.debug("Scheduler task completed", {
+        scheduler: name,
+        durationMs: Date.now() - startedAt,
+      });
       // Reschedule for next occurrence
       scheduleNext(hour);
     }, delay);

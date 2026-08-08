@@ -285,6 +285,11 @@ export function createApp() {
   // Logging middleware
   app.use((req, res, next) => {
     const start = Date.now();
+    logger.debug("HTTP request started", {
+      method: req.method,
+      path: req.originalUrl,
+      contentLength: req.headers["content-length"] ?? undefined,
+    });
     res.on("finish", () => {
       const duration = Date.now() - start;
       logger.info("HTTP request completed", {

@@ -100,6 +100,14 @@ flowchart TD
 - SQLite DB: `data/jobs.db`
 - Generated PDFs: `data/pdfs/`
 
+## Logging
+
+JobOps writes structured JSON logs to stdout only — no log files, no rotation.
+
+- Default level is `debug` (full verbose output: HTTP requests, SQL queries, pipeline steps, per-job work, LLM calls, visa sponsor fetches).
+- Set `LOG_LEVEL=info`, `LOG_LEVEL=warn`, or `LOG_LEVEL=error` to reduce noise. `LOG_LEVEL=verbose` is an alias for `debug`.
+- Every log line includes a timestamp, level, message, and available context (`requestId`, `pipelineRunId`, `jobId`).
+
 ## Public demo mode
 
 Set `DEMO_MODE=true` for sandbox deployments.

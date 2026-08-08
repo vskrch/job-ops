@@ -5,6 +5,7 @@ import {
   hasBasicAuthPromptHandler,
   requestBasicAuthHeader,
 } from "@client/api/client";
+import { clientDebug } from "./debug";
 
 interface EventSourceSubscriptionHandlers<T> {
   onOpen?: () => void;
@@ -76,11 +77,13 @@ export function subscribeToEventSource<T>(
           }
 
           if (!response.ok || !response.body) {
+            clientDebug("SSE error", { url, status: response.status });
             handlers.onError?.();
             return;
           }
 
           handlers.onOpen?.();
+          clientDebug("SSE connected", { url });
 
           const decoder = new TextDecoder();
           const reader = response.body.getReader();
@@ -99,6 +102,10 @@ export function subscribeToEventSource<T>(
 
                 const data = parseSseFrame(frame);
                 if (data) {
+                  clientDebug("SSE event", {
+                    url,
+                    preview: data.slice(0, 300),
+                  });
                   try {
                     handlers.onMessage(JSON.parse(data) as T);
                   } catch {
@@ -116,6 +123,7 @@ export function subscribeToEventSource<T>(
           return;
         } catch {
           if (!isClosed && !controller.signal.aborted) {
+            clientDebug("SSE error", { url });
             handlers.onError?.();
           }
           return;
@@ -126,16 +134,19 @@ export function subscribeToEventSource<T>(
     return () => {
       isClosed = true;
       controller.abort();
+      clientDebug("SSE closed", { url });
     };
   }
 
   const eventSource = new EventSource(url);
 
   eventSource.onopen = () => {
+    clientDebug("SSE connected", { url });
     handlers.onOpen?.();
   };
 
   eventSource.onmessage = (event) => {
+    clientDebug("SSE event", { url, preview: event.data.slice(0, 300) });
     try {
       handlers.onMessage(JSON.parse(event.data) as T);
     } catch {
@@ -144,10 +155,12 @@ export function subscribeToEventSource<T>(
   };
 
   eventSource.onerror = () => {
+    clientDebug("SSE error", { url });
     handlers.onError?.();
   };
 
   return () => {
     eventSource.close();
+    clientDebug("SSE closed", { url });
   };
 }

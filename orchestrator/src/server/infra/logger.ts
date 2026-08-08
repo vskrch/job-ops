@@ -10,15 +10,29 @@ const levelPriority: Record<LogLevel, number> = {
   error: 40,
 };
 
-function resolveMinLevel(): LogLevel {
+const LOG_LEVEL_ALIASES: Record<string, LogLevel> = {
+  verbose: "debug",
+  trace: "debug",
+};
+
+/**
+ * Resolve the configured minimum log level from LOG_LEVEL.
+ * Defaults to "debug" (full verbose console output); set LOG_LEVEL=info|warn|error
+ * to reduce noise. "verbose" is accepted as an alias for "debug".
+ */
+export function getConfiguredLogLevel(): LogLevel {
   const raw = process.env.LOG_LEVEL?.toLowerCase();
   if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") {
     return raw;
   }
-  return "info";
+  return raw ? (LOG_LEVEL_ALIASES[raw] ?? "debug") : "debug";
 }
 
-const minLevel = resolveMinLevel();
+export function isDebugLoggingEnabled(): boolean {
+  return minLevel === "debug";
+}
+
+const minLevel = getConfiguredLogLevel();
 
 export class Logger {
   constructor(private readonly context: Record<string, unknown> = {}) {}

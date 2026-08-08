@@ -40,9 +40,17 @@ export async function processJobsStep(args: {
         progressHelpers.jobComplete(completedCount, total);
       },
       task: async (job) => {
+        const startedAt = Date.now();
+        logger.debug("Processing job", { jobId: job.id });
         const result = await args.processJob(job.id, {
           force: false,
           analyticsOrigin: "pipeline",
+        });
+        logger.debug("Job processed", {
+          jobId: job.id,
+          success: result.success,
+          durationMs: Date.now() - startedAt,
+          error: result.error,
         });
         if (result.success) {
           processedCount += 1;

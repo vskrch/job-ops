@@ -2,6 +2,7 @@
  * API client for the orchestrator backend.
  */
 
+import { clientDebug } from "@client/lib/debug";
 import type { UpdateSettingsInput } from "@shared/settings-schema";
 import type {
   ApiResponse,
@@ -281,6 +282,7 @@ async function fetchAndParse<T>(
   response: Response;
   parsed: ApiResponse<T> | LegacyApiResponse<T>;
 }> {
+  const startedAt = Date.now();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...normalizeHeaders(options?.headers),
@@ -293,11 +295,24 @@ async function fetchAndParse<T>(
 
   const text = await response.text();
 
+  clientDebug("API request", {
+    method: (options?.method || "GET").toUpperCase(),
+    endpoint,
+    status: response.status,
+    durationMs: Date.now() - startedAt,
+  });
+
   let payload: unknown;
   try {
     payload = JSON.parse(text);
   } catch {
     // If the response is not JSON, it's likely an HTML error page.
+    clientDebug("API response was not JSON", {
+      method: (options?.method || "GET").toUpperCase(),
+      endpoint,
+      status: response.status,
+      preview: text.slice(0, 300),
+    });
     throw new ApiClientError(
       `Server error (${response.status}): Expected JSON but received HTML. Is the backend server running?`,
       { status: response.status },

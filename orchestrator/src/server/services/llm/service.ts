@@ -245,6 +245,7 @@ export class LlmService {
     const combinedSignal = composeSignals(signal, timeoutSignal);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const attemptStartedAt = Date.now();
       try {
         if (attempt > 0) {
           logger.info("LLM retry attempt", {
@@ -291,11 +292,27 @@ export class LlmService {
         }
 
         const parsed = parseJsonContent<T>(content, jobId);
+        logger.debug("LLM call succeeded", {
+          jobId: jobId ?? "unknown",
+          provider: this.provider,
+          model,
+          attempt: attempt + 1,
+          durationMs: Date.now() - attemptStartedAt,
+        });
         return { success: true, data: parsed };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const status = (error as LlmApiError).status;
         const body = (error as LlmApiError).body;
+        logger.debug("LLM call failed", {
+          jobId: jobId ?? "unknown",
+          provider: this.provider,
+          model,
+          attempt: attempt + 1,
+          status: status ?? "no-status",
+          durationMs: Date.now() - attemptStartedAt,
+          message,
+        });
 
         if (
           this.strategy.isCapabilityError({

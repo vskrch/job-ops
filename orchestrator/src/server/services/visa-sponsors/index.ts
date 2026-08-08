@@ -245,7 +245,9 @@ async function downloadLatestDataForProvider(
 
   try {
     logger.info("Fetching sponsor data for provider", { providerId: id });
+    const fetchStartedAt = Date.now();
     const sponsors = await manifest.fetchSponsors();
+    const fetchDurationMs = Date.now() - fetchStartedAt;
 
     if (sponsors.length === 0) {
       throw new Error(`Provider ${id} returned an empty sponsor list`);
@@ -280,6 +282,12 @@ async function downloadLatestDataForProvider(
       providerId: id,
       count: sponsors.length,
     });
+    logger.debug("Sponsor fetch completed", {
+      providerId: id,
+      count: sponsors.length,
+      durationMs: fetchDurationMs,
+      csvFile: filename,
+    });
     return {
       success: true,
       message: `Successfully downloaded ${sponsors.length} sponsors`,
@@ -307,15 +315,28 @@ function loadSponsorsForProvider(providerId: string): VisaSponsor[] {
   // Return valid cache (< 1 hour old)
   if (state.cache && state.cacheLoadedAt) {
     if (Date.now() - state.cacheLoadedAt.getTime() < 60 * 60 * 1000) {
+      logger.debug("Visa sponsor cache hit", {
+        providerId,
+        count: state.cache.length,
+      });
       return state.cache;
     }
   }
 
   const metadata = readMetadata(providerId);
-  if (!metadata.csvFile) return [];
+  if (!metadata.csvFile) {
+    logger.debug("Visa sponsor cache miss, no data on disk", { providerId });
+    return [];
+  }
 
   const csvPath = path.join(getProviderDataDir(providerId), metadata.csvFile);
-  if (!fs.existsSync(csvPath)) return [];
+  if (!fs.existsSync(csvPath)) {
+    logger.debug("Visa sponsor cache miss, CSV file missing", {
+      providerId,
+      csvFile: metadata.csvFile,
+    });
+    return [];
+  }
 
   try {
     const content = fs.readFileSync(csvPath, "utf-8");
@@ -443,6 +464,7 @@ export async function searchSponsors(
   const normalizedQuery = normalizeCompanyName(query);
   const results: VisaSponsorSearchResult[] = [];
   const seen = new Set<string>();
+  const searchStartedAt = Date.now();
 
   for (const {
     providerId,
@@ -470,6 +492,11 @@ export async function searchSponsors(
   }
 
   results.sort((a, b) => b.score - a.score);
+  logger.debug("Visa sponsor search completed", {
+    query,
+    results: results.length,
+    durationMs: Date.now() - searchStartedAt,
+  });
   return results.slice(0, limit);
 }
 

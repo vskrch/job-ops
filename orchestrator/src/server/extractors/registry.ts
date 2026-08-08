@@ -126,6 +126,14 @@ async function createRegistry(): Promise<ExtractorRegistry> {
         EXTRACTOR_SOURCE_IDS.includes(source as ExtractorSourceId),
       ) as ExtractorSourceId[];
 
+      if (validSources.length > 0) {
+        logger.debug("Extractor manifest loaded", {
+          id: manifest.id,
+          path,
+          sources: validSources,
+        });
+      }
+
       if (invalidSources.length > 0) {
         logger.warn("Extractor manifest contains unknown sources", {
           manifestId: manifest.id,
