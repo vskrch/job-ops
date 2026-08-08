@@ -11,6 +11,15 @@ export const EXTRACTOR_SOURCE_IDS = [
   "startupjobs",
   "workingnomads",
   "golangjobs",
+  "ziprecruiter",
+  "google",
+  "bayt",
+  "bdjobs",
+  "naukri",
+  "dice",
+  "monster",
+  "instahyre",
+  "eluta",
   "manual",
 ] as const;
 
@@ -63,6 +72,27 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
     category: "pipeline",
   },
   manual: { label: "Manual", order: 110, category: "manual" },
+  ziprecruiter: {
+    label: "ZipRecruiter",
+    order: 120,
+    category: "pipeline",
+  },
+  google: { label: "Google Jobs", order: 130, category: "pipeline" },
+  bayt: { label: "Bayt", order: 140, category: "pipeline" },
+  bdjobs: {
+    label: "BDJobs",
+    order: 150,
+    category: "pipeline",
+  },
+  naukri: { label: "Naukri", order: 160, category: "pipeline" },
+  dice: { label: "Dice", order: 170, category: "pipeline" },
+  monster: { label: "Monster", order: 180, category: "pipeline" },
+  instahyre: {
+    label: "Instahyre",
+    order: 190,
+    category: "pipeline",
+  },
+  eluta: { label: "Eluta", order: 200, category: "pipeline" },
 };
 
 export const PIPELINE_EXTRACTOR_SOURCE_IDS = EXTRACTOR_SOURCE_IDS.filter(

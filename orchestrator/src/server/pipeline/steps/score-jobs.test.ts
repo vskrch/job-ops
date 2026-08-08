@@ -239,14 +239,54 @@ describe("scoreJobsStep auto-skip behavior", () => {
     expect(vi.mocked(jobsRepo.updateJob)).not.toHaveBeenCalled();
   });
 
+  it("uses cached score and skips LLM when job already has suitabilityScore", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const scorer = await import("@server/services/scorer");
+    const { progressHelpers } = await import("../progress");
+
+    vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
+      createJob({
+        id: "job-cached",
+        title: "Cached Role",
+        employer: "Acme",
+        suitabilityScore: 85,
+        suitabilityReason: "Previously scored",
+      }),
+    ]);
+
+    const result = await scoreJobsStep({ profile: {} });
+
+    expect(result.scoredJobs).toHaveLength(1);
+    expect(result.scoredJobs[0].suitabilityScore).toBe(85);
+    expect(vi.mocked(scorer.scoreJobSuitability)).not.toHaveBeenCalled();
+    expect(vi.mocked(jobsRepo.updateJob)).not.toHaveBeenCalled();
+    expect(vi.mocked(progressHelpers.scoringJob)).toHaveBeenCalledWith(
+      1,
+      1,
+      "Cached Role (cached)",
+    );
+  });
+
   it("continues scoring other jobs when one job's DB update fails", async () => {
     const jobsRepo = await import("@server/repositories/jobs");
     const scorer = await import("@server/services/scorer");
     const { logger } = await import("@infra/logger");
 
     vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
-      createJob({ id: "job-fail", title: "Failing", employer: "Acme" }),
-      createJob({ id: "job-ok", title: "Good", employer: "Beta" }),
+      createJob({
+        id: "job-fail",
+        title: "Failing",
+        employer: "Acme",
+        suitabilityScore: null,
+        suitabilityReason: null,
+      }),
+      createJob({
+        id: "job-ok",
+        title: "Good",
+        employer: "Beta",
+        suitabilityScore: null,
+        suitabilityReason: null,
+      }),
     ]);
 
     vi.mocked(scorer.scoreJobSuitability)
@@ -274,7 +314,13 @@ describe("scoreJobsStep auto-skip behavior", () => {
     const { logger } = await import("@infra/logger");
 
     vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
-      createJob({ id: "job-1", title: "Role", employer: "Acme" }),
+      createJob({
+        id: "job-1",
+        title: "Role",
+        employer: "Acme",
+        suitabilityScore: null,
+        suitabilityReason: null,
+      }),
     ]);
     vi.mocked(scorer.scoreJobSuitability).mockResolvedValue({
       score: 70,

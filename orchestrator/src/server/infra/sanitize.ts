@@ -54,7 +54,21 @@ export function sanitizeUnknown(
   }
 
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
+    const obj = value as Record<string, unknown>;
+
+    if (
+      value instanceof Map ||
+      value instanceof Set ||
+      value instanceof Date ||
+      value instanceof RegExp
+    ) {
+      return redactString(
+        value instanceof Date ? value.toISOString() : String(value),
+        maxString,
+      );
+    }
+
+    const entries = Object.entries(obj);
     const out: Record<string, unknown> = {};
     for (const [index, [key, entryValue]] of entries.entries()) {
       if (index >= maxItems) {

@@ -1,5 +1,5 @@
 import { logger } from "@infra/logger";
-import { sanitizeWebhookPayload } from "@infra/sanitize";
+import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
 import * as settingsRepo from "@server/repositories/settings";
 
 export async function notifyPipelineWebhookStep(
@@ -44,7 +44,7 @@ export async function notifyPipelineWebhookStep(
       const responseText = await response.text().catch(() => "");
       logger.warn("Pipeline webhook POST failed", {
         status: response.status,
-        error: responseText.slice(0, 200),
+        error: redactString(responseText),
       });
     }
   } catch (error) {

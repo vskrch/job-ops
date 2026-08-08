@@ -101,7 +101,9 @@ export const apiErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     status: appError.status,
     code: appError.code,
     details: appError.details,
-    cause: appError.cause,
+    ...(appError.cause !== undefined
+      ? { cause: sanitizeUnknown(appError.cause) }
+      : {}),
   });
   fail(res, appError);
 };

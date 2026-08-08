@@ -378,6 +378,9 @@ export function createApp() {
   // Serve static files for generated PDFs
   const pdfDir = join(getDataDir(), "pdfs");
   if (isDemoMode()) {
+    // Demo mode: serve a single demo.pdf for ALL /pdfs/* paths.
+    // This shadows the static middleware below — any real PDFs in pdfDir are
+    // unreachable while demo mode is on. Only the demo file is served.
     const demoPdfPath = join(pdfDir, "demo.pdf");
     app.get("/pdfs/*", (_req, res) => {
       res.sendFile(demoPdfPath, (error) => {

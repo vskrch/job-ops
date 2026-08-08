@@ -76,8 +76,8 @@ async function startServer() {
     // Initialize visa sponsors service (downloads data if needed, starts scheduler)
     try {
       if (process.env.DEMO_MODE === "true") {
-        console.log(
-          "ℹ️ Demo mode enabled. Skipping visa sponsors initialization.",
+        logger.info(
+          "Demo mode enabled. Skipping visa sponsors initialization.",
         );
       } else {
         await initializeVisaSponsors();
@@ -115,12 +115,13 @@ async function startServer() {
 
       const settings = getBackupSettings();
       if (settings.enabled) {
-        console.log(
-          `✅ Backup scheduler started (hour: ${settings.hour}, max: ${settings.maxCount})`,
-        );
+        logger.info("Backup scheduler started", {
+          hour: settings.hour,
+          maxCount: settings.maxCount,
+        });
       } else {
-        console.log(
-          "ℹ️ Backups disabled. Enable in settings to schedule automatic backups.",
+        logger.info(
+          "Backups disabled. Enable in settings to schedule automatic backups.",
         );
       }
     } catch (error) {

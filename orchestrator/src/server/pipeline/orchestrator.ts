@@ -47,7 +47,9 @@ const DEFAULT_CONFIG: PipelineConfig = {
   enableAutoTailoring: true,
 };
 
-// Track if pipeline is currently running
+// ponytail: module-level lock — single-process only.
+// SQLite + better-sqlite3 is single-connection; this is fine until horizontal scaling.
+// Upgrade path: move to a DB-backed advisory lock (pipeline_runs row) if multi-instance.
 let isPipelineRunning = false;
 let activePipelineRunId: string | null = null;
 let cancelRequestedAt: string | null = null;

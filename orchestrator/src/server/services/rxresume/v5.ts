@@ -1,6 +1,7 @@
 // rxresume/v5.ts
 // Reactive Resume v5/OpenAPI implementation (API key auth).
 import { logger } from "@infra/logger";
+import { sanitizeUnknown } from "@infra/sanitize";
 import type { ResumeData } from "./schema/v4";
 import { parseV5ResumeData } from "./schema/v5";
 
@@ -119,7 +120,7 @@ async function executeWithKeyRetries(
         endpoint: pathFromUrl(url),
         method: options.method ?? "GET",
         status: response.status,
-        upstreamError: errorBody,
+        upstreamError: sanitizeUnknown(errorBody),
       });
 
       throw new Error(

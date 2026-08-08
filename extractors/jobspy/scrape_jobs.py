@@ -16,6 +16,15 @@ COUNTRY_ALIASES = {
     "türkiye": "turkey",
     "czech republic": "czechia",
 }
+GOOGLE_SEARCH_TERM_COUNTRIES = {
+    "united states",
+    "united kingdom",
+    "canada",
+    "australia",
+    "india",
+    "germany",
+    "france",
+}
 GLASSDOOR_COUNTRY_TO_CITY = {
     "australia": "Sydney",
     "austria": "Vienna",

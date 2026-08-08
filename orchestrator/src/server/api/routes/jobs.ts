@@ -9,7 +9,7 @@ import {
 import { fail, ok, okWithMeta } from "@infra/http";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
-import { sanitizeWebhookPayload } from "@infra/sanitize";
+import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import { isDemoMode, sendDemoBlocked } from "@server/config/demo";
 import {
@@ -104,9 +104,10 @@ async function notifyJobCompleteWebhook(job: Job) {
     });
 
     if (!response.ok) {
+      const rawBody = await response.text().catch(() => "");
       logger.warn("Job complete webhook POST failed", {
         status: response.status,
-        response: (await response.text().catch(() => "")).slice(0, 200),
+        response: redactString(rawBody),
         jobId: job.id,
       });
     }

@@ -10,6 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { logger } from "@infra/logger";
 import { getDataDir } from "@server/config/dataDir";
 import { createScheduler } from "@server/utils/scheduler";
 import type {
@@ -194,12 +195,13 @@ function cleanupOldCsvFiles(providerId: string): void {
       const filePath = path.join(dir, file);
       try {
         fs.unlinkSync(filePath);
-        console.log(`🗑️ Removed old CSV for ${providerId}: ${file}`);
-      } catch (err) {
-        console.warn(
-          `⚠️ Failed to remove old CSV for ${providerId}: ${file}`,
-          err,
-        );
+        logger.info("Removed old CSV file", { providerId, file });
+      } catch (error) {
+        logger.warn("Failed to remove old CSV file", {
+          providerId,
+          file,
+          error,
+        });
       }
     }
   }
@@ -242,7 +244,7 @@ async function downloadLatestDataForProvider(
   ensureProviderDir(id);
 
   try {
-    console.log(`📥 Fetching sponsor data for provider: ${id}`);
+    logger.info("Fetching sponsor data for provider", { providerId: id });
     const sponsors = await manifest.fetchSponsors();
 
     if (sponsors.length === 0) {
@@ -274,9 +276,10 @@ async function downloadLatestDataForProvider(
     state.cache = null;
     state.cacheLoadedAt = null;
 
-    console.log(
-      `✅ Downloaded ${sponsors.length} sponsors for provider: ${id}`,
-    );
+    logger.info("Downloaded sponsors for provider", {
+      providerId: id,
+      count: sponsors.length,
+    });
     return {
       success: true,
       message: `Successfully downloaded ${sponsors.length} sponsors`,
@@ -284,10 +287,10 @@ async function downloadLatestDataForProvider(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     state.updateError = message;
-    console.error(
-      `❌ Failed to download sponsors for provider ${id}:`,
-      message,
-    );
+    logger.error("Failed to download sponsors for provider", {
+      providerId: id,
+      error,
+    });
     return {
       success: false,
       message,
@@ -321,7 +324,10 @@ function loadSponsorsForProvider(providerId: string): VisaSponsor[] {
     state.cacheLoadedAt = new Date();
     return sponsors;
   } catch (error) {
-    console.error(`Failed to load sponsors for provider ${providerId}:`, error);
+    logger.error("Failed to load sponsors for provider", {
+      providerId,
+      error,
+    });
     return [];
   }
 }
@@ -557,15 +563,16 @@ export async function initialize(): Promise<void> {
     const metadata = readMetadata(manifest.id);
 
     if (!metadata.csvFile) {
-      console.log(
-        `📥 No data found for provider ${manifest.id}, downloading...`,
-      );
+      logger.info("No data found for provider, downloading", {
+        providerId: manifest.id,
+      });
       await downloadLatestDataForProvider(manifest);
     } else {
       const sponsors = loadSponsorsForProvider(manifest.id);
-      console.log(
-        `✅ Provider ${manifest.id} initialized with ${sponsors.length} sponsors`,
-      );
+      logger.info("Provider initialized", {
+        providerId: manifest.id,
+        sponsorCount: sponsors.length,
+      });
     }
 
     // Start per-provider scheduler
