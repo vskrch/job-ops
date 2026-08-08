@@ -249,4 +249,37 @@ describe("OnboardingGate", () => {
       screen.getByDisplayValue("https://self-hosted.example.com"),
     ).toBeInTheDocument();
   });
+
+  it("lets users skip the wizard and reopens only when not skipped", async () => {
+    vi.mocked(api.validateLlm).mockResolvedValue({
+      valid: false,
+      message: "Invalid",
+    });
+    vi.mocked(api.validateRxresume).mockResolvedValue({
+      valid: true,
+      message: null,
+    });
+    vi.mocked(api.validateResumeConfig).mockResolvedValue({
+      valid: true,
+      message: null,
+    });
+
+    render(<OnboardingGate />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Welcome to Job Ops")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /skip for now/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Welcome to Job Ops")).not.toBeInTheDocument();
+    });
+    expect(window.localStorage.getItem("jobops.onboardingSkipped")).toBe("1");
+
+    const { queryByText } = render(<OnboardingGate />);
+    await waitFor(() => {
+      expect(queryByText("Welcome to Job Ops")).not.toBeInTheDocument();
+    });
+  });
 });

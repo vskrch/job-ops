@@ -84,6 +84,10 @@ const EMPTY_TIMESTAMPED_VALIDATION_STATE: TimestampedValidationState = {
   testedAt: null,
 };
 
+// Lets users into the app without configuring every integration; they can
+// finish setup later from Settings.
+const ONBOARDING_SKIP_KEY = "jobops.onboardingSkipped";
+
 function getStepPrimaryLabel(input: {
   currentStep: string | null;
   llmValidated: boolean;
@@ -133,6 +137,9 @@ export const OnboardingGate: React.FC = () => {
   const [baseResumeValidation, setBaseResumeValidation] =
     useState<ValidationState>(EMPTY_VALIDATION_STATE);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState(
+    () => window.localStorage.getItem(ONBOARDING_SKIP_KEY) === "1",
+  );
   const demoInfo = useDemoInfo();
   const demoMode = demoInfo?.demoMode ?? false;
 
@@ -230,6 +237,7 @@ export const OnboardingGate: React.FC = () => {
   const llmValidated = requiresLlmKey ? llmValidation.valid : true;
   const shouldOpen =
     !demoMode &&
+    !skipped &&
     Boolean(settings && !settingsLoading) &&
     hasCheckedValidations &&
     !(llmValidated && rxresumeValidation.valid && baseResumeValidation.valid);
@@ -620,6 +628,11 @@ export const OnboardingGate: React.FC = () => {
     setCurrentStep(steps[stepIndex - 1]?.id ?? currentStep);
   };
 
+  const handleSkip = () => {
+    window.localStorage.setItem(ONBOARDING_SKIP_KEY, "1");
+    setSkipped(true);
+  };
+
   if (!shouldOpen || !currentStep) return null;
 
   return (
@@ -861,6 +874,9 @@ export const OnboardingGate: React.FC = () => {
               Back
             </Button>
             <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={handleSkip}>
+                Skip for now
+              </Button>
               <Button onClick={handlePrimaryAction} disabled={isBusy}>
                 {isBusy
                   ? "Validating..."
