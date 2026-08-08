@@ -3,12 +3,16 @@ import type {
   VisaSponsorProviderManifest,
 } from "@shared/types/visa-sponsors";
 import {
-  extractH1bEmployerCsvUrl,
+  extractH1bEmployerCsvUrls,
+  mergeH1bEmployerYears,
   parseH1bEmployerCsv,
 } from "@shared/visa-sponsors/h1b";
 
 const ARCHIVE_PAGE_URL =
   "https://www.uscis.gov/archive/h-1b-employer-data-hub-files";
+
+/** How many of the most recent published fiscal year files to merge. */
+const MAX_YEARS = 3;
 
 const FETCH_HEADERS = {
   "user-agent":
@@ -34,19 +38,29 @@ export const manifest: VisaSponsorProviderManifest = {
 
   async fetchSponsors(): Promise<VisaSponsor[]> {
     const pageHtml = await fetchText(ARCHIVE_PAGE_URL);
-    const csvPath = extractH1bEmployerCsvUrl(pageHtml);
-    if (!csvPath) {
+    const csvPaths = extractH1bEmployerCsvUrls(pageHtml, MAX_YEARS);
+    if (csvPaths.length === 0) {
       throw new Error("Could not find H-1B employer data CSV on USCIS archive");
     }
 
-    const csvUrl = csvPath.startsWith("http")
-      ? csvPath
-      : `https://www.uscis.gov${csvPath}`;
-    const csvContent = await fetchText(csvUrl);
+    const yearlySponsors: VisaSponsor[][] = [];
+    for (const csvPath of csvPaths) {
+      const csvUrl = csvPath.startsWith("http")
+        ? csvPath
+        : `https://www.uscis.gov${csvPath}`;
+      const csvContent = await fetchText(csvUrl);
+      const sponsors = parseH1bEmployerCsv(csvContent);
+      if (sponsors.length === 0) {
+        throw new Error(
+          `US H-1B employer CSV appears empty or invalid: ${csvUrl}`,
+        );
+      }
+      yearlySponsors.push(sponsors);
+    }
 
-    const sponsors = parseH1bEmployerCsv(csvContent);
+    const sponsors = mergeH1bEmployerYears(yearlySponsors);
     if (sponsors.length === 0) {
-      throw new Error("US H-1B employer CSV appears empty or invalid");
+      throw new Error("US H-1B employer data appears empty or invalid");
     }
 
     return sponsors;

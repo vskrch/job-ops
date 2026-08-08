@@ -16,7 +16,7 @@ Currently registered providers:
 | Provider | Source |
 | --- | --- |
 | `uk` — United Kingdom | [gov.uk register of licensed sponsors (workers)](https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers) |
-| `us` — United States | [USCIS H-1B Employer Data Hub](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub) (latest annual file) |
+| `us` — United States | [USCIS H-1B Employer Data Hub](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub) (3 most recent published annual files, auto-discovered) |
 | `ca` — Canada | [IRCC positive LMIA employers list](https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97) (latest quarter) |
 
 India has no official public employer register for work visas, so no India provider is registered. For jobs in the US/Canada, the US and Canada providers are the practical sponsor sources.

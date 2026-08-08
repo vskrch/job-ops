@@ -2,23 +2,28 @@ import type { VisaSponsor } from "../types/visa-sponsors";
 import { parseCsvRows } from "./csv";
 
 /**
- * Find the most recent H-1B employer data hub CSV link on the USCIS archive
- * page (hrefs may be absolute or site-relative).
+ * Find the most recent H-1B employer data hub CSV links on the USCIS archive
+ * page (hrefs may be absolute or site-relative), newest year first.
  */
-export function extractH1bEmployerCsvUrl(pageHtml: string): string | null {
+export function extractH1bEmployerCsvUrls(
+  pageHtml: string,
+  maxYears = 3,
+): string[] {
   const pattern = /href="([^"]*h1b_datahubexport-(\d{4})\.csv)"/g;
-  let bestUrl: string | null = null;
-  let bestYear = -1;
+  const urlsByYear = new Map<number, string>();
 
   for (const match of pageHtml.matchAll(pattern)) {
     const year = Number(match[2]);
-    if (year > bestYear) {
-      bestYear = year;
-      bestUrl = match[1];
+    const existing = urlsByYear.get(year);
+    if (!existing || match[1].length < existing.length) {
+      urlsByYear.set(year, match[1]);
     }
   }
 
-  return bestUrl;
+  return [...urlsByYear.keys()]
+    .sort((a, b) => b - a)
+    .slice(0, maxYears)
+    .map((year) => urlsByYear.get(year) ?? "");
 }
 
 /**
@@ -77,4 +82,33 @@ export function parseH1bEmployerCsv(content: string): VisaSponsor[] {
   }
 
   return sponsors;
+}
+
+/**
+ * Merge per-fiscal-year sponsor lists, newest year first. Exact duplicates
+ * (same employer, location, and NAICS in a newer year) are dropped so each
+ * employer/location/NAICS combination appears once with the most recent
+ * fiscal year's route label.
+ */
+export function mergeH1bEmployerYears(
+  yearlySponsors: VisaSponsor[][],
+): VisaSponsor[] {
+  const merged: VisaSponsor[] = [];
+  const seen = new Set<string>();
+
+  for (const sponsors of yearlySponsors) {
+    for (const sponsor of sponsors) {
+      const dedupeKey = [
+        sponsor.organisationName,
+        sponsor.townCity,
+        sponsor.county,
+        sponsor.typeRating,
+      ].join("|");
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      merged.push(sponsor);
+    }
+  }
+
+  return merged;
 }
