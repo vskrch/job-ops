@@ -27,6 +27,26 @@ const MANUAL_BACKUP_REGEX =
 
 type SqliteDatabase = InstanceType<typeof Database>;
 
+type BackupListener = (filename: string, type: "auto" | "manual") => void;
+
+const listeners = new Set<BackupListener>();
+
+/** Register a callback invoked after every successful backup creation. */
+export function registerBackupListener(listener: BackupListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notifyBackupCreated(filename: string, type: "auto" | "manual"): void {
+  for (const listener of listeners) {
+    try {
+      listener(filename, type);
+    } catch (error) {
+      logger.error("Backup listener threw", { error });
+    }
+  }
+}
+
 interface BackupSettings {
   enabled: boolean;
   hour: number;
@@ -199,6 +219,8 @@ export async function createBackup(type: "auto" | "manual"): Promise<string> {
     type,
     size: (await fs.promises.stat(backupPath)).size,
   });
+
+  notifyBackupCreated(filename, type);
 
   return filename;
 }

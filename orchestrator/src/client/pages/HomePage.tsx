@@ -7,6 +7,7 @@ import {
   ResponseRateBySourceChart,
 } from "@client/components/charts";
 import { PageHeader, PageMain } from "@client/components/layout";
+import { userFacingError } from "@client/lib/user-facing-error";
 import type { JobSource, StageEvent } from "@shared/types.js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChartColumn } from "lucide-react";
@@ -104,9 +105,7 @@ export const HomePage: React.FC = () => {
     [overviewQuery.data],
   );
   const error = overviewQuery.error
-    ? overviewQuery.error instanceof Error
-      ? overviewQuery.error.message
-      : "Failed to load applications"
+    ? (userFacingError(overviewQuery.error) ?? "Failed to load applications")
     : null;
   const isLoading = overviewQuery.isLoading;
 

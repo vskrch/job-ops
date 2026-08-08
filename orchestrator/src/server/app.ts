@@ -216,6 +216,13 @@ export function createBasicAuthGuard() {
 
 export function createApp() {
   const app = express();
+  // Behind a TLS-terminating reverse proxy (Heroku router, nginx, ...) the
+  // socket address is the proxy, not the client. Trusting one hop makes
+  // req.ip / X-Forwarded-For correct for rate limiting, tracer-link IP
+  // attribution, and req.secure. Local/test servers stay untrusted.
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
   const authGuard = createBasicAuthGuard();
   const corsMiddleware = cors();
 

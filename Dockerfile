@@ -177,4 +177,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
 WORKDIR /app/orchestrator
-CMD ["sh", "-c", "npx tsx src/server/db/migrate.ts && npm run start"]
+CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && npm run start"]

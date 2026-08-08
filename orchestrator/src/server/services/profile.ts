@@ -1,3 +1,4 @@
+import { conflict } from "@infra/errors";
 import { logger } from "@infra/logger";
 import type { ResumeProfile } from "@shared/types";
 import {
@@ -47,7 +48,7 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
     await getConfiguredRxResumeBaseResumeId();
 
   if (!rxresumeBaseResumeId) {
-    throw new Error(
+    throw conflict(
       "Base resume not configured. Please select a base resume from your RxResume account in Settings.",
     );
   }

@@ -18,6 +18,18 @@ export function useProfile() {
   } = useQuery<ResumeProfile | null>({
     queryKey: queryKeys.profile.current(),
     queryFn: api.getProfile,
+    retry: (failureCount, error) => {
+      // Missing-config states (no base resume yet) won't fix themselves by
+      // retrying; avoid the noise for users who skipped onboarding.
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error as { code?: string }).code === "CONFLICT"
+      ) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 
   const refreshProfile = async () => {
@@ -30,7 +42,7 @@ export function useProfile() {
     profile,
     error: error ?? null,
     isLoading: isLoading || (!!isFetching && !profile && !error),
-    personName: profile?.basics?.name || "Resume",
+    personName: profile?.basics?.name || "User",
     refreshProfile,
   };
 }

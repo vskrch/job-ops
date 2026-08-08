@@ -13,6 +13,21 @@ import { BasicAuthPrompt } from "./components/BasicAuthPrompt";
 import { OnboardingGate } from "./components/OnboardingGate";
 import { useDemoInfo } from "./hooks/useDemoInfo";
 
+const NotFoundPage: React.FC = () => (
+  <main className="container mx-auto flex min-h-[60vh] flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+    <div className="text-5xl font-bold tracking-tight text-muted-foreground/60">
+      404
+    </div>
+    <h1 className="text-xl font-semibold">Page not found</h1>
+    <p className="max-w-md text-sm text-muted-foreground">
+      The page you're looking for doesn't exist or may have moved.
+    </p>
+    <Button asChild className="mt-2">
+      <a href="/jobs/ready">Back to orchestrator</a>
+    </Button>
+  </main>
+);
+
 const DesignResumePage = lazy(() =>
   import("./pages/DesignResumePage").then((m) => ({
     default: m.DesignResumePage,
@@ -84,6 +99,21 @@ const REDIRECTS: Array<{ from: string; to: string }> = [
 
 const DEMO_WAITLIST_BANNER_DISMISSED_KEY = "jobops.demoWaitlistBannerDismissed";
 
+/** Per-route document titles (matched against the pathname prefix). */
+const PAGE_TITLES: Array<{ prefix: string; title: string }> = [
+  { prefix: "/overview", title: "Overview" },
+  { prefix: "/jobs", title: "Orchestrator" },
+  { prefix: "/applications", title: "In Progress Board" },
+  { prefix: "/design-resume", title: "Design Resume" },
+  { prefix: "/settings", title: "Settings" },
+  { prefix: "/tracer-links", title: "Tracer Links" },
+  { prefix: "/tracking-inbox", title: "Tracking Inbox" },
+  { prefix: "/visa-sponsors", title: "Visa Sponsors" },
+  { prefix: "/job/", title: "Job" },
+  { prefix: "/login", title: "Sign in" },
+  { prefix: "/register", title: "Create account" },
+];
+
 export const App: React.FC = () => {
   const location = useLocation();
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -97,6 +127,15 @@ export const App: React.FC = () => {
       }
     });
 
+  React.useEffect(() => {
+    const match = PAGE_TITLES.find(({ prefix }) =>
+      location.pathname.startsWith(prefix),
+    );
+    document.title = match
+      ? `${match.title} | Job Ops`
+      : "Job Ops | Orchestrator";
+  }, [location.pathname]);
+
   // Determine a stable key for transitions to avoid unnecessary unmounts when switching sub-tabs
   const pageKey = React.useMemo(() => {
     const firstSegment = location.pathname.split("/")[1] || "jobs";
@@ -108,6 +147,12 @@ export const App: React.FC = () => {
 
   return (
     <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to main content
+      </a>
       <OnboardingGate />
       <BasicAuthPrompt />
       {demoInfo?.demoMode && !demoWaitlistBannerDismissed && (
@@ -161,7 +206,16 @@ export const App: React.FC = () => {
             unmountOnExit
           >
             <div ref={nodeRef}>
-              <Suspense fallback={null}>
+              <Suspense
+                fallback={
+                  <main className="flex min-h-[50vh] items-center justify-center">
+                    <output
+                      className="block h-8 w-8 animate-spin rounded-full border-2 border-border border-t-foreground"
+                      aria-label="Loading"
+                    />
+                  </main>
+                }
+              >
                 <Routes location={location}>
                   {/* Backwards-compatibility redirects */}
                   {REDIRECTS.map(({ from, to }) => (
@@ -198,6 +252,7 @@ export const App: React.FC = () => {
                     path="/jobs/:tab/:jobId"
                     element={<OrchestratorPage />}
                   />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>
             </div>

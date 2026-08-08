@@ -743,5 +743,34 @@ for (const migration of migrations) {
   }
 }
 
+// Rebuild legacy settings table (key as PK, no id column) to match the
+// current schema. CREATE TABLE IF NOT EXISTS skips legacy tables, so the
+// column-presence check below is the only way to upgrade them.
+const settingsHasId = sqlite
+  .prepare(
+    "SELECT count(*) AS n FROM pragma_table_info('settings') WHERE name = 'id'",
+  )
+  .get() as { n: number };
+if (settingsHasId.n === 0) {
+  sqlite.exec(`
+    CREATE TABLE settings_new (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default-user',
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO settings_new (id, user_id, key, value, created_at, updated_at)
+      SELECT 'legacy-' || key, COALESCE(user_id, 'default-user'), key, value,
+             COALESCE(created_at, datetime('now')), COALESCE(updated_at, datetime('now'))
+      FROM settings;
+    DROP TABLE settings;
+    ALTER TABLE settings_new RENAME TO settings;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_user_key_unique ON settings(user_id, key);
+  `);
+  console.log("✅ Rebuilt legacy settings table (added id primary key)");
+}
+
 sqlite.close();
 console.log("🎉 Database migrations complete!");

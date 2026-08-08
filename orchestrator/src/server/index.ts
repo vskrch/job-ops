@@ -11,16 +11,38 @@ import * as pipelineRepo from "./repositories/pipeline";
 import * as settingsRepo from "./repositories/settings";
 import {
   getBackupSettings,
+  registerBackupListener,
   setBackupSettings,
   startBackupScheduler,
 } from "./services/backup/index";
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
 import { refreshPipelineScheduler } from "./services/pipeline-scheduler";
+import {
+  isRemoteBackupConfigured,
+  syncBackupToRemote,
+} from "./services/remote-backup/index";
 import { initialize as initializeVisaSponsors } from "./services/visa-sponsors/index";
 
 async function startServer() {
   await applyStoredEnvOverrides();
+
+  // Session tokens are HMAC-signed; a missing/weak secret in production
+  // lets anyone forge cookies and impersonate any user. Fail fast instead.
+  if (
+    process.env.NODE_ENV === "production" &&
+    !process.env.SESSION_SECRET?.trim()
+  ) {
+    logger.error(
+      "SESSION_SECRET is required in production. Refusing to start.",
+    );
+    process.exit(1);
+  }
+
+  // Mirror every successful local backup to the remote (S3/R2) store.
+  registerBackupListener(() => {
+    void syncBackupToRemote();
+  });
   try {
     await initializeExtractorRegistry();
   } catch (error) {
@@ -139,6 +161,18 @@ async function startServer() {
       });
     }
 
+    // Baseline snapshot in the remote store (covers fresh boots where local
+    // backups are disabled).
+    try {
+      if (isRemoteBackupConfigured()) {
+        await syncBackupToRemote();
+      }
+    } catch (error) {
+      logger.warn("Failed to upload startup database snapshot", {
+        error: sanitizeUnknown(error),
+      });
+    }
+
     // Initialize the scheduled pipeline runner (overnight scan at a
     // configurable UTC hour instead of only ad-hoc manual runs).
     try {
@@ -152,14 +186,27 @@ async function startServer() {
 
   const gracefulShutdown = (signal: string) => {
     logger.info(`Received ${signal}. Shutting down HTTP server...`);
-    server.close(() => {
-      logger.info("HTTP server closed. Exiting process.");
-      process.exit(0);
-    });
-    setTimeout(() => {
+    const forceExit = setTimeout(() => {
       logger.error("Forced shutdown after timeout.");
       process.exit(1);
-    }, 10000).unref();
+    }, 10000);
+    forceExit.unref();
+
+    const finish = () => {
+      clearTimeout(forceExit);
+      server.close(() => {
+        logger.info("HTTP server closed. Exiting process.");
+        process.exit(0);
+      });
+    };
+
+    // Persist a fresh snapshot before the dyno goes away — on ephemeral
+    // filesystems (Heroku) this is the last chance before the disk is wiped.
+    if (isRemoteBackupConfigured()) {
+      void syncBackupToRemote().finally(finish);
+      return;
+    }
+    finish();
   };
 
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

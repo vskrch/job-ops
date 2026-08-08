@@ -5,6 +5,7 @@ import { ItemDialog } from "@client/components/design-resume/ItemDialog";
 import { PageHeader, PageMain } from "@client/components/layout";
 import { useDesignResume } from "@client/hooks/useDesignResume";
 import { useSettings } from "@client/hooks/useSettings";
+import { userFacingError } from "@client/lib/user-facing-error";
 import type {
   DesignResumeDocument,
   DesignResumeJson,
@@ -599,9 +600,7 @@ export const DesignResumePage: React.FC = () => {
                   </div>
                 ) : error ? (
                   <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
-                    {error instanceof Error
-                      ? error.message
-                      : "Unable to load Design Resume."}
+                    {userFacingError(error) ?? "Unable to load Design Resume."}
                   </div>
                 ) : null}
               </div>

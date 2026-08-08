@@ -26,6 +26,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
     "@hookform/resolvers": "^5.2.2",
     "@paralleldrive/cuid2": "^3.0.6",
     "@radix-ui/react-accordion": "^1.2.12",

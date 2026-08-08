@@ -75,6 +75,12 @@ Settings gives you runtime overrides for the key parts of discovery, scoring, ta
 - Toggle `Render Markdown in job descriptions` to control whether expanded job descriptions show formatted headings, lists, bold text, and code blocks
 - Default: Markdown rendering is enabled
 
+### Theme
+
+- Use the sun/moon button in the page header to switch between dark and light mode
+- The choice is saved in the browser (`localStorage`) and applied before first paint, so there is no flash on reload
+- Default: dark mode
+
 ### Writing Style & Language
 
 ![Ghostwriter settings section](/img/features/settings-ghostwriter-section.png)

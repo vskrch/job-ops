@@ -152,4 +152,4 @@ RUN mkdir -p /app/data/pdfs
 EXPOSE 3001
 
 WORKDIR /app/orchestrator
-CMD ["sh", "-c", "npx tsx src/server/db/migrate.ts && exec npm run start"]
+CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && exec npm run start"]

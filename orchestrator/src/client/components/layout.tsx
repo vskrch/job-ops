@@ -2,9 +2,9 @@
  * Shared layout components for consistent page structure.
  */
 
-import { ExternalLink, type LucideIcon, Menu } from "lucide-react";
+import { ExternalLink, type LucideIcon, Menu, Moon, Sun } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,54 @@ import { useVersionCheck } from "../hooks/useVersionCheck";
 import { isNavActive, NAV_LINKS } from "./navigation";
 import { StatusBadgeIndicator } from "./StatusIndicator";
 import { UserDropdown } from "./UserDropdown";
+
+// ============================================================================
+// Theme Toggle (light/dark, persisted)
+// ============================================================================
+
+const THEME_STORAGE_KEY = "jobops.theme";
+
+function getInitialTheme(): "light" | "dark" {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    // ignore storage errors (private mode)
+  }
+  return "dark";
+}
+
+function applyTheme(theme: "light" | "dark"): void {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+}
+
+const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => {
+  const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // ignore storage errors (private mode)
+    }
+  }, [theme]);
+
+  const isDark = theme === "dark";
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={className}
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+    >
+      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </Button>
+  );
+};
 
 // ============================================================================
 // Page Header
@@ -163,6 +211,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
           {actions}
+          <ThemeToggle />
           <UserDropdown />
         </div>
       </div>

@@ -1,5 +1,6 @@
 import * as api from "@client/api";
 import { PageHeader, PageMain, SectionCard } from "@client/components/layout";
+import { userFacingError } from "@client/lib/user-facing-error";
 import type {
   JobTracerLinkAnalyticsItem,
   TracerAnalyticsResponse,
@@ -159,11 +160,9 @@ export const TracerLinksPage: React.FC = () => {
   const isDrilldownLoading =
     jobDrilldownQuery.isPending || jobDrilldownQuery.isFetching;
   const error =
-    analyticsQuery.error instanceof Error
-      ? analyticsQuery.error.message
-      : jobDrilldownQuery.error instanceof Error
-        ? jobDrilldownQuery.error.message
-        : null;
+    userFacingError(analyticsQuery.error) ??
+    userFacingError(jobDrilldownQuery.error) ??
+    null;
 
   const chartData = analytics?.timeSeries ?? [];
   const totalViews = analytics?.totals.clicks ?? 0;
