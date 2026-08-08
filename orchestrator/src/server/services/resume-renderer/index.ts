@@ -1,6 +1,7 @@
 import { normalizeResumeJsonToLatexDocument } from "./document";
 import { renderLatexPdf } from "./latex";
 import { normalizePreparedResumeToLatexDocument } from "./normalize";
+import type { LatexTemplateId } from "./types";
 
 export { normalizeResumeJsonToLatexDocument } from "./document";
 export {
@@ -16,7 +17,7 @@ export async function renderResumePdf(args: {
   outputPath: string;
   jobId: string;
   mode?: "v4" | "v5";
-  templateId?: "jake" | "modern";
+  templateId?: LatexTemplateId;
 }): Promise<void> {
   const document =
     args.mode === "v4"

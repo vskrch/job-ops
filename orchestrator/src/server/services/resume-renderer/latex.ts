@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
+import { getSetting } from "@server/repositories/settings";
 import type {
   LatexResumeContactItem,
   LatexResumeDocument,
@@ -14,13 +15,16 @@ import type {
   ResumeRenderer,
 } from "./types";
 
-const TEMPLATE_FILES: Record<LatexTemplateId, string> = {
+const TEMPLATE_FILES: Record<"jake" | "modern", string> = {
   jake: "jake-resume.tex",
   modern: "modern-resume.tex",
 };
 
 function resolveTemplatePath(templateId: LatexTemplateId): string {
-  const fileName = TEMPLATE_FILES[templateId] ?? TEMPLATE_FILES.jake;
+  const fileName =
+    templateId === "custom"
+      ? TEMPLATE_FILES.jake
+      : (TEMPLATE_FILES[templateId] ?? TEMPLATE_FILES.jake);
   try {
     if (import.meta.url.startsWith("file:")) {
       const modulePath = fileURLToPath(import.meta.url);
@@ -188,7 +192,15 @@ function renderSkillsSection(document: LatexResumeDocument): string {
   ].join("\n");
 }
 
-async function loadTemplate(templateId: LatexTemplateId): Promise<string> {
+async function loadTemplate(
+  templateId: LatexTemplateId,
+  customContent?: string,
+): Promise<string> {
+  if (templateId === "custom") {
+    if (customContent?.trim()) return customContent;
+    const dbValue = await getSetting("customLatexTemplate");
+    if (dbValue?.trim()) return dbValue;
+  }
   return await readFile(resolveTemplatePath(templateId), "utf8");
 }
 
@@ -313,7 +325,13 @@ async function runTectonic(args: {
 }
 
 export const latexResumeRenderer: ResumeRenderer = {
-  async render({ document, outputPath, jobId, templateId = "jake" }) {
+  async render({
+    document,
+    outputPath,
+    jobId,
+    templateId = "jake",
+    customTemplateContent,
+  }) {
     const tempDir = await mkdtemp(
       join(tmpdir(), `job-ops-resume-render-${jobId}-`),
     );
@@ -321,7 +339,7 @@ export const latexResumeRenderer: ResumeRenderer = {
     const compiledPdfPath = join(tempDir, OUTPUT_FILENAME);
 
     try {
-      const template = await loadTemplate(templateId);
+      const template = await loadTemplate(templateId, customTemplateContent);
       const latex = buildLatexDocument(document, template);
 
       await writeFile(texPath, latex, "utf8");
@@ -368,6 +386,7 @@ export async function renderLatexPdf(args: {
   outputPath: string;
   jobId: string;
   templateId?: LatexTemplateId;
+  customTemplateContent?: string;
 }): Promise<void> {
   await latexResumeRenderer.render(args);
 }

@@ -66,6 +66,8 @@ type ReactiveResumeConfigPanelProps = {
   pdfRendererError?: string;
   latexTemplate: LatexTemplate;
   onLatexTemplateChange: (template: LatexTemplate) => void;
+  customLatexTemplate?: string;
+  onCustomLatexTemplateChange?: (value: string) => void;
   disabled?: boolean;
   hasRxResumeAccess?: boolean;
   showValidationStatus?: boolean;
@@ -144,6 +146,8 @@ export const ReactiveResumeConfigPanel: React.FC<
   pdfRendererError,
   latexTemplate,
   onLatexTemplateChange,
+  customLatexTemplate = "",
+  onCustomLatexTemplateChange,
   disabled = false,
   hasRxResumeAccess = false,
   showValidationStatus = false,
@@ -220,7 +224,7 @@ export const ReactiveResumeConfigPanel: React.FC<
           <Select
             value={latexTemplate}
             onValueChange={(value) =>
-              onLatexTemplateChange(value === "modern" ? "modern" : "jake")
+              onLatexTemplateChange(value as LatexTemplate)
             }
             disabled={disabled}
           >
@@ -232,12 +236,33 @@ export const ReactiveResumeConfigPanel: React.FC<
               <SelectItem value="modern">
                 {LATEX_TEMPLATE_LABELS.modern}
               </SelectItem>
+              <SelectItem value="custom">
+                {LATEX_TEMPLATE_LABELS.custom}
+              </SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Preset .tex template compiled by tectonic. More presets can be added
-            later.
+            Preset or custom .tex template compiled by tectonic.
           </p>
+          {latexTemplate === "custom" && (
+            <div className="mt-3 space-y-1.5">
+              <label htmlFor="customLatexTemplate" className="text-xs font-medium">
+                Custom TeX Code
+              </label>
+              <textarea
+                id="customLatexTemplate"
+                rows={10}
+                className="w-full rounded-md border border-input bg-background p-2 font-mono text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="\documentclass{article} ... \begin{document} __NAME__ __BODY__ \end{document}"
+                value={customLatexTemplate}
+                onChange={(e) => onCustomLatexTemplateChange?.(e.target.value)}
+                disabled={disabled}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Placeholders available: <code>__NAME__</code>, <code>__HEADLINE_BLOCK__</code>, <code>__CONTACT_BLOCK__</code>, <code>__BODY__</code>.
+              </p>
+            </div>
+          )}
         </div>
       ) : null}
 

@@ -272,6 +272,14 @@ export const settingsRegistry = {
     serialize: (value: LatexTemplate | null | undefined): string | null =>
       value ?? null,
   },
+  customLatexTemplate: {
+    kind: "typed" as const,
+    schema: z.string().trim().max(50000),
+    default: (): string => "",
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
+  },
   ukvisajobsMaxJobs: {
     kind: "typed" as const,
     schema: z.number().int().min(1).max(1000),

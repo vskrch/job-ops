@@ -20,11 +20,12 @@ export const PDF_RENDERER_LABELS: Record<PdfRenderer, string> = {
   latex: "Local LaTeX (tectonic)",
 };
 
-export const LATEX_TEMPLATE_VALUES = ["jake", "modern"] as const;
+export const LATEX_TEMPLATE_VALUES = ["jake", "modern", "custom"] as const;
 export type LatexTemplate = (typeof LATEX_TEMPLATE_VALUES)[number];
 export const LATEX_TEMPLATE_LABELS: Record<LatexTemplate, string> = {
   jake: "Jake (classic single-column)",
   modern: "Modern (two-column sans)",
+  custom: "Custom (User-Defined TeX)",
 };
 
 export const CHAT_STYLE_LANGUAGE_MODE_VALUES = [

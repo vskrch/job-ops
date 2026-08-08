@@ -78,6 +78,10 @@ export const ReactiveResumeSection: React.FC<ReactiveResumeSectionProps> = ({
     control,
     name: "latexTemplate",
   }) ?? "jake") as LatexTemplate;
+  const customLatexTemplateValue = useWatch({
+    control,
+    name: "customLatexTemplate",
+  }) ?? "";
   const rxresumeApiKeyValue =
     useWatch({ control, name: "rxresumeApiKey" }) ?? "";
   const rxresumeEmailValue = useWatch({ control, name: "rxresumeEmail" }) ?? "";
@@ -123,6 +127,10 @@ export const ReactiveResumeSection: React.FC<ReactiveResumeSectionProps> = ({
         latexTemplate={latexTemplateValue}
         onLatexTemplateChange={(value) =>
           setDirtyTouchedValue("latexTemplate", value)
+        }
+        customLatexTemplate={customLatexTemplateValue}
+        onCustomLatexTemplateChange={(value) =>
+          setDirtyTouchedValue("customLatexTemplate", value)
         }
         disabled={isLoading || isSaving}
         hasRxResumeAccess={hasRxResumeAccess}

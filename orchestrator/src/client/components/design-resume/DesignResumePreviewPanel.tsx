@@ -85,7 +85,7 @@ export function DesignResumePreviewPanel({
               <Select
                 value={latexTemplate}
                 onValueChange={(value) =>
-                  onLatexTemplateChange(value === "modern" ? "modern" : "jake")
+                  onLatexTemplateChange(value as LatexTemplate)
                 }
                 disabled={isUpdatingRenderer}
               >
@@ -98,6 +98,9 @@ export function DesignResumePreviewPanel({
                   </SelectItem>
                   <SelectItem value="modern">
                     {LATEX_TEMPLATE_LABELS.modern}
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    {LATEX_TEMPLATE_LABELS.custom}
                   </SelectItem>
                 </SelectContent>
               </Select>

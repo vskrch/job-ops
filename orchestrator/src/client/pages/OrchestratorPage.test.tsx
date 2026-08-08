@@ -842,7 +842,6 @@ describe("OrchestratorPage", () => {
       expect(api.updateSettings).toHaveBeenCalledWith({
         searchTerms: ["backend"],
         workplaceTypes: ["remote", "hybrid", "onsite"],
-        hoursOld: null,
         jobspyResultsWanted: 150,
         gradcrackerMaxJobsPerTerm: 150,
         ukvisajobsMaxJobs: 150,
