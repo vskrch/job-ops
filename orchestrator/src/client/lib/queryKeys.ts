@@ -49,6 +49,7 @@ export const queryKeys = {
   pipeline: {
     all: ["pipeline"] as const,
     status: () => [...queryKeys.pipeline.all, "status"] as const,
+    runs: () => [...queryKeys.pipeline.all, "runs"] as const,
   },
   visaSponsors: {
     all: ["visa-sponsors"] as const,

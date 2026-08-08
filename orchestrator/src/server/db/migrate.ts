@@ -701,6 +701,13 @@ const migrations = [
        ORDER BY se.occurred_at DESC, se.id DESC
        LIMIT 1
      ), 'applied') = 'closed'`,
+
+  // Pipeline run organization: stamp jobs with the run that discovered them
+  // and persist a config snapshot per run. Placed after the table rebuilds so
+  // the columns survive on both fresh and upgraded databases.
+  `ALTER TABLE jobs ADD COLUMN discovered_by_run_id TEXT`,
+  `CREATE INDEX IF NOT EXISTS idx_jobs_discovered_by_run ON jobs (discovered_by_run_id)`,
+  `ALTER TABLE pipeline_runs ADD COLUMN config TEXT`,
 ];
 
 console.log("🔧 Running database migrations...");

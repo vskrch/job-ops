@@ -12,10 +12,16 @@ const SCORING_CONCURRENCY = 4;
 
 export async function scoreJobsStep(args: {
   profile: Record<string, unknown>;
+  excludeRunIds?: string[];
   shouldCancel?: () => boolean;
 }): Promise<{ unprocessedJobs: Job[]; scoredJobs: ScoredJob[] }> {
-  logger.info("Running scoring step");
-  const unprocessedJobs = await jobsRepo.getUnscoredDiscoveredJobs();
+  logger.info("Running scoring step", {
+    excludeRunIds: args.excludeRunIds ?? [],
+  });
+  const unprocessedJobs = await jobsRepo.getUnscoredDiscoveredJobs(
+    undefined,
+    args.excludeRunIds,
+  );
 
   // Check if auto-skip threshold is configured
   const autoSkipThresholdRaw = await settingsRepo.getSetting(

@@ -127,6 +127,7 @@ export interface Job {
   sourceJobId: string | null; // External ID (if provided)
   jobUrlDirect: string | null; // Source-provided direct URL (if provided)
   datePosted: string | null; // Source-provided posting date (if provided)
+  discoveredByRunId: string | null; // Pipeline run that first imported this job
 
   // From crawler (normalized)
   title: string;
@@ -207,6 +208,7 @@ export type JobListItem = Pick<
   | "status"
   | "outcome"
   | "closedAt"
+  | "discoveredByRunId"
   | "suitabilityScore"
   | "sponsorMatchScore"
   | "jobType"

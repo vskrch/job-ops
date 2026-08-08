@@ -32,6 +32,7 @@ export const useFilteredJobs = (
   sponsorFilter: SponsorFilter,
   salaryFilter: SalaryFilter,
   sort: JobSort,
+  runFilter: string | null = null,
 ) =>
   useMemo(() => {
     let filtered = [...jobs];
@@ -61,6 +62,10 @@ export const useFilteredJobs = (
 
     if (sourceFilter !== "all") {
       filtered = filtered.filter((job) => job.source === sourceFilter);
+    }
+
+    if (runFilter) {
+      filtered = filtered.filter((job) => job.discoveredByRunId === runFilter);
     }
 
     if (sponsorFilter !== "all") {
@@ -121,6 +126,7 @@ export const useFilteredJobs = (
     sponsorFilter,
     salaryFilter,
     sort,
+    runFilter,
   ]);
 
 const matchesDateDimension = (

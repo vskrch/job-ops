@@ -227,6 +227,7 @@ const jobActionRequestSchema = z.discriminatedUnion("action", [
 const listJobsQuerySchema = z.object({
   status: z.string().optional(),
   view: z.enum(["full", "list"]).optional(),
+  run: z.string().optional(),
 });
 
 const jobsRevisionQuerySchema = z.object({
@@ -522,11 +523,12 @@ jobsRouter.get("/", async (req: Request, res: Response) => {
     const statusFilter = parsedQuery.data.status;
     const statuses = parseStatusFilter(statusFilter);
     const view = parsedQuery.data.view ?? "list";
+    const runId = parsedQuery.data.run || undefined;
 
     const jobs: Array<Job | JobListItem> =
       view === "list"
-        ? await jobsRepo.getJobListItems(statuses)
-        : await jobsRepo.getAllJobs(statuses);
+        ? await jobsRepo.getJobListItems(statuses, runId)
+        : await jobsRepo.getAllJobs(statuses, runId);
     const stats = await jobsRepo.getJobStats();
     const revision = await jobsRepo.getJobsRevision(statuses);
 
@@ -541,6 +543,7 @@ jobsRouter.get("/", async (req: Request, res: Response) => {
       route: "GET /api/jobs",
       view,
       statusFilter: statusFilter ?? null,
+      runId: runId ?? null,
       revision: revision.revision,
       returnedCount: jobs.length,
     });

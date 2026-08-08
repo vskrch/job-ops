@@ -5,11 +5,20 @@ export function selectJobsStep(args: {
   scoredJobs: ScoredJob[];
   mergedConfig: PipelineConfig;
 }): ScoredJob[] {
+  const excludeRunIds = args.mergedConfig.excludeRunIds ?? [];
   return args.scoredJobs
-    .filter(
-      (job) =>
-        (job.suitabilityScore ?? 0) >= args.mergedConfig.minSuitabilityScore,
-    )
+    .filter((job) => {
+      if ((job.suitabilityScore ?? 0) < args.mergedConfig.minSuitabilityScore) {
+        return false;
+      }
+      if (
+        job.discoveredByRunId &&
+        excludeRunIds.includes(job.discoveredByRunId)
+      ) {
+        return false;
+      }
+      return true;
+    })
     .sort(
       (left, right) =>
         (right.suitabilityScore ?? 0) - (left.suitabilityScore ?? 0),

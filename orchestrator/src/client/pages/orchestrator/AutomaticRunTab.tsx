@@ -1,3 +1,4 @@
+import * as api from "@client/api";
 import { EXTRACTOR_SOURCE_METADATA } from "@shared/extractors";
 import {
   formatCountryLabel,
@@ -5,8 +6,13 @@ import {
   normalizeCountryKey,
   SUPPORTED_COUNTRY_KEYS,
 } from "@shared/location-support.js";
-import type { AppSettings, JobSource } from "@shared/types";
-import { Loader2, Sparkles } from "lucide-react";
+import {
+  type AppSettings,
+  type JobSource,
+  type PipelineRun,
+  pipelineRunShortId,
+} from "@shared/types";
+import { History, Loader2, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
@@ -74,6 +80,7 @@ const DEFAULT_VALUES: AutomaticRunValues = {
   cityLocations: [],
   workplaceTypes: ["remote", "hybrid", "onsite"],
   hoursOld: null,
+  excludeRunIds: [],
 };
 
 interface AutomaticRunFormValues {
@@ -173,6 +180,26 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [excludedRunIds, setExcludedRunIds] = useState<string[]>(
+    () => settings?.pipelineExcludeRunIds?.value ?? [],
+  );
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    api
+      .getPipelineRuns()
+      .then((runs) => {
+        if (!cancelled) setPipelineRuns(runs);
+      })
+      .catch(() => {
+        // Run history is best-effort; the run form still works without it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
   const { watch, reset, setValue } = useForm<AutomaticRunFormValues>({
     defaultValues: {
       topN: String(DEFAULT_VALUES.topN),
@@ -293,6 +320,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       workplaceTypes: normalizeWorkplaceTypes(workplaceTypes),
       searchTerms,
       hoursOld,
+      excludeRunIds: excludedRunIds,
     };
   }, [
     topNInput,
@@ -304,6 +332,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
     searchTerms,
     hoursOldInput,
     isCustomHours,
+    excludedRunIds,
   ]);
 
   const workplaceTypeSelectionInvalid = workplaceTypes.length === 0;
@@ -386,6 +415,14 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       : workplaceTypes.filter((value) => value !== workplaceType);
 
     setValue("workplaceTypes", next, { shouldDirty: true });
+  };
+
+  const toggleExcludeRun = (runId: string, checked: boolean) => {
+    setExcludedRunIds((current) =>
+      checked
+        ? [...new Set([...current, runId])]
+        : current.filter((id) => id !== runId),
+    );
   };
 
   const applyPreset = (presetId: AutomaticPresetId) => {
@@ -733,6 +770,75 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
                 );
               })}
             </TooltipProvider>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              Run history
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pipelineRuns.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No pipeline runs yet. Start your first run to see it here.
+              </p>
+            ) : (
+              pipelineRuns.map((run) => {
+                const excluded = excludedRunIds.includes(run.id);
+                const runSources = run.config?.sources ?? [];
+                return (
+                  <div
+                    key={run.id}
+                    className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/20 p-3"
+                  >
+                    <Checkbox
+                      id={`exclude-run-${run.id}`}
+                      checked={excluded}
+                      onCheckedChange={(checked) =>
+                        toggleExcludeRun(run.id, checked === true)
+                      }
+                      aria-label={`Exclude run ${pipelineRunShortId(run.id)} from future runs`}
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-mono text-xs font-semibold text-foreground">
+                          #{pipelineRunShortId(run.id)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(run.startedAt).toLocaleString()}
+                        </span>
+                        <span className="text-xs capitalize text-muted-foreground">
+                          {run.status}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {run.jobsDiscovered} jobs discovered ·{" "}
+                        {run.jobsProcessed} processed
+                        {runSources.length > 0
+                          ? ` · ${runSources
+                              .slice(0, 4)
+                              .map((source) => sourceLabel[source])
+                              .join(", ")}${runSources.length > 4 ? "…" : ""}`
+                          : ""}
+                      </div>
+                    </div>
+                    {excluded ? (
+                      <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+                        Excluded
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+            <p className="text-xs text-muted-foreground">
+              Check a run to exclude its already-seen jobs from future runs.
+              Jobs imported by that run will not be scored or processed again.
+            </p>
           </CardContent>
         </Card>
       </div>

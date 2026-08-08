@@ -12,7 +12,17 @@ import type {
   JobsRevisionResponse,
   UpdateJobInput,
 } from "@shared/types";
-import { and, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+  sql,
+} from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { jobs } = schema;
@@ -30,34 +40,44 @@ function normalizeStatusFilter(statuses?: JobStatus[]): string | null {
 /**
  * Get all jobs, optionally filtered by status.
  */
-export async function getAllJobs(statuses?: JobStatus[]): Promise<Job[]> {
+export async function getAllJobs(
+  statuses?: JobStatus[],
+  runId?: string,
+): Promise<Job[]> {
   const userId = currentUserId();
-  const userFilter = eq(jobs.userId, userId);
-  const query =
-    statuses && statuses.length > 0
-      ? db
-          .select()
-          .from(jobs)
-          .where(and(userFilter, inArray(jobs.status, statuses)))
-          .orderBy(desc(jobs.discoveredAt))
-      : db
-          .select()
-          .from(jobs)
-          .where(userFilter)
-          .orderBy(desc(jobs.discoveredAt));
+  const conditions = [eq(jobs.userId, userId)];
+  if (statuses && statuses.length > 0) {
+    conditions.push(inArray(jobs.status, statuses));
+  }
+  if (runId) {
+    conditions.push(eq(jobs.discoveredByRunId, runId));
+  }
 
-  const rows = await query;
+  const rows = await db
+    .select()
+    .from(jobs)
+    .where(and(...conditions))
+    .orderBy(desc(jobs.discoveredAt));
   return rows.map(mapRowToJob);
 }
 
 /**
- * Get lightweight list items for jobs, optionally filtered by status.
+ * Get lightweight list items for jobs, optionally filtered by status
+ * and/or the pipeline run that discovered them.
  */
 export async function getJobListItems(
   statuses?: JobStatus[],
+  runId?: string,
 ): Promise<JobListItem[]> {
   const userId = currentUserId();
-  const userFilter = eq(jobs.userId, userId);
+  const conditions = [eq(jobs.userId, userId)];
+  if (statuses && statuses.length > 0) {
+    conditions.push(inArray(jobs.status, statuses));
+  }
+  if (runId) {
+    conditions.push(eq(jobs.discoveredByRunId, runId));
+  }
+
   const selection = {
     id: jobs.id,
     source: jobs.source,
@@ -83,22 +103,15 @@ export async function getJobListItems(
     readyAt: jobs.readyAt,
     appliedAt: jobs.appliedAt,
     updatedAt: jobs.updatedAt,
+    discoveredByRunId: jobs.discoveredByRunId,
   } as const;
 
-  const query =
-    statuses && statuses.length > 0
-      ? db
-          .select(selection)
-          .from(jobs)
-          .where(and(userFilter, inArray(jobs.status, statuses)))
-          .orderBy(desc(jobs.discoveredAt))
-      : db
-          .select(selection)
-          .from(jobs)
-          .where(userFilter)
-          .orderBy(desc(jobs.discoveredAt));
+  const rows = await db
+    .select(selection)
+    .from(jobs)
+    .where(and(...conditions))
+    .orderBy(desc(jobs.discoveredAt));
 
-  const rows = await query;
   return rows.map((row) => ({
     ...row,
     source: row.source as JobListItem["source"],
@@ -194,7 +207,10 @@ export async function getAllJobUrls(): Promise<string[]> {
   return rows.map((r) => r.jobUrl);
 }
 
-async function insertJob(input: CreateJobInput): Promise<Job> {
+async function insertJob(
+  input: CreateJobInput,
+  discoveredByRunId?: string | null,
+): Promise<Job> {
   const id = randomUUID();
   const now = new Date().toISOString();
 
@@ -205,6 +221,7 @@ async function insertJob(input: CreateJobInput): Promise<Job> {
     sourceJobId: input.sourceJobId ?? null,
     jobUrlDirect: input.jobUrlDirect ?? null,
     datePosted: input.datePosted ?? null,
+    discoveredByRunId: discoveredByRunId ?? null,
     title: input.title,
     employer: input.employer,
     employerUrl: input.employerUrl ?? null,
@@ -259,9 +276,12 @@ function isJobUrlUniqueViolation(error: unknown): boolean {
   return /UNIQUE constraint failed: jobs\.job_url/i.test(error.message);
 }
 
-async function tryInsertJob(input: CreateJobInput): Promise<Job | null> {
+async function tryInsertJob(
+  input: CreateJobInput,
+  discoveredByRunId?: string | null,
+): Promise<Job | null> {
   try {
-    return await insertJob(input);
+    return await insertJob(input, discoveredByRunId);
   } catch (error) {
     if (isJobUrlUniqueViolation(error)) return null;
     throw error;
@@ -270,16 +290,22 @@ async function tryInsertJob(input: CreateJobInput): Promise<Job | null> {
 
 /**
  * Create jobs (or return existing jobs for duplicate URLs).
+ * `discoveredByRunId` stamps the pipeline run that imported the jobs.
  */
 export async function createJobs(input: CreateJobInput): Promise<Job>;
 export async function createJobs(
   inputs: CreateJobInput[],
+  options?: { discoveredByRunId?: string | null },
 ): Promise<{ created: number; skipped: number }>;
 export async function createJobs(
   inputOrInputs: CreateJobInput | CreateJobInput[],
+  options?: { discoveredByRunId?: string | null },
 ): Promise<Job | { created: number; skipped: number }> {
   if (!Array.isArray(inputOrInputs)) {
-    const inserted = await tryInsertJob(inputOrInputs);
+    const inserted = await tryInsertJob(
+      inputOrInputs,
+      options?.discoveredByRunId,
+    );
     if (inserted) return inserted;
     const existing = await getJobByUrl(inputOrInputs.jobUrl);
     if (existing) return existing;
@@ -325,7 +351,7 @@ export async function createJobs(
       continue;
     }
 
-    const inserted = await tryInsertJob(input);
+    const inserted = await tryInsertJob(input, options?.discoveredByRunId);
     if (!inserted) {
       skipped += count;
       continue;
@@ -432,20 +458,26 @@ export async function getJobsForProcessing(limit: number = 10): Promise<Job[]> {
 
 /**
  * Get discovered jobs missing a suitability score.
+ * Pass `excludeRunIds` to skip jobs imported by the given pipeline runs
+ * (used by runs that should not re-surface previously filtered jobs).
  */
 export async function getUnscoredDiscoveredJobs(
   limit?: number,
+  excludeRunIds?: string[],
 ): Promise<Job[]> {
+  const conditions = [
+    eq(jobs.userId, currentUserId()),
+    eq(jobs.status, "discovered"),
+    isNull(jobs.suitabilityScore),
+  ];
+  if (excludeRunIds && excludeRunIds.length > 0) {
+    conditions.push(notInArray(jobs.discoveredByRunId, excludeRunIds));
+  }
+
   const query = db
     .select()
     .from(jobs)
-    .where(
-      and(
-        eq(jobs.userId, currentUserId()),
-        eq(jobs.status, "discovered"),
-        isNull(jobs.suitabilityScore),
-      ),
-    )
+    .where(and(...conditions))
     .orderBy(desc(jobs.discoveredAt));
 
   const rows =
@@ -490,6 +522,7 @@ function mapRowToJob(row: typeof jobs.$inferSelect): Job {
     sourceJobId: row.sourceJobId ?? null,
     jobUrlDirect: row.jobUrlDirect ?? null,
     datePosted: row.datePosted ?? null,
+    discoveredByRunId: row.discoveredByRunId ?? null,
     title: row.title,
     employer: row.employer,
     employerUrl: row.employerUrl,

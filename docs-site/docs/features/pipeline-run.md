@@ -66,6 +66,14 @@ Workplace type applies globally to the run across all search terms and locations
 
 Search cities only applies when you explicitly add one or more cities. Leaving it empty does not add a hidden country-level location filter.
 
+### Run history and organizing runs
+
+Every pipeline run gets a unique ID. The **Run history** card on the Automatic tab lists recent runs with their short ID (`#a1b2c3d4`), start time, status, and job counts.
+
+- **Exclude a run** — check a run in Run history to exclude its already-seen jobs from future runs. Jobs first imported by an excluded run are not scored or processed again; the choice is saved in Settings and shown as an **Excluded** badge.
+- **Filter jobs by run** — open the jobs page filter panel → **Pipeline run** to view only the jobs a specific run discovered. The filter is shareable via the URL (`?run=<id>`).
+- **Config snapshot** — each run stores the effective configuration (sources, search terms, country, cities, workplace types, exclusion list) at start time, visible through the runs API (`GET /api/pipeline/runs`).
+
 Source behavior differs:
 
 - Hiring Cafe and startup.jobs support all three workplace types directly.
@@ -131,6 +139,10 @@ Behavior:
 
 - Set `Adzuna App ID` and `Adzuna App Key` in **Settings > Environment & Accounts**.
 - Verify the selected country is one of Adzuna's supported markets.
+
+### Jobs from an excluded run still appear in the list
+
+- Exclusion stops scoring/processing in future runs — it does not delete jobs you have already seen. Use the **Pipeline run** filter (or `?run=<id>`) to review what a run discovered.
 
 ### Run takes longer than expected
 

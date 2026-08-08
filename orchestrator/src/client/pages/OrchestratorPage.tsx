@@ -1,10 +1,12 @@
 import { useKeyboardAvailability } from "@client/hooks/useKeyboardAvailability";
 import { useSettings } from "@client/hooks/useSettings";
+import type { PipelineRun } from "@shared/types";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent } from "@/components/ui/drawer";
+import * as api from "../api";
 import { KeyboardShortcutBar } from "../components/KeyboardShortcutBar";
 import { KeyboardShortcutDialog } from "../components/KeyboardShortcutDialog";
 import { useDemoInfo } from "../hooks/useDemoInfo";
@@ -46,8 +48,27 @@ export const OrchestratorPage: React.FC = () => {
     setDateFilter,
     sort,
     setSort,
+    runFilter,
+    setRunFilter,
     resetFilters,
   } = useOrchestratorFilters();
+
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getPipelineRuns()
+      .then((runs) => {
+        if (!cancelled) setPipelineRuns(runs);
+      })
+      .catch(() => {
+        // Run history is best-effort; the rest of the page still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeTab = useMemo(() => {
     const validTabs: FilterTab[] = ["ready", "discovered", "applied", "all"];
@@ -151,6 +172,7 @@ export const OrchestratorPage: React.FC = () => {
     sponsorFilter,
     salaryFilter,
     sort,
+    runFilter,
   );
   const setActiveTab = useCallback(
     (newTab: FilterTab) => {
@@ -443,6 +465,9 @@ export const OrchestratorPage: React.FC = () => {
             onSortChange={setSort}
             onResetFilters={resetFilters}
             filteredCount={activeJobs.length}
+            runs={pipelineRuns}
+            runFilter={runFilter}
+            onRunFilterChange={setRunFilter}
           />
 
           {/* List/Detail grid - directly under tabs, no extra section */}

@@ -235,6 +235,21 @@ export const useOrchestratorFilters = () => {
     [setSearchParams],
   );
 
+  const runFilter = searchParams.get("run") || null;
+  const setRunFilter = useCallback(
+    (runId: string | null) => {
+      setSearchParams(
+        (prev) => {
+          if (runId) prev.set("run", runId);
+          else prev.delete("run");
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const resetFilters = useCallback(() => {
     setSearchParams(
       (prev) => {
@@ -249,6 +264,7 @@ export const useOrchestratorFilters = () => {
         prev.delete("appliedStart");
         prev.delete("appliedEnd");
         prev.delete("appliedRange");
+        prev.delete("run");
         return prev;
       },
       { replace: true },
@@ -267,6 +283,8 @@ export const useOrchestratorFilters = () => {
     setDateFilter,
     sort,
     setSort,
+    runFilter,
+    setRunFilter,
     resetFilters,
   };
 };

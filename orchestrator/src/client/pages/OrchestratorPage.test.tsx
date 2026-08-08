@@ -33,6 +33,7 @@ vi.mock("../api", () => ({
     lastRun: null,
     nextScheduledRun: null,
   }),
+  getPipelineRuns: vi.fn().mockResolvedValue([]),
   getProfile: vi.fn().mockResolvedValue({ personName: "Test User" }),
   skipJob: vi.fn().mockResolvedValue({}),
   markAsApplied: vi.fn().mockResolvedValue({}),
@@ -66,6 +67,7 @@ let mockAutomaticRunValues: AutomaticRunValues = {
   cityLocations: [],
   workplaceTypes: ["remote", "hybrid", "onsite"],
   hoursOld: null,
+  excludeRunIds: [],
 };
 
 const jobFixture = createJob({
@@ -428,6 +430,7 @@ describe("OrchestratorPage", () => {
       cityLocations: [],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
+      excludeRunIds: [],
     };
   });
 
@@ -849,6 +852,7 @@ describe("OrchestratorPage", () => {
         startupjobsMaxJobsPerTerm: 150,
         jobspyCountryIndeed: "united kingdom",
         searchCities: null,
+        pipelineExcludeRunIds: [],
       });
     });
     expect(api.runPipeline).toHaveBeenCalledWith({
@@ -875,6 +879,7 @@ describe("OrchestratorPage", () => {
       cityLocations: ["London", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
+      excludeRunIds: [],
     };
 
     render(
@@ -911,6 +916,7 @@ describe("OrchestratorPage", () => {
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
+      excludeRunIds: [],
     };
 
     render(
@@ -947,6 +953,7 @@ describe("OrchestratorPage", () => {
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
+      excludeRunIds: [],
     };
 
     render(
@@ -1055,6 +1062,7 @@ describe("OrchestratorPage", () => {
       cityLocations: [],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
+      excludeRunIds: [],
     };
 
     render(

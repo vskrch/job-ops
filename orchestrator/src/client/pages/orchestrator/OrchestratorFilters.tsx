@@ -1,6 +1,7 @@
 import { KbdHint } from "@client/components/KbdHint";
 import { getDisplayKey, SHORTCUTS } from "@client/lib/shortcut-map";
 import type { JobSource } from "@shared/types.js";
+import { type PipelineRun, pipelineRunShortId } from "@shared/types.js";
 import { Filter, Search } from "lucide-react";
 import type React from "react";
 import { useMemo, useState } from "react";
@@ -64,6 +65,9 @@ interface OrchestratorFiltersProps {
   filteredCount: number;
   isFiltersOpen?: boolean;
   onFiltersOpenChange?: (open: boolean) => void;
+  runs?: PipelineRun[];
+  runFilter?: string | null;
+  onRunFilterChange?: (runId: string | null) => void;
 }
 
 const sponsorOptions: Array<{
@@ -193,6 +197,9 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
   filteredCount,
   isFiltersOpen: isFiltersOpenProp,
   onFiltersOpenChange: onFiltersOpenChangeProp,
+  runs = [],
+  runFilter = null,
+  onRunFilterChange,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isFiltersOpen = isFiltersOpenProp ?? internalOpen;
@@ -581,6 +588,48 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
                           </div>
                         )}
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Pipeline run</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Select
+                        value={runFilter ?? "all"}
+                        onValueChange={(value) =>
+                          onRunFilterChange?.(value === "all" ? null : value)
+                        }
+                      >
+                        <SelectTrigger
+                          id="run-filter"
+                          aria-label="Filter by pipeline run"
+                          className="h-8 w-full text-foreground"
+                        >
+                          <SelectValue placeholder="All runs" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All runs</SelectItem>
+                          {(runs ?? []).map((run) => (
+                            <SelectItem key={run.id} value={run.id}>
+                              {pipelineRunShortId(run.id)} ·{" "}
+                              {new Date(run.startedAt).toLocaleDateString()} ·{" "}
+                              {run.jobsDiscovered} jobs · {run.status}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {runFilter ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onRunFilterChange?.(null)}
+                        >
+                          Clear run filter
+                        </Button>
+                      ) : null}
                     </CardContent>
                   </Card>
 

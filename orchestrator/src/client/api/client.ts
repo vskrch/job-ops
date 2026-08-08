@@ -34,6 +34,7 @@ import type {
   ManualJobDraft,
   ManualJobFetchResponse,
   ManualJobInferenceResponse,
+  PipelineRun,
   PipelineScheduleResponse,
   PipelineStatusResponse,
   PostApplicationAction,
@@ -400,19 +401,23 @@ export function getJobs(): Promise<JobsListResponse<JobListItem>>;
 export function getJobs(options: {
   statuses?: string[];
   view?: "list";
+  runId?: string;
 }): Promise<JobsListResponse<JobListItem>>;
 export function getJobs(options?: {
   statuses?: string[];
   view: "full";
+  runId?: string;
 }): Promise<JobsListResponse<Job>>;
 export async function getJobs(options?: {
   statuses?: string[];
   view?: "full" | "list";
+  runId?: string;
 }): Promise<JobsListResponse<Job> | JobsListResponse<JobListItem>> {
   const params = new URLSearchParams();
   if (options?.statuses?.length)
     params.set("status", options.statuses.join(","));
   if (options?.view) params.set("view", options.view);
+  if (options?.runId) params.set("run", options.runId);
   const query = params.toString();
   return fetchApi<JobsListResponse<Job> | JobsListResponse<JobListItem>>(
     `/jobs${query ? `?${query}` : ""}`,
@@ -1010,6 +1015,10 @@ export async function updateJobOutcome(
 // Pipeline API
 export async function getPipelineStatus(): Promise<PipelineStatusResponse> {
   return fetchApi<PipelineStatusResponse>("/pipeline/status");
+}
+
+export async function getPipelineRuns(): Promise<PipelineRun[]> {
+  return fetchApi<PipelineRun[]>("/pipeline/runs");
 }
 
 export async function getPipelineSchedule(): Promise<PipelineScheduleResponse> {

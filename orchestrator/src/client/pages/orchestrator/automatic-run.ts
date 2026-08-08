@@ -21,6 +21,7 @@ export interface AutomaticRunValues {
   cityLocations: string[];
   workplaceTypes: WorkplaceType[];
   hoursOld: number | null;
+  excludeRunIds: string[];
 }
 
 export interface AutomaticPresetValues {

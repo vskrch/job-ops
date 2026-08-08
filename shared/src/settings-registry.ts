@@ -337,6 +337,13 @@ export const settingsRegistry = {
     parse: parseJsonArrayOrNull,
     serialize: serializeNullableJsonArray,
   },
+  pipelineExcludeRunIds: {
+    kind: "typed" as const,
+    schema: z.array(z.string().min(1)).max(200),
+    default: (): string[] => [],
+    parse: parseJsonArrayOrNull,
+    serialize: serializeNullableJsonArray,
+  },
   workplaceTypes: {
     kind: "typed" as const,
     schema: z.array(z.enum(WORKPLACE_TYPE_VALUES)).min(1).max(3),

@@ -14,6 +14,7 @@ export const createJob = (overrides: Partial<Job> = {}): Job => ({
   sourceJobId: null,
   jobUrlDirect: null,
   datePosted: null,
+  discoveredByRunId: null,
   title: "Backend Engineer",
   employer: "Acme Labs",
   employerUrl: null,
@@ -110,6 +111,7 @@ export const createPipelineRun = (
   jobsDiscovered: 0,
   jobsProcessed: 0,
   errorMessage: null,
+  config: null,
   ...overrides,
 });
 
@@ -176,6 +178,7 @@ export const createAppSettings = (
     default: ["remote", "hybrid", "onsite"],
     override: null,
   },
+  pipelineExcludeRunIds: { value: [], default: [], override: null },
   blockedCompanyKeywords: {
     value: [],
     default: [],

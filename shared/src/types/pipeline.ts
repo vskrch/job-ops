@@ -11,6 +11,25 @@ export interface PipelineConfig {
   enableImporting?: boolean;
   enableAutoTailoring?: boolean;
   hoursOld?: number | null;
+  /**
+   * IDs of previous pipeline runs whose jobs should be excluded from
+   * scoring/processing in this run (used to avoid re-surfacing jobs the
+   * user already saw and filtered out).
+   */
+  excludeRunIds?: string[];
+}
+
+/** Snapshot of the effective run configuration persisted with the run. */
+export interface PipelineRunConfigSnapshot {
+  topN: number;
+  minSuitabilityScore: number;
+  sources: ExtractorSourceId[];
+  searchTerms: string[];
+  country: string | null;
+  cityLocations: string[];
+  workplaceTypes: string[];
+  hoursOld: number | null;
+  excludeRunIds: string[];
 }
 
 export interface PipelineRun {
@@ -21,6 +40,12 @@ export interface PipelineRun {
   jobsDiscovered: number;
   jobsProcessed: number;
   errorMessage: string | null;
+  config: PipelineRunConfigSnapshot | null;
+}
+
+/** Short human-friendly run id derived from the stored id (first 8 chars). */
+export function pipelineRunShortId(id: string): string {
+  return id.slice(0, 8);
 }
 
 export interface PipelineStatusResponse {

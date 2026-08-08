@@ -182,6 +182,7 @@ export function usePipelineControls(
         startupjobsMaxJobsPerTerm: limits.startupjobsMaxJobsPerTerm,
         jobspyCountryIndeed: values.country,
         searchCities,
+        pipelineExcludeRunIds: values.excludeRunIds,
       });
       await refreshSettings();
       await startPipelineRun({

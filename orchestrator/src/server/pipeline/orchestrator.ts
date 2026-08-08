@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { runWithRequestContext } from "@infra/request-context";
-import type { PipelineConfig } from "@shared/types";
+import type { PipelineConfig, PipelineRunConfigSnapshot } from "@shared/types";
 import { getDataDir } from "../config/dataDir";
 import * as jobsRepo from "../repositories/jobs";
 import * as pipelineRepo from "../repositories/pipeline";
@@ -67,6 +67,61 @@ function ensureNotCancelled(): void {
   }
 }
 
+async function resolveExcludeRunIds(): Promise<string[]> {
+  try {
+    const raw = await getSetting("pipelineExcludeRunIds");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+async function buildRunConfigSnapshot(
+  config: PipelineConfig,
+): Promise<PipelineRunConfigSnapshot> {
+  const [searchTermsRaw, countryRaw, citiesRaw, workplaceRaw] =
+    await Promise.all([
+      getSetting("searchTerms").catch(() => null),
+      getSetting("jobspyCountryIndeed").catch(() => null),
+      getSetting("searchCities").catch(() => null),
+      getSetting("workplaceTypes").catch(() => null),
+    ]);
+
+  const parseStringList = (raw: string | null): string[] => {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (value): value is string => typeof value === "string",
+        );
+      }
+    } catch {
+      // fall through
+    }
+    return raw
+      .split("|")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  };
+
+  return {
+    topN: config.topN,
+    minSuitabilityScore: config.minSuitabilityScore,
+    sources: config.sources,
+    searchTerms: parseStringList(searchTermsRaw),
+    country: countryRaw?.trim() || null,
+    cityLocations: parseStringList(citiesRaw),
+    workplaceTypes: parseStringList(workplaceRaw),
+    hoursOld: config.hoursOld ?? null,
+    excludeRunIds: config.excludeRunIds ?? [],
+  };
+}
+
 /**
  * Run the full job discovery and processing pipeline.
  */
@@ -93,7 +148,17 @@ export async function runPipeline(
   resetProgress();
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-  const pipelineRun = await pipelineRepo.createPipelineRun();
+  // Resolve excluded runs from the persisted setting (set via Run > Advanced).
+  const excludeRunIds = await resolveExcludeRunIds();
+  const effectiveConfig: PipelineConfig = {
+    ...mergedConfig,
+    excludeRunIds,
+  };
+
+  // Snapshot the effective run configuration for the run history UI.
+  const configSnapshot = await buildRunConfigSnapshot(effectiveConfig);
+
+  const pipelineRun = await pipelineRepo.createPipelineRun(configSnapshot);
   activePipelineRunId = pipelineRun.id;
 
   return runWithRequestContext({ pipelineRunId: pipelineRun.id }, async () => {
@@ -101,9 +166,10 @@ export async function runPipeline(
     let jobsDiscovered = 0;
     let jobsProcessed = 0;
     pipelineLogger.info("Starting pipeline run", {
-      topN: mergedConfig.topN,
-      minSuitabilityScore: mergedConfig.minSuitabilityScore,
-      sources: mergedConfig.sources,
+      topN: effectiveConfig.topN,
+      minSuitabilityScore: effectiveConfig.minSuitabilityScore,
+      sources: effectiveConfig.sources,
+      excludeRunIds,
     });
 
     const stepStartTimes = new Map<string, number>();
@@ -131,14 +197,17 @@ export async function runPipeline(
       ensureNotCancelled();
       startStep("discover-jobs");
       const { discoveredJobs } = await discoverJobsStep({
-        mergedConfig,
+        mergedConfig: effectiveConfig,
         shouldCancel: () => cancelRequestedAt !== null,
       });
       finishStep("discover-jobs", { discovered: discoveredJobs.length });
 
       ensureNotCancelled();
       startStep("import-jobs");
-      const { created } = await importJobsStep({ discoveredJobs });
+      const { created } = await importJobsStep({
+        discoveredJobs,
+        runId: pipelineRun.id,
+      });
       jobsDiscovered = created;
       finishStep("import-jobs", { created });
 
@@ -150,6 +219,7 @@ export async function runPipeline(
       startStep("score-jobs");
       const { unprocessedJobs, scoredJobs } = await scoreJobsStep({
         profile,
+        excludeRunIds,
         shouldCancel: () => cancelRequestedAt !== null,
       });
       finishStep("score-jobs", {
@@ -161,7 +231,7 @@ export async function runPipeline(
       startStep("select-jobs");
       const jobsToProcess = selectJobsStep({
         scoredJobs,
-        mergedConfig,
+        mergedConfig: effectiveConfig,
       });
       finishStep("select-jobs", { selected: jobsToProcess.length });
 

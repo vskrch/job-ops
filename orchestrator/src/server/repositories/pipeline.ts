@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import { getCurrentUserId } from "@infra/request-context";
-import type { PipelineRun } from "@shared/types";
+import type { PipelineRun, PipelineRunConfigSnapshot } from "@shared/types";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
@@ -15,10 +15,51 @@ function currentUserId(): string {
   return getCurrentUserId();
 }
 
+function parseConfig(raw: string | null): PipelineRunConfigSnapshot | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PipelineRunConfigSnapshot;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !Array.isArray(parsed.sources)
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function mapRowToPipelineRun(row: {
+  id: string;
+  startedAt: string;
+  completedAt: string | null;
+  status: string;
+  jobsDiscovered: number;
+  jobsProcessed: number;
+  errorMessage: string | null;
+  config: string | null;
+}): PipelineRun {
+  return {
+    id: row.id,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    status: row.status as PipelineRun["status"],
+    jobsDiscovered: row.jobsDiscovered,
+    jobsProcessed: row.jobsProcessed,
+    errorMessage: row.errorMessage,
+    config: parseConfig(row.config),
+  };
+}
+
 /**
  * Create a new pipeline run.
  */
-export async function createPipelineRun(): Promise<PipelineRun> {
+export async function createPipelineRun(
+  config?: PipelineRunConfigSnapshot,
+): Promise<PipelineRun> {
   const id = randomUUID();
   const now = new Date().toISOString();
   const userId = currentUserId();
@@ -28,6 +69,7 @@ export async function createPipelineRun(): Promise<PipelineRun> {
     userId,
     startedAt: now,
     status: "running",
+    config: config ? JSON.stringify(config) : null,
   });
 
   return {
@@ -38,6 +80,7 @@ export async function createPipelineRun(): Promise<PipelineRun> {
     jobsDiscovered: 0,
     jobsProcessed: 0,
     errorMessage: null,
+    config: config ?? null,
   };
 }
 
@@ -75,15 +118,24 @@ export async function getLatestPipelineRun(): Promise<PipelineRun | null> {
 
   if (!row) return null;
 
-  return {
-    id: row.id,
-    startedAt: row.startedAt,
-    completedAt: row.completedAt,
-    status: row.status as PipelineRun["status"],
-    jobsDiscovered: row.jobsDiscovered,
-    jobsProcessed: row.jobsProcessed,
-    errorMessage: row.errorMessage,
-  };
+  return mapRowToPipelineRun(row);
+}
+
+/**
+ * Get a single pipeline run by id.
+ */
+export async function getPipelineRun(id: string): Promise<PipelineRun | null> {
+  const [row] = await db
+    .select()
+    .from(pipelineRuns)
+    .where(
+      and(eq(pipelineRuns.id, id), eq(pipelineRuns.userId, currentUserId())),
+    )
+    .limit(1);
+
+  if (!row) return null;
+
+  return mapRowToPipelineRun(row);
 }
 
 /**
@@ -99,15 +151,7 @@ export async function getRecentPipelineRuns(
     .orderBy(desc(pipelineRuns.startedAt))
     .limit(limit);
 
-  return rows.map((row) => ({
-    id: row.id,
-    startedAt: row.startedAt,
-    completedAt: row.completedAt,
-    status: row.status as PipelineRun["status"],
-    jobsDiscovered: row.jobsDiscovered,
-    jobsProcessed: row.jobsProcessed,
-    errorMessage: row.errorMessage,
-  }));
+  return rows.map(mapRowToPipelineRun);
 }
 
 /**

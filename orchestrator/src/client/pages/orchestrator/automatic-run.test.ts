@@ -30,6 +30,7 @@ describe("automatic-run utilities", () => {
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         hoursOld: null,
+        excludeRunIds: [],
       },
       sources: ["indeed", "linkedin", "gradcracker", "ukvisajobs"],
     });
@@ -76,6 +77,7 @@ describe("automatic-run utilities", () => {
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         hoursOld: null,
+        excludeRunIds: [],
       },
       sources: ["indeed", "linkedin", "gradcracker", "ukvisajobs"],
     });
@@ -105,6 +107,7 @@ describe("automatic-run utilities", () => {
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         hoursOld: null,
+        excludeRunIds: [],
       },
       sources: ["adzuna"],
     });
@@ -124,6 +127,7 @@ describe("automatic-run utilities", () => {
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         hoursOld: null,
+        excludeRunIds: [],
       },
       sources: ["hiringcafe"],
     });
@@ -143,6 +147,7 @@ describe("automatic-run utilities", () => {
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         hoursOld: null,
+        excludeRunIds: [],
       },
       sources: ["startupjobs"],
     });
@@ -162,6 +167,7 @@ describe("automatic-run utilities", () => {
         cityLocations: [],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         hoursOld: null,
+        excludeRunIds: [],
       },
       sources: ["workingnomads"],
     });
