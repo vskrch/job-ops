@@ -59,6 +59,11 @@ COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
 COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 COPY extractors/jobboards/package*.json ./extractors/jobboards/
+COPY extractors/remotive/package*.json ./extractors/remotive/
+COPY extractors/remoteok/package*.json ./extractors/remoteok/
+COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
+COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
+COPY extractors/usajobs/package*.json ./extractors/usajobs/
 
 # Install Node dependencies with npm cache (dev deps needed for build).
 RUN --mount=type=cache,target=/root/.npm \
@@ -82,6 +87,12 @@ COPY extractors/startupjobs ./extractors/startupjobs
 COPY extractors/workingnomads ./extractors/workingnomads
 COPY extractors/golangjobs ./extractors/golangjobs
 COPY extractors/ukvisajobs ./extractors/ukvisajobs
+COPY extractors/jobboards ./extractors/jobboards
+COPY extractors/usajobs ./extractors/usajobs
+COPY extractors/weworkremotely ./extractors/weworkremotely
+COPY extractors/hnhiring ./extractors/hnhiring
+COPY extractors/remoteok ./extractors/remoteok
+COPY extractors/remotive ./extractors/remotive
 
 # ============================================================================
 # PARALLEL BUILD STAGES
@@ -106,14 +117,6 @@ COPY package*.json ./
 COPY docs-site/package*.json ./docs-site/
 COPY shared/package*.json ./shared/
 COPY orchestrator/package*.json ./orchestrator/
-COPY extractors/adzuna/package*.json ./extractors/adzuna/
-COPY extractors/hiringcafe/package*.json ./extractors/hiringcafe/
-COPY extractors/gradcracker/package*.json ./extractors/gradcracker/
-COPY extractors/startupjobs/package*.json ./extractors/startupjobs/
-COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
-COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
-COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
-COPY extractors/jobboards/package*.json ./extractors/jobboards/
 
 # Install production Node dependencies only.
 RUN --mount=type=cache,target=/root/.npm \

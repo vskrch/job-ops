@@ -9,8 +9,8 @@
 #     explicitly so camoufox-js finds binaries at $HOME/.cache/camoufox.
 #   - The filesystem is ephemeral; /app/data is fresh each boot.
 #   - No layer caching on Heroku cloud builds -> keep the build lean.
-#   - TECTONIC_BIN is unset here; LaTeX resume rendering is skipped and falls
-#     back to the RxResume renderer (matching the default Dockerfile path).
+#   - Tectonic is bundled for the built-in LaTeX PDF exporter (the default
+#     renderer); no external resume service is required.
 # ============================================================================
 
 # ============================================================================
@@ -74,6 +74,11 @@ COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
 COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 COPY extractors/jobboards/package*.json ./extractors/jobboards/
+COPY extractors/remotive/package*.json ./extractors/remotive/
+COPY extractors/remoteok/package*.json ./extractors/remoteok/
+COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
+COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
+COPY extractors/usajobs/package*.json ./extractors/usajobs/
 
 # Install Node dependencies (dev deps needed for client + docs builds).
 # HOME=/app (inherited) so camoufox downloads to /app/.cache, and the same
@@ -115,18 +120,28 @@ COPY package*.json ./
 COPY docs-site/package*.json ./docs-site/
 COPY shared/package*.json ./shared/
 COPY orchestrator/package*.json ./orchestrator/
-COPY extractors/adzuna/package*.json ./extractors/adzuna/
-COPY extractors/hiringcafe/package*.json ./extractors/hiringcafe/
-COPY extractors/gradcracker/package*.json ./extractors/gradcracker/
-COPY extractors/startupjobs/package*.json ./extractors/startupjobs/
-COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
-COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
-COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
-COPY extractors/jobboards/package*.json ./extractors/jobboards/
 
 # Install production Node dependencies only.
 RUN npm ci --workspaces --include-workspace-root --omit=dev \
     --no-audit --no-fund --progress=false
+
+# ============================================================================
+# TECTONIC (built-in LaTeX PDF exporter)
+# ============================================================================
+FROM runtime-base AS tectonic
+
+ENV TECTONIC_VERSION=0.15.0
+
+# Install Tectonic for local LaTeX resume rendering.
+RUN set -eux; \
+    tectonic_arch="x86_64-unknown-linux-gnu"; \
+    tectonic_asset="tectonic-${TECTONIC_VERSION}-${tectonic_arch}.tar.gz"; \
+    curl --proto '=https' --tlsv1.2 -fsSL \
+        "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/${tectonic_asset}" \
+        -o /tmp/tectonic.tar.gz; \
+    tar -xzf /tmp/tectonic.tar.gz -C /tmp; \
+    install -m 0755 "/tmp/tectonic" /usr/local/bin/tectonic; \
+    rm -f /tmp/tectonic.tar.gz /tmp/tectonic
 
 # ============================================================================
 # PRODUCTION STAGE
@@ -134,6 +149,7 @@ RUN npm ci --workspaces --include-workspace-root --omit=dev \
 FROM runtime-node-deps AS production
 
 # Copy production-only runtime assets from sibling stages.
+COPY --from=tectonic /usr/local/bin/tectonic /usr/local/bin/tectonic
 COPY --from=python-deps /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
 COPY --from=python-deps /ms-playwright /ms-playwright
 COPY --from=node-deps /app/.cache/camoufox /app/.cache/camoufox
