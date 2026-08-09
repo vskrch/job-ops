@@ -1,0 +1,13 @@
+{
+  "name": "hasjob-extractor",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Hasjob (Hasgeek) startup and tech job board extractor",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.0"
+  },
+  "scripts": {
+    "check:types": "tsc --noEmit"
+  }
+}
