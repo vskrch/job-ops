@@ -112,7 +112,7 @@ export async function updateJobSearch(
     searchCompletedAt: string;
     emailStatus: SearchEmailStatus;
     emailSentAt: string;
-    emailError: string;
+    emailError: string | null;
     errorMessage: string;
   }>,
 ): Promise<void> {

@@ -56,72 +56,91 @@ export const JobSearchPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  const handleProgressEvent = useCallback((event: JobSearchProgressEvent) => {
-    switch (event.type) {
-      case "started":
-        setProgressMessage(
-          `Searching ${event.sourcesTotal} sources for: ${event.parsedSpec.roles.join(", ") || "all roles"}`,
-        );
-        break;
-      case "source_started":
-        setProgressMessage(`Fetching jobs from ${event.source}...`);
-        break;
-      case "source_completed":
-        setSourceStatuses((prev) => {
-          const next = [...prev];
-          const idx = next.findIndex((s) => s.source === event.source);
-          if (idx >= 0) {
-            next[idx] = {
-              source: event.source,
-              status: event.status,
-              jobsFound: event.jobsFound,
-              error: event.error,
-            };
-          } else {
-            next.push({
-              source: event.source,
-              status: event.status,
-              jobsFound: event.jobsFound,
-              error: event.error,
-            });
-          }
-          return next;
-        });
-        break;
-      case "phase":
-        setProgressMessage(event.message);
-        break;
-      case "completed":
-        setPhase("completed");
-        if (unsubscribeRef.current) {
-          unsubscribeRef.current();
-          unsubscribeRef.current = null;
-        }
-        api
-          .getJobSearch(event.searchId)
-          .then(setSearch)
-          .catch(() => {});
-        break;
-      case "failed":
-        setPhase("failed");
-        setError(event.error);
-        if (unsubscribeRef.current) {
-          unsubscribeRef.current();
-          unsubscribeRef.current = null;
-        }
-        break;
-      case "email_sent":
-        setSearch((prev) => (prev ? { ...prev, emailStatus: "sent" } : prev));
-        break;
-      case "email_failed":
-        setSearch((prev) =>
-          prev
-            ? { ...prev, emailStatus: "failed", emailError: event.error }
-            : prev,
-        );
-        break;
+  const unsubscribeProgress = useCallback(() => {
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
     }
   }, []);
+
+  const handleProgressEvent = useCallback(
+    (event: JobSearchProgressEvent) => {
+      switch (event.type) {
+        case "started":
+          setProgressMessage(
+            `Searching ${event.sourcesTotal} sources for: ${event.parsedSpec.roles.join(", ") || "all roles"}`,
+          );
+          break;
+        case "source_started":
+          setProgressMessage(`Fetching jobs from ${event.source}...`);
+          break;
+        case "source_completed":
+          setSourceStatuses((prev) => {
+            const next = [...prev];
+            const idx = next.findIndex((s) => s.source === event.source);
+            if (idx >= 0) {
+              next[idx] = {
+                source: event.source,
+                status: event.status,
+                jobsFound: event.jobsFound,
+                error: event.error,
+              };
+            } else {
+              next.push({
+                source: event.source,
+                status: event.status,
+                jobsFound: event.jobsFound,
+                error: event.error,
+              });
+            }
+            return next;
+          });
+          break;
+        case "phase":
+          setProgressMessage(event.message);
+          break;
+        case "completed":
+          setPhase("completed");
+          // Do NOT unsubscribe yet: email delivery events (sent/failed/skipped)
+          // arrive after completion. Results are already available in the UI
+          // regardless of what happens with email.
+          api
+            .getJobSearch(event.searchId)
+            .then(setSearch)
+            .catch(() => {});
+          break;
+        case "failed":
+          setPhase("failed");
+          setError(event.error);
+          if (unsubscribeRef.current) {
+            unsubscribeRef.current();
+            unsubscribeRef.current = null;
+          }
+          break;
+        case "email_sent":
+          setSearch((prev) => (prev ? { ...prev, emailStatus: "sent" } : prev));
+          unsubscribeProgress();
+          break;
+        case "email_failed":
+          setSearch((prev) =>
+            prev
+              ? { ...prev, emailStatus: "failed", emailError: event.error }
+              : prev,
+          );
+          unsubscribeProgress();
+          break;
+        case "email_skipped":
+          setSearch((prev) =>
+            prev
+              ? { ...prev, emailStatus: "skipped", emailError: event.reason }
+              : prev,
+          );
+          unsubscribeProgress();
+          break;
+      }
+    },
+    [unsubscribeProgress],
+  );
 
   const handleSearch = useCallback(async () => {
     const trimmed = query.trim();
@@ -526,7 +545,8 @@ export const JobSearchPage: React.FC = () => {
                       <>
                         <MailX className="h-5 w-5 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          Email skipped (SMTP not configured)
+                          Email skipped
+                          {search.emailError ? ` (${search.emailError})` : ""}
                         </span>
                       </>
                     )}

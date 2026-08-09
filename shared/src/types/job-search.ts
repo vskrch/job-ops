@@ -221,6 +221,11 @@ export type JobSearchProgressEvent =
       type: "email_failed";
       searchId: string;
       error: string;
+    }
+  | {
+      type: "email_skipped";
+      searchId: string;
+      reason: string;
     };
 
 /**
