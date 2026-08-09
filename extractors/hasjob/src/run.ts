@@ -115,7 +115,9 @@ export async function runHasjob(
         const body = await response.text();
 
         let pageJobs = 0;
-        for (const [href, card] of body.matchAll(CARD_RE)) {
+        for (const match of body.matchAll(CARD_RE)) {
+          const href = match[1];
+          const card = match[2];
           if (termJobs >= maxJobsPerTerm) break;
           if (!href) continue;
 

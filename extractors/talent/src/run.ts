@@ -145,7 +145,7 @@ export async function runTalent(
         const body = await response.text();
 
         let pageJobs = 0;
-        for (const rawCard of [...body.matchAll(CARD_RE)].map((m) => m[1])) {
+        for (const rawCard of [...body.matchAll(CARD_RE)].map((m) => m[0])) {
           if (termJobs >= maxJobsPerTerm) break;
           const mapped = extractJobCard(rawCard);
           if (!mapped) continue;
