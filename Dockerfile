@@ -65,6 +65,14 @@ COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
 COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
 COPY extractors/usajobs/package*.json ./extractors/usajobs/
 COPY extractors/ats/package*.json ./extractors/ats/
+COPY extractors/talent/package*.json ./extractors/talent/
+COPY extractors/aijobs/package*.json ./extractors/aijobs/
+COPY extractors/himalayas/package*.json ./extractors/himalayas/
+COPY extractors/careerbuilder/package*.json ./extractors/careerbuilder/
+COPY extractors/workopolis/package*.json ./extractors/workopolis/
+COPY extractors/timesjobs/package*.json ./extractors/timesjobs/
+COPY extractors/hasjob/package*.json ./extractors/hasjob/
+COPY extractors/freshersworld/package*.json ./extractors/freshersworld/
 
 # Install Node dependencies with npm cache (dev deps needed for build).
 RUN --mount=type=cache,target=/root/.npm \
@@ -132,6 +140,14 @@ COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
 COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
 COPY extractors/usajobs/package*.json ./extractors/usajobs/
 COPY extractors/ats/package*.json ./extractors/ats/
+COPY extractors/talent/package*.json ./extractors/talent/
+COPY extractors/aijobs/package*.json ./extractors/aijobs/
+COPY extractors/himalayas/package*.json ./extractors/himalayas/
+COPY extractors/careerbuilder/package*.json ./extractors/careerbuilder/
+COPY extractors/workopolis/package*.json ./extractors/workopolis/
+COPY extractors/timesjobs/package*.json ./extractors/timesjobs/
+COPY extractors/hasjob/package*.json ./extractors/hasjob/
+COPY extractors/freshersworld/package*.json ./extractors/freshersworld/
 
 # Install production Node dependencies only.
 RUN --mount=type=cache,target=/root/.npm \

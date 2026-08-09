@@ -33,6 +33,14 @@ export const EXTRACTOR_SOURCE_IDS = [
   "greenhouse",
   "lever",
   "ashby",
+  "talent",
+  "aijobs",
+  "himalayas",
+  "careerbuilder",
+  "workopolis",
+  "timesjobs",
+  "hasjob",
+  "freshersworld",
   "manual",
 ] as const;
 
@@ -146,6 +154,46 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
   ashby: {
     label: "Ashby",
     order: 330,
+    category: "pipeline",
+  },
+  talent: {
+    label: "Talent.com",
+    order: 340,
+    category: "pipeline",
+  },
+  aijobs: {
+    label: "AI Jobs",
+    order: 350,
+    category: "pipeline",
+  },
+  himalayas: {
+    label: "Himalayas",
+    order: 360,
+    category: "pipeline",
+  },
+  careerbuilder: {
+    label: "CareerBuilder",
+    order: 370,
+    category: "pipeline",
+  },
+  workopolis: {
+    label: "Workopolis",
+    order: 380,
+    category: "pipeline",
+  },
+  timesjobs: {
+    label: "TimesJobs",
+    order: 390,
+    category: "pipeline",
+  },
+  hasjob: {
+    label: "Hasjob",
+    order: 400,
+    category: "pipeline",
+  },
+  freshersworld: {
+    label: "Freshersworld",
+    order: 410,
     category: "pipeline",
   },
 };
