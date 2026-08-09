@@ -1,28 +1,31 @@
 /**
- * API routes for job search & aggregation.
+ * API routes for job search & aggregation (ADR-002).
  *
- * POST   /api/job-search            — submit a NL search query
- * GET    /api/job-search            — list recent searches
- * GET    /api/job-search/:id        — get search results
- * GET    /api/job-search/:id/progress — SSE progress stream
+ * POST   /api/job-search               — submit a NL search query (returns
+ *                                        immediately; parsing runs in background)
+ * GET    /api/job-search               — list recent searches
+ * GET    /api/job-search/:id           — get search state + results (reconciliation)
+ * GET    /api/job-search/:id/progress  — SSE progress stream
  * POST   /api/job-search/:id/resend-email — re-send the results email
  */
 
-import { AppError, badRequest, notFound } from "@infra/errors";
+import { AppError, badRequest, conflict, notFound } from "@infra/errors";
 import { fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import * as jobSearchRepo from "@server/repositories/job-search";
 import * as settingsRepo from "@server/repositories/settings";
-import { sendSearchResultsEmail } from "@server/services/email";
 import {
-  computeSearchHash,
+  computeAdmissionHash,
   executeJobSearch,
-  findCachedSearch,
-  parseSearchQuery,
+  getRunningSearchByAdmissionHash,
+  JOB_SEARCH_PARSER_VERSION,
+  findReusableSearch,
+  SOURCE_PLAN_VERSION,
   subscribeToSearchProgress,
 } from "@server/services/job-search";
+import { sendSearchResultsEmail } from "@server/services/email";
 import type { CreateJobSearchRequest } from "@shared/types";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
@@ -34,8 +37,18 @@ const createSearchSchema = z.object({
   fresh: z.boolean().optional(),
 });
 
+async function resolveCacheTtlMs(): Promise<number> {
+  const raw = await settingsRepo.getSetting("jobSearchCacheTtlMinutes");
+  const parsed = raw ? Number.parseInt(raw, 10) : 60;
+  return (Number.isFinite(parsed) ? parsed : 60) * 60_000;
+}
+
 /**
  * POST /api/job-search — Submit a new job search.
+ *
+ * Acknowledges immediately (no LLM parse, no registry discovery). The query
+ * is parsed in the background; identical concurrent requests resolve to one
+ * active search via the admission hash.
  */
 jobSearchRouter.post("/", async (req: Request, res: Response) => {
   try {
@@ -46,69 +59,57 @@ jobSearchRouter.post("/", async (req: Request, res: Response) => {
       return fail(res, badRequest("Query cannot be empty."));
     }
 
-    // Parse the query to get the spec (synchronous LLM call, ~2-3s)
-    const parsedSpec = await parseSearchQuery(query);
-    const queryHash = computeSearchHash(query, parsedSpec);
+    const admissionHash = computeAdmissionHash(query, {
+      fresh: input.fresh,
+      sourcePlanVersion: SOURCE_PLAN_VERSION,
+    });
 
-    // Check for cached/running search with the same hash
     if (!input.fresh) {
-      const cacheTtlRaw = await settingsRepo.getSetting(
-        "jobSearchCacheTtlMinutes",
+      const reusable = await findReusableSearch(
+        admissionHash,
+        await resolveCacheTtlMs(),
       );
-      const cacheTtlParsed = cacheTtlRaw
-        ? Number.parseInt(cacheTtlRaw, 10)
-        : 60;
-      const cacheTtl = Number.isFinite(cacheTtlParsed) ? cacheTtlParsed : 60;
-      const cached = await findCachedSearch(queryHash, cacheTtl);
-      if (cached) {
-        logger.info("Returning cached job search", {
-          searchId: cached.id,
-          status: cached.status,
+      if (reusable) {
+        logger.info("Returning reusable job search", {
+          searchId: reusable.id,
+          status: reusable.status,
+          phase: reusable.phase,
         });
         return ok(res, {
-          searchId: cached.id,
-          status: cached.status,
-          parsedSpec: cached.parsedSpec,
+          searchId: reusable.id,
+          status: reusable.status,
+          phase: reusable.phase,
+          parsedSpec: reusable.parsedSpec,
           cached: true,
         });
       }
     }
 
-    // Resolve sources from the registry
-    const registry = await import("@server/extractors/registry").then((m) =>
-      m.getExtractorRegistry(),
-    );
-    const availableSources = [...registry.manifestBySource.keys()];
-
-    // Create the search record
     const search = await jobSearchRepo.createJobSearch({
+      admissionHash,
       originalQuery: query,
-      queryHash,
-      parsedSpec,
-      sourcesSearched: availableSources,
+      parserVersion: JOB_SEARCH_PARSER_VERSION,
+      sourcePlanVersion: SOURCE_PLAN_VERSION,
     });
 
     if (!search) {
-      const existing = await jobSearchRepo.getJobSearchByHash(queryHash);
-      if (existing) {
+      // Raced with a concurrent identical submission: return the active run.
+      const active = await getRunningSearchByAdmissionHash(admissionHash);
+      if (active) {
         return ok(res, {
-          searchId: existing.id,
-          status: existing.status,
-          parsedSpec: existing.parsedSpec,
+          searchId: active.id,
+          status: active.status,
+          phase: active.phase,
+          parsedSpec: null,
           cached: true,
         });
       }
       return fail(
         res,
-        new AppError({
-          status: 409,
-          code: "CONFLICT",
-          message: "A search with this query is already running.",
-        }),
+        conflict("A search with this query is already running."),
       );
     }
 
-    // Launch the search in the background
     runWithRequestContext({}, () => {
       executeJobSearch(search.id, query).catch((error) => {
         logger.error("Background job search failed", {
@@ -121,7 +122,8 @@ jobSearchRouter.post("/", async (req: Request, res: Response) => {
     return ok(res, {
       searchId: search.id,
       status: "running" as const,
-      parsedSpec,
+      phase: "queued" as const,
+      parsedSpec: null,
       cached: false,
     });
   } catch (error) {
@@ -197,43 +199,40 @@ jobSearchRouter.get("/:id/progress", async (req: Request, res: Response) => {
 /**
  * POST /api/job-search/:id/resend-email — Re-send the results email.
  */
-jobSearchRouter.post(
-  "/:id/resend-email",
-  async (req: Request, res: Response) => {
-    try {
-      const search = await jobSearchRepo.getJobSearch(req.params.id);
-      if (!search) {
-        return fail(res, notFound("Search not found."));
-      }
-      if (search.status !== "completed") {
-        return fail(
-          res,
-          badRequest("Search must be completed before sending email."),
-        );
-      }
-
-      const publicBaseUrl =
-        process.env.JOBOPS_PUBLIC_BASE_URL?.trim() || "http://localhost:3001";
-
-      const emailResult = await sendSearchResultsEmail(search, publicBaseUrl);
-      const now = new Date().toISOString();
-
-      if (emailResult.success) {
-        await jobSearchRepo.updateJobSearch(search.id, {
-          emailStatus: "sent",
-          emailSentAt: now,
-        });
-        ok(res, { message: "Email sent.", emailStatus: "sent" as const });
-      } else {
-        await jobSearchRepo.updateJobSearch(search.id, {
-          emailStatus: "failed",
-          emailError: emailResult.error ?? "Unknown email error",
-        });
-        ok(res, { emailStatus: "failed" as const, error: emailResult.error });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+jobSearchRouter.post("/:id/resend-email", async (req: Request, res: Response) => {
+  try {
+    const search = await jobSearchRepo.getJobSearch(req.params.id);
+    if (!search) {
+      return fail(res, notFound("Search not found."));
     }
-  },
-);
+    if (search.status !== "completed") {
+      return fail(
+        res,
+        badRequest("Search must be completed before sending email."),
+      );
+    }
+
+    const publicBaseUrl =
+      process.env.JOBOPS_PUBLIC_BASE_URL?.trim() || "http://localhost:3001";
+
+    const emailResult = await sendSearchResultsEmail(search, publicBaseUrl);
+    const now = new Date().toISOString();
+
+    if (emailResult.success) {
+      await jobSearchRepo.updateJobSearch(search.id, {
+        emailStatus: "sent",
+        emailSentAt: now,
+      });
+      ok(res, { message: "Email sent.", emailStatus: "sent" as const });
+    } else {
+      await jobSearchRepo.updateJobSearch(search.id, {
+        emailStatus: "failed",
+        emailError: emailResult.error ?? "Unknown email error",
+      });
+      ok(res, { emailStatus: "failed" as const, error: emailResult.error });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+  }
+});

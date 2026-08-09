@@ -180,6 +180,15 @@ export interface AppSettings {
   scoringPromptTemplate: Resolved<string>;
   jobSearchParsePromptTemplate: Resolved<string>;
   jobSearchCacheTtlMinutes: Resolved<number>;
+  jobSearchMaxActiveSearches: Resolved<number>;
+  jobSearchSourceConcurrency: Resolved<number>;
+  jobSearchRankingConcurrency: Resolved<number>;
+  jobSearchMaxCandidates: Resolved<number>;
+  jobSearchMaxRankedCandidates: Resolved<number>;
+  jobSearchSourceTimeoutMs: Resolved<number>;
+  jobSearchRankingTimeoutMs: Resolved<number>;
+  jobSearchPartialResultsEnabled: Resolved<boolean>;
+  jobSearchHighConcurrencyEnabled: Resolved<boolean>;
   searchCities: Resolved<string>;
   jobspyResultsWanted: Resolved<number>;
   jobspyCountryIndeed: Resolved<string>;

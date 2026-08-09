@@ -85,6 +85,8 @@ describe.sequential("job-search repository", () => {
     sources: [
       {
         source: "adzuna",
+        displayName: "Adzuna",
+        selectedSources: ["adzuna"],
         status: "succeeded",
         jobsFound: 12,
         error: null,
@@ -102,17 +104,23 @@ describe.sequential("job-search repository", () => {
     const repo = await import("./job-search");
 
     const created = await repo.createJobSearch({
+      admissionHash: "admission-hash-1",
       originalQuery: "Data Engineer in Canada",
-      queryHash: "hash-1",
-      parsedSpec: sampleSpec,
-      sourcesSearched: ["adzuna", "remotive"],
+      parserVersion: "1",
+      sourcePlanVersion: "1",
     });
 
     expect(created).not.toBeNull();
     if (!created) return;
 
+    expect(created.admissionHash).toBe("admission-hash-1");
+    expect(created.phase).toBe("queued");
+
     await repo.updateJobSearch(created.id, {
       status: "completed",
+      phase: "completed",
+      specHash: "spec-hash-1",
+      parsedSpec: sampleSpec,
       results: sampleResults,
       sourcesSucceeded: ["adzuna"],
       sourcesFailed: ["remotive"],
@@ -122,6 +130,8 @@ describe.sequential("job-search repository", () => {
     const loaded = await repo.getJobSearch(created.id);
     expect(loaded).not.toBeNull();
     expect(loaded?.status).toBe("completed");
+    expect(loaded?.phase).toBe("completed");
+    expect(loaded?.specHash).toBe("spec-hash-1");
 
     // results must be a parsed object, not a JSON string (regression for
     // double-encoding when manually stringify-ing json-mode columns).
@@ -141,45 +151,100 @@ describe.sequential("job-search repository", () => {
     expect(loaded?.sourcesFailed).toEqual(["remotive"]);
   });
 
-  it("returns null when creating a second search with the same query hash", async () => {
+  it("returns null when creating a second search with the same admission hash while the first is running", async () => {
     const repo = await import("./job-search");
 
     const first = await repo.createJobSearch({
+      admissionHash: "duplicate-hash",
       originalQuery: "Same query",
-      queryHash: "duplicate-hash",
-      parsedSpec: null,
-      sourcesSearched: ["adzuna"],
+      parserVersion: "1",
+      sourcePlanVersion: "1",
     });
     expect(first).not.toBeNull();
 
     const second = await repo.createJobSearch({
+      admissionHash: "duplicate-hash",
       originalQuery: "Same query",
-      queryHash: "duplicate-hash",
-      parsedSpec: null,
-      sourcesSearched: ["adzuna"],
+      parserVersion: "1",
+      sourcePlanVersion: "1",
     });
     expect(second).toBeNull();
 
-    // The existing row must still be retrievable.
-    const loaded = await repo.getJobSearchByHash("duplicate-hash");
-    expect(loaded).not.toBeNull();
-    expect(loaded?.id).toBe(first?.id);
+    // The active row must still be retrievable.
+    const active = await repo.getRunningSearchByAdmissionHash("duplicate-hash");
+    expect(active).not.toBeNull();
+    expect(active?.id).toBe(first?.id);
   });
 
-  it("lists recent searches with summary counts", async () => {
+  it("allows a new search after the previous one completed (partial unique index on running rows)", async () => {
+    const repo = await import("./job-search");
+
+    const first = await repo.createJobSearch({
+      admissionHash: "refresh-hash",
+      originalQuery: "Same query",
+      parserVersion: "1",
+      sourcePlanVersion: "1",
+    });
+    expect(first).not.toBeNull();
+    if (!first) return;
+
+    await repo.updateJobSearch(first.id, {
+      status: "completed",
+      phase: "completed",
+      searchCompletedAt: "2026-08-09T00:00:00.000Z",
+    });
+
+    const second = await repo.createJobSearch({
+      admissionHash: "refresh-hash",
+      originalQuery: "Same query",
+      parserVersion: "1",
+      sourcePlanVersion: "1",
+    });
+    expect(second).not.toBeNull();
+  });
+
+  it("finds a reusable completed search within the TTL window", async () => {
     const repo = await import("./job-search");
 
     const created = await repo.createJobSearch({
-      originalQuery: "Backend Engineer",
-      queryHash: "hash-list",
-      parsedSpec: null,
-      sourcesSearched: [],
+      admissionHash: "ttl-hash",
+      originalQuery: "Same query",
+      parserVersion: "1",
+      sourcePlanVersion: "1",
     });
     expect(created).not.toBeNull();
     if (!created) return;
 
     await repo.updateJobSearch(created.id, {
       status: "completed",
+      phase: "completed",
+      results: sampleResults,
+      searchCompletedAt: new Date().toISOString(),
+    });
+
+    const reusable = await repo.findReusableSearch("ttl-hash", 60_000);
+    expect(reusable).not.toBeNull();
+    expect(reusable?.id).toBe(created.id);
+
+    const expired = await repo.findReusableSearch("ttl-hash", 0);
+    expect(expired).toBeNull();
+  });
+
+  it("lists recent searches with summary counts", async () => {
+    const repo = await import("./job-search");
+
+    const created = await repo.createJobSearch({
+      admissionHash: "hash-list",
+      originalQuery: "Backend Engineer",
+      parserVersion: "1",
+      sourcePlanVersion: "1",
+    });
+    expect(created).not.toBeNull();
+    if (!created) return;
+
+    await repo.updateJobSearch(created.id, {
+      status: "completed",
+      phase: "completed",
       results: sampleResults,
       searchCompletedAt: "2026-08-09T00:00:00.000Z",
     });
@@ -191,6 +256,7 @@ describe.sequential("job-search repository", () => {
     expect(item?.totalDiscovered).toBe(12);
     expect(item?.totalAfterFilter).toBe(4);
     expect(item?.status).toBe("completed");
+    expect(item?.phase).toBe("completed");
     expect(item?.originalQuery).toBe("Backend Engineer");
   });
 });

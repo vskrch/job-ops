@@ -1,15 +1,14 @@
 /**
- * Job search orchestrator — the main search execution flow.
+ * Job search orchestrator — main search execution flow (ADR-002).
  *
- * 1. Parse NL query → structured spec (LLM)
- * 2. Aggregate jobs from all available sources (reuse extractor registry)
- * 3. Deduplicate across sources
- * 4. Strict filtering (deterministic)
- * 5. LLM relevance ranking
- * 6. Generate report
- * 7. Email delivery
- *
- * Follows the same single-flight lock pattern as pipeline/orchestrator.ts.
+ * 1. Admit the search synchronously via its admission hash.
+ * 2. Parse the NL query in the background (POST never waits for it).
+ * 3. Build a manifest execution plan (one invocation per manifest).
+ * 4. Run manifest tasks through the resource-aware scheduler.
+ * 5. Ingest completions into a single accumulator; emit provisional
+ *    snapshots when enabled.
+ * 6. Final authoritative dedup + filter + LLM ranking.
+ * 7. Persist the report and attempt optional email delivery.
  */
 
 import { logger } from "@infra/logger";
@@ -17,128 +16,45 @@ import { runWithRequestContext } from "@infra/request-context";
 import { getExtractorRegistry } from "@server/extractors/registry";
 import * as jobSearchRepo from "@server/repositories/job-search";
 import * as settingsRepo from "@server/repositories/settings";
-import { asyncPool } from "@server/utils/async-pool";
-import { normalizeCountryKey } from "@shared/location-support.js";
 import type {
   CreateJobInput,
   JobSearchResultItem,
   JobSearchResults,
-  ParsedSearchSpec,
   SearchSourceStatus,
 } from "@shared/types";
 import { sendSearchResultsEmail } from "../email";
-import { deduplicateJobs } from "./dedup";
+import { SearchAccumulator } from "./accumulator";
 import { computeFreshnessWindow, filterJobs } from "./filter";
-import { clearSearchProgress, emitSearchProgress } from "./progress";
 import { computeSearchHash, parseSearchQuery } from "./query-parser";
+import { clearSearchProgress, emitSearchProgress } from "./progress";
 import { rankJobs } from "./ranking";
+import { resolveSearchLimits } from "./resource-limits";
+import { acquireSearchSlot } from "./scheduler";
+import { buildSourcePlan } from "./source-plan";
+import { runManifestTask } from "./source-runner";
 
-const SEARCH_CONCURRENCY = 3;
-
-// Single-flight: prevent the same search from running twice.
+// Single-flight: prevent the same search from running twice in-process.
 const activeSearches = new Set<string>();
 
 function getPublicBaseUrl(): string {
   return process.env.JOBOPS_PUBLIC_BASE_URL?.trim() || "http://localhost:3001";
 }
 
-/**
- * Resolve which sources to search based on the parsed spec.
- * Uses all available pipeline sources by default, filtered by country compatibility.
- */
-async function resolveSources(
-  _spec: ParsedSearchSpec,
-): Promise<{ sources: string[]; availableSources: string[] }> {
-  const registry = await getExtractorRegistry();
-  const availableSources = [...registry.manifestBySource.keys()];
-
-  // For now, search all available sources. The country compatibility check
-  // happens inside each extractor via isSourceAllowedForCountry.
-  return { sources: availableSources, availableSources };
+async function updatePhase(
+  searchId: string,
+  phase: "queued" | "parsing" | "planning" | "aggregating" | "filtering" | "ranking" | "reporting" | "emailing" | "completed" | "failed",
+  message: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await jobSearchRepo.updateJobSearch(searchId, {
+    phase,
+    lastProgressAt: now,
+  });
+  emitSearchProgress({ type: "phase", searchId, phase, message });
 }
 
 /**
- * Run a single extractor source and return its results.
- */
-async function runSource(
-  source: string,
-  spec: ParsedSearchSpec,
-  existingJobUrls: Promise<string[]>,
-): Promise<{ source: string; jobs: CreateJobInput[]; error: string | null }> {
-  try {
-    const registry = await getExtractorRegistry();
-    const manifest = registry.manifestBySource.get(source as never);
-    if (!manifest) {
-      return { source, jobs: [], error: "Extractor manifest not registered" };
-    }
-
-    // Group sources by manifest — find all sources provided by this manifest.
-    const manifestSources = [...registry.manifestBySource.entries()]
-      .filter(([, m]) => m.id === manifest.id)
-      .map(([s]) => s);
-
-    const searchTerms: string[] = [
-      ...(spec.roles.length > 0 ? spec.roles : []),
-      ...(spec.roles.length === 0 && spec.skills.length > 0 ? spec.skills : []),
-    ];
-    if (searchTerms.length === 0) {
-      searchTerms.push("software engineer");
-    }
-
-    const selectedCountry = spec.location.country
-      ? normalizeCountryKey(spec.location.country)
-      : "united kingdom";
-
-    const settings = await settingsRepo.getAllSettings();
-    const filteredSettings = Object.fromEntries(
-      Object.entries(settings).filter(
-        ([, value]) =>
-          typeof value === "string" || typeof value === "undefined",
-      ),
-    ) as Record<string, string | undefined>;
-
-    if (spec.postedWithin.value !== null) {
-      const hours =
-        spec.postedWithin.unit === "hours"
-          ? spec.postedWithin.value
-          : spec.postedWithin.unit === "days"
-            ? spec.postedWithin.value * 24
-            : spec.postedWithin.value * 24 * 7;
-      filteredSettings.jobspyHoursOld = String(hours);
-    }
-    if (spec.workMode === "remote") {
-      filteredSettings.jobspyIsRemote = "1";
-    }
-
-    const result = await manifest.run({
-      source,
-      selectedSources: manifestSources,
-      settings: filteredSettings,
-      searchTerms,
-      selectedCountry,
-      getExistingJobUrls: () => existingJobUrls,
-      onProgress: () => {},
-    });
-
-    if (!result.success) {
-      return {
-        source,
-        jobs: [],
-        error: result.error ?? "Unknown extractor error",
-      };
-    }
-
-    return { source, jobs: result.jobs, error: null };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    logger.warn("Job search source failed", { source, error: message });
-    return { source, jobs: [], error: message };
-  }
-}
-
-/**
- * Execute a job search end-to-end.
- * This is the background task launched after the API creates the search record.
+ * Execute a job search end-to-end in the background.
  */
 export async function executeJobSearch(
   searchId: string,
@@ -150,160 +66,166 @@ export async function executeJobSearch(
   }
   activeSearches.add(searchId);
 
-  await runWithRequestContext({}, async () => {
+  let releaseSearchSlot: (() => void) | null = null;
+
+  await runWithRequestContext({ searchId }, async () => {
     const searchLogger = logger.child({ searchId });
     searchLogger.info("Starting job search", { queryLength: query.length });
 
     try {
-      // 1. Parse the query
+      const limits = await resolveSearchLimits();
+
+      // Bounded process-wide admission. Waits briefly when another search is
+      // active; fails fast when the wait queue is full.
+      try {
+        releaseSearchSlot = await acquireSearchSlot(limits.maxActiveSearches);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Search capacity reached";
+        await jobSearchRepo.updateJobSearch(searchId, {
+          status: "failed",
+          phase: "failed",
+          errorMessage: message,
+          searchCompletedAt: new Date().toISOString(),
+        });
+        emitSearchProgress({ type: "failed", searchId, error: message });
+        return;
+      }
+
+      // 1. Parse the query in the background.
+      await updatePhase(searchId, "parsing", "Interpreting your search request...");
       const parsedSpec = await parseSearchQuery(query);
+      const specHash = computeSearchHash(query, parsedSpec);
 
       await jobSearchRepo.updateJobSearch(searchId, {
-        status: "running",
+        specHash,
+        parsedSpec,
+        phase: "planning",
+        lastProgressAt: new Date().toISOString(),
+      });
+      emitSearchProgress({
+        type: "phase",
+        searchId,
+        phase: "planning",
+        message: "Building source plan...",
       });
 
-      // 2. Resolve sources
-      const { sources } = await resolveSources(parsedSpec);
+      // 2. Build the manifest execution plan.
+      const [registry, settings] = await Promise.all([
+        getExtractorRegistry(),
+        settingsRepo.getAllSettings(),
+      ]);
+      const plan = await buildSourcePlan(parsedSpec, registry, settings);
+
+      await jobSearchRepo.updateJobSearch(searchId, {
+        sourcePlan: plan,
+        evaluationTime: plan.evaluationTime,
+        sourcesSearched: plan.tasks.flatMap((t) => t.selectedSources),
+        phase: "aggregating",
+        lastProgressAt: new Date().toISOString(),
+      });
 
       emitSearchProgress({
         type: "started",
         searchId,
         parsedSpec,
-        sourcesTotal: sources.length,
+        sourcesTotal: plan.tasks.length,
       });
 
-      // 3. Aggregate jobs from all sources
-      const sourceStatuses: SearchSourceStatus[] = sources.map((s) => ({
-        source: s,
-        status: "pending",
-        jobsFound: 0,
-        error: null,
-      }));
-
+      // 3. Aggregate through the scheduler; ingest into one accumulator.
+      const accumulator = new SearchAccumulator(searchId, parsedSpec);
       const existingJobUrlsPromise: Promise<string[]> = Promise.resolve([]);
-
-      emitSearchProgress({
-        type: "phase",
-        searchId,
-        phase: "aggregating",
-        message: `Fetching jobs from ${sources.length} sources...`,
-      });
+      const { runManifestTasks } = await import("./scheduler");
 
       let sourcesCompleted = 0;
-      const allJobs: CreateJobInput[] = [];
-
-      const sourceResults = await asyncPool({
-        items: sources,
-        concurrency: SEARCH_CONCURRENCY,
-        onTaskStarted: (source) => {
+      const sourceResults = await runManifestTasks({
+        tasks: plan.tasks,
+        perSearchConcurrency: limits.sourceConcurrency,
+        onTaskStarted: (task) => {
           emitSearchProgress({
-            type: "source_started",
+            type: "manifest_started",
             searchId,
-            source,
-            sourcesCompleted,
-            sourcesTotal: sources.length,
+            manifestId: task.manifestId,
+            displayName: task.displayName,
+            selectedSources: task.selectedSources,
+            sourcesTotal: plan.tasks.length,
           });
         },
         onTaskSettled: () => {
-          sourcesCompleted++;
+          sourcesCompleted += 1;
         },
-        task: async (source) => {
-          const idx = sourceStatuses.findIndex((s) => s.source === source);
-          if (idx >= 0) sourceStatuses[idx].status = "running";
-
-          const result = await runSource(
-            source,
+        task: async (task) => {
+          const effectiveTimeout = Math.min(
+            task.timeoutMs,
+            limits.sourceTimeoutMs,
+          );
+          const result = await runManifestTask(
+            task,
             parsedSpec,
             existingJobUrlsPromise,
+            effectiveTimeout,
           );
 
-          if (idx >= 0) {
-            sourceStatuses[idx].status = result.error ? "failed" : "succeeded";
-            sourceStatuses[idx].jobsFound = result.jobs.length;
-            sourceStatuses[idx].error = result.error;
-          }
-
           emitSearchProgress({
-            type: "source_completed",
+            type: "manifest_completed",
             searchId,
-            source,
-            sourcesCompleted,
-            sourcesTotal: sources.length,
+            manifestId: task.manifestId,
+            status: result.status,
             jobsFound: result.jobs.length,
-            status: result.error ? "failed" : "succeeded",
             error: result.error,
+            sourcesCompleted,
+            sourcesTotal: plan.tasks.length,
           });
+
+          if (limits.partialResultsEnabled) {
+            await accumulator.enqueue(() => {
+              accumulator.ingest(result);
+              const snapshot = accumulator.snapshot();
+              emitSearchProgress({
+                type: "results_partial",
+                searchId,
+                resultVersion: snapshot.resultVersion,
+                provisional: true,
+                results: snapshot.items,
+                counts: {
+                  discovered: snapshot.discovered,
+                  afterFilter: snapshot.afterFilter,
+                  duplicatesRemoved: snapshot.duplicatesRemoved,
+                },
+              });
+            });
+          } else {
+            await accumulator.enqueue(() => accumulator.ingest(result));
+          }
 
           return result;
         },
       });
 
-      for (const result of sourceResults) {
-        allJobs.push(...result.jobs);
-      }
+      // 4. Final authoritative dedup + filter + ranking.
+      await updatePhase(searchId, "filtering", "Deduplicating and filtering results...");
+      const { deduped, filterResults } = accumulator.finalFiltered();
 
-      const sourcesSucceeded = sourceStatuses
-        .filter((s) => s.status === "succeeded")
-        .map((s) => s.source);
-      const sourcesFailed = sourceStatuses
-        .filter((s) => s.status === "failed")
-        .map((s) => `${s.source}: ${s.error ?? "unknown error"}`);
-
-      // 4. Deduplicate
-      emitSearchProgress({
-        type: "phase",
-        searchId,
-        phase: "deduplicating",
-        message: `Deduplicating ${allJobs.length} jobs...`,
-      });
-
-      const dedupResult = deduplicateJobs(allJobs);
-
-      // 5. Strict filtering
-      emitSearchProgress({
-        type: "phase",
-        searchId,
-        phase: "filtering",
-        message: `Filtering ${dedupResult.jobs.length} jobs by strict criteria...`,
-      });
-
-      const filterInputs: CreateJobInput[] = dedupResult.jobs.map((j) => {
-        const { sources: _sources, ...jobData } = j;
-        return jobData;
-      });
-
-      const filterResults = filterJobs(filterInputs, parsedSpec);
-
-      // Track freshness filtering: count jobs that failed specifically due to postedWithin.
       const removedByFreshness = parsedSpec.postedWithin.value
         ? filterResults.filter(
             (r) => !r.passed && r.filterReason?.includes("postedWithin"),
           ).length
         : 0;
-
       const freshness = computeFreshnessWindow(parsedSpec, removedByFreshness);
 
-      // 6. Rank
-      emitSearchProgress({
-        type: "phase",
-        searchId,
-        phase: "ranking",
-        message: "Ranking jobs by relevance...",
-        counts: {
-          discovered: allJobs.length,
-          afterFilter: filterResults.filter((r) => r.passed).length,
-          duplicatesRemoved: dedupResult.duplicatesRemoved,
-        },
-      });
-
+      await updatePhase(searchId, "ranking", "Ranking jobs by relevance...");
       const rankedJobs: JobSearchResultItem[] = await rankJobs(
         filterResults,
         parsedSpec,
+        {
+          concurrency: limits.rankingConcurrency,
+          maxCandidates: limits.maxRankedCandidates,
+          timeoutMs: limits.rankingTimeoutMs,
+        },
       );
 
-      // Merge source lists back from dedup
+      // Attach merged source lists from dedup.
       const dedupSourceMap = new Map(
-        dedupResult.jobs.map((j) => {
+        deduped.map((j) => {
           const { sources, ...jobData } = j;
           return [jobData.jobUrl, sources];
         }),
@@ -312,11 +234,25 @@ export async function executeJobSearch(
         item.sources = dedupSourceMap.get(item.job.jobUrl) ?? [item.job.source];
       }
 
-      // Build results
+      const sourceStatuses: SearchSourceStatus[] = plan.tasks.map((task) => {
+        const result = sourceResults.find(
+          (r) => r.manifestId === task.manifestId,
+        );
+        const status = result?.status ?? "skipped";
+        return {
+          source: task.manifestId,
+          displayName: task.displayName,
+          selectedSources: task.selectedSources,
+          status,
+          jobsFound: result?.jobs.length ?? 0,
+          error: result?.error ?? null,
+        };
+      });
+
       const results: JobSearchResults = {
-        totalDiscovered: allJobs.length,
+        totalDiscovered: accumulator.totalDiscovered(),
         totalAfterFilter: rankedJobs.length,
-        duplicatesRemoved: dedupResult.duplicatesRemoved,
+        duplicatesRemoved: accumulator.totalDiscovered() - deduped.length,
         highlyRelevant: rankedJobs.filter((r) => r.relevanceScore >= 70).length,
         incompleteInfo: rankedJobs.filter(
           (r) => r.unverifiedConstraints.length > 0,
@@ -326,14 +262,22 @@ export async function executeJobSearch(
         freshness,
       };
 
-      // 7. Persist results
+      // 5. Persist the authoritative snapshot.
+      await updatePhase(searchId, "reporting", "Saving results...");
       const now = new Date().toISOString();
       await jobSearchRepo.updateJobSearch(searchId, {
         status: "completed",
         results,
-        sourcesSucceeded,
-        sourcesFailed,
+        resultVersion: accumulator.resultVersion + 1,
+        sourcesSucceeded: sourceStatuses
+          .filter((s) => s.status === "succeeded")
+          .map((s) => s.source),
+        sourcesFailed: sourceStatuses
+          .filter((s) => s.status === "failed")
+          .map((s) => `${s.source}: ${s.error ?? "unknown error"}`),
+        phase: "completed",
         searchCompletedAt: now,
+        lastProgressAt: now,
       });
 
       emitSearchProgress({
@@ -344,68 +288,39 @@ export async function executeJobSearch(
         duplicatesRemoved: results.duplicatesRemoved,
         results: rankedJobs,
         sources: sourceStatuses,
+        resultVersion: accumulator.resultVersion + 1,
       });
-
-      // 8. Email delivery — best-effort only. This step is fully isolated:
-      //    it can never fail the search or affect persisted results, so the
-      //    UI always shows results even when SMTP is unconfigured or broken.
-      await attemptEmailDelivery(searchId);
 
       searchLogger.info("Job search completed", {
         totalDiscovered: results.totalDiscovered,
         totalAfterFilter: results.totalAfterFilter,
         duplicatesRemoved: results.duplicatesRemoved,
+        sourcesCompleted,
+        sourcesTotal: plan.tasks.length,
       });
+
+      // 6. Email delivery — best-effort and fully isolated.
+      await attemptEmailDelivery(searchId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       searchLogger.error("Job search failed", error);
 
       await jobSearchRepo.updateJobSearch(searchId, {
         status: "failed",
+        phase: "failed",
         errorMessage: message,
         searchCompletedAt: new Date().toISOString(),
+        lastProgressAt: new Date().toISOString(),
       });
 
       emitSearchProgress({ type: "failed", searchId, error: message });
     } finally {
+      releaseSearchSlot?.();
       activeSearches.delete(searchId);
-      // Clean up SSE listeners after a delay
+      // Clean up SSE listeners after a delay so late subscribers can catch up.
       setTimeout(() => clearSearchProgress(searchId), 60_000);
     }
   });
-}
-
-/**
- * Check if a search is currently running.
- */
-export function isSearchRunning(searchId: string): boolean {
-  return activeSearches.has(searchId);
-}
-
-/**
- * Check for a cached recent search with the same hash.
- * Returns the cached search if found within the TTL window, null otherwise.
- */
-export async function findCachedSearch(
-  queryHash: string,
-  cacheTtlMinutes: number,
-): Promise<import("@shared/types").JobSearch | null> {
-  const existing = await jobSearchRepo.getJobSearchByHash(queryHash);
-  if (!existing) return null;
-
-  // Running search — return it (don't start a duplicate)
-  if (existing.status === "running") return existing;
-
-  // Completed search within cache window
-  if (existing.status === "completed" && cacheTtlMinutes > 0) {
-    const completedAt = existing.searchCompletedAt
-      ? new Date(existing.searchCompletedAt).getTime()
-      : new Date(existing.createdAt).getTime();
-    const ageMinutes = (Date.now() - completedAt) / 60_000;
-    if (ageMinutes < cacheTtlMinutes) return existing;
-  }
-
-  return null;
 }
 
 /**
@@ -434,10 +349,7 @@ export async function attemptEmailDelivery(searchId: string): Promise<void> {
       return;
     }
 
-    const emailResult = await sendSearchResultsEmail(
-      search,
-      getPublicBaseUrl(),
-    );
+    const emailResult = await sendSearchResultsEmail(search, getPublicBaseUrl());
     const emailNow = new Date().toISOString();
 
     if (emailResult.success) {
@@ -497,9 +409,7 @@ export async function attemptEmailDelivery(searchId: string): Promise<void> {
     } catch (updateError) {
       emailLogger.error("Failed to record email error status", {
         error:
-          updateError instanceof Error
-            ? updateError.message
-            : String(updateError),
+          updateError instanceof Error ? updateError.message : String(updateError),
       });
     }
     emitSearchProgress({
@@ -511,3 +421,28 @@ export async function attemptEmailDelivery(searchId: string): Promise<void> {
 }
 
 export { parseSearchQuery, computeSearchHash };
+
+/**
+ * Search status helpers for the route layer.
+ */
+export async function createSearchRecord(args: {
+  admissionHash: string;
+  originalQuery: string;
+  parserVersion: string;
+  sourcePlanVersion: string;
+}) {
+  return jobSearchRepo.createJobSearch(args);
+}
+
+export async function findReusableSearch(
+  admissionHash: string,
+  cacheTtlMs: number,
+) {
+  return jobSearchRepo.findReusableSearch(admissionHash, cacheTtlMs);
+}
+
+export async function getRunningSearchByAdmissionHash(admissionHash: string) {
+  return jobSearchRepo.getRunningSearchByAdmissionHash(admissionHash);
+}
+
+export type { CreateJobInput };

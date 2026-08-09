@@ -6,6 +6,7 @@
  * as scorer.ts: structured JSON output, schema validation, graceful fallback.
  */
 
+import { randomUUID } from "node:crypto";
 import { logger } from "@infra/logger";
 import { getDefaultPromptTemplate } from "@shared/prompt-template-definitions.js";
 import type { ParsedSearchSpec } from "@shared/types";
@@ -238,6 +239,34 @@ function normalizeSpec(raw: Record<string, unknown>): ParsedSearchSpec {
 }
 
 /**
+ * Version of the query parser. Bumped whenever parsing semantics change so
+ * cached admission hashes and parse results are invalidated safely.
+ */
+export const JOB_SEARCH_PARSER_VERSION = "1";
+
+/**
+ * Compute the synchronous admission hash used before the query is parsed.
+ *
+ * Identical normalized queries with the same parser/source-plan versions
+ * produce the same hash, so concurrent identical submissions deduplicate to
+ * one active search. Fresh requests append a nonce so they always create a
+ * distinct run.
+ */
+export function computeAdmissionHash(
+  query: string,
+  options?: { fresh?: boolean; sourcePlanVersion?: string },
+): string {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, " ");
+  const nonce = options?.fresh ? randomUUID() : "";
+  return JSON.stringify([
+    normalized,
+    JOB_SEARCH_PARSER_VERSION,
+    options?.sourcePlanVersion ?? "1",
+    nonce,
+  ]);
+}
+
+/**
  * Parse a natural-language job search query into a structured spec.
  * Falls back to a minimal spec (roles = [query]) on LLM failure.
  */
@@ -290,25 +319,38 @@ export async function parseSearchQuery(
 }
 
 /**
- * Compute a normalized hash for a parsed search spec.
- * Used for duplicate search detection (§11 of requirements).
+ * Compute the semantic hash of a parsed search spec (post-parse).
+ *
+ * Includes every search-affecting field plus parser and source-plan versions
+ * so cache identity changes when the interpretation of a query changes.
  */
 export function computeSearchHash(
   query: string,
   spec: ParsedSearchSpec | null,
+  versions?: { parserVersion?: string; sourcePlanVersion?: string },
 ): string {
   const normalized = {
     q: query.trim().toLowerCase(),
+    parserVersion: versions?.parserVersion ?? JOB_SEARCH_PARSER_VERSION,
+    sourcePlanVersion: versions?.sourcePlanVersion ?? "1",
     roles: spec?.roles.map((r) => r.toLowerCase()).sort() ?? [],
+    skills: spec?.skills.map((s) => s.toLowerCase()).sort() ?? [],
     country: spec?.location.country?.toLowerCase() ?? null,
     cities: spec?.location.cities.map((c) => c.toLowerCase()).sort() ?? [],
     workMode: spec?.workMode ?? "any",
+    employmentType: spec?.employmentType ?? null,
     exp: spec
       ? `${spec.experience.minYears ?? ""}-${spec.experience.maxYears ?? ""}`
+      : "",
+    salary: spec
+      ? `${spec.salary.min ?? ""}-${spec.salary.max ?? ""}-${(spec.salary.currency ?? "").toLowerCase()}`
       : "",
     posted: spec?.postedWithin.value
       ? `${spec.postedWithin.value}-${spec.postedWithin.unit}`
       : "",
+    excludeTerms: spec?.excludeTerms.map((t) => t.toLowerCase()).sort() ?? [],
+    seniority: spec?.seniority?.toLowerCase() ?? null,
+    industry: spec?.industry?.toLowerCase() ?? null,
   };
   return JSON.stringify(normalized);
 }

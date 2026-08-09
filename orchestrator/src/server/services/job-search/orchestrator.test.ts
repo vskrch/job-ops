@@ -82,19 +82,20 @@ describe.sequential("job search email isolation", () => {
 
   async function createCompletedSearch(
     repo: typeof import("@server/repositories/job-search"),
-    queryHash: string,
+    hash: string,
   ): Promise<string> {
     const created = await repo.createJobSearch({
+      admissionHash: hash,
       originalQuery: "Data Engineer in Canada",
-      queryHash,
-      parsedSpec: null,
-      sourcesSearched: ["adzuna"],
+      parserVersion: "1",
+      sourcePlanVersion: "1",
     });
     expect(created).not.toBeNull();
     if (!created) throw new Error("createJobSearch returned null");
 
     await repo.updateJobSearch(created.id, {
       status: "completed",
+      phase: "completed",
       results: sampleResults,
       searchCompletedAt: "2026-08-09T00:00:00.000Z",
     });

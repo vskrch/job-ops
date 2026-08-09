@@ -7,6 +7,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { JobSearch } from "@shared/types";
 
 const originalEnv = { ...process.env };
 
@@ -14,6 +15,36 @@ afterEach(() => {
   process.env = { ...originalEnv };
   vi.resetModules();
 });
+
+function makeSearch(id: string, results: JobSearch["results"]): JobSearch {
+  return {
+    id,
+    originalQuery: "Data Engineer in Canada",
+    admissionHash: `admission-${id}`,
+    specHash: null,
+    parserVersion: "1",
+    sourcePlanVersion: "1",
+    parsedSpec: null,
+    phase: "completed",
+    status: "completed",
+    results,
+    resultVersion: 1,
+    sourcePlan: null,
+    evaluationTime: "2026-08-09T00:00:00.000Z",
+    sourcesSearched: [],
+    sourcesSucceeded: [],
+    sourcesFailed: [],
+    searchStartedAt: "2026-08-09T00:00:00.000Z",
+    searchCompletedAt: "2026-08-09T00:01:00.000Z",
+    emailStatus: "pending",
+    emailSentAt: null,
+    emailError: null,
+    errorMessage: null,
+    createdAt: "2026-08-09T00:00:00.000Z",
+    updatedAt: "2026-08-09T00:01:00.000Z",
+    lastProgressAt: "2026-08-09T00:01:00.000Z",
+  };
+}
 
 describe("sendSearchResultsEmail", () => {
   it("returns SMTP not configured without throwing when no SMTP_HOST is set", async () => {
@@ -26,25 +57,7 @@ describe("sendSearchResultsEmail", () => {
     const { sendSearchResultsEmail } = await import("./email");
 
     const result = await sendSearchResultsEmail(
-      {
-        id: "search-1",
-        originalQuery: "Data Engineer",
-        queryHash: "hash",
-        parsedSpec: null,
-        status: "completed",
-        results: null,
-        sourcesSearched: [],
-        sourcesSucceeded: [],
-        sourcesFailed: [],
-        searchStartedAt: null,
-        searchCompletedAt: null,
-        emailStatus: "pending",
-        emailSentAt: null,
-        emailError: null,
-        errorMessage: null,
-        createdAt: "2026-08-09T00:00:00.000Z",
-        updatedAt: "2026-08-09T00:00:00.000Z",
-      },
+      makeSearch("search-1", null),
       "http://localhost:3001",
     );
 
@@ -57,39 +70,21 @@ describe("sendSearchResultsEmail", () => {
 
     const { sendSearchResultsEmail } = await import("./email");
     const result = await sendSearchResultsEmail(
-      {
-        id: "search-2",
-        originalQuery: "query",
-        queryHash: "hash",
-        parsedSpec: null,
-        status: "completed",
-        results: {
-          totalDiscovered: 1,
-          totalAfterFilter: 1,
-          duplicatesRemoved: 0,
-          highlyRelevant: 1,
-          incompleteInfo: 0,
-          jobs: [],
-          sources: [],
-          freshness: {
-            requested: null,
-            effectiveStart: null,
-            effectiveEnd: null,
-            removedByFreshness: 0,
-          },
+      makeSearch("search-2", {
+        totalDiscovered: 1,
+        totalAfterFilter: 1,
+        duplicatesRemoved: 0,
+        highlyRelevant: 1,
+        incompleteInfo: 0,
+        jobs: [],
+        sources: [],
+        freshness: {
+          requested: null,
+          effectiveStart: null,
+          effectiveEnd: null,
+          removedByFreshness: 0,
         },
-        sourcesSearched: [],
-        sourcesSucceeded: [],
-        sourcesFailed: [],
-        searchStartedAt: null,
-        searchCompletedAt: null,
-        emailStatus: "pending",
-        emailSentAt: null,
-        emailError: null,
-        errorMessage: null,
-        createdAt: "2026-08-09T00:00:00.000Z",
-        updatedAt: "2026-08-09T00:00:00.000Z",
-      },
+      }),
       "http://localhost:3001",
     );
 

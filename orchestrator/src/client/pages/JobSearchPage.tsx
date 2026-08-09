@@ -42,6 +42,12 @@ const EXAMPLE_QUERIES = [
 
 type SearchPhase = "idle" | "parsing" | "searching" | "completed" | "failed";
 
+interface ProvisionalCounts {
+  discovered: number;
+  afterFilter: number;
+  duplicatesRemoved: number;
+}
+
 export const JobSearchPage: React.FC = () => {
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<SearchPhase>("idle");
@@ -49,6 +55,11 @@ export const JobSearchPage: React.FC = () => {
   const [parsedSpec, setParsedSpec] = useState<ParsedSearchSpec | null>(null);
   const [cached, setCached] = useState(false);
   const [search, setSearch] = useState<JobSearch | null>(null);
+  const [provisionalResults, setProvisionalResults] = useState<
+    JobSearchResultItem[]
+  >([]);
+  const [provisionalCounts, setProvisionalCounts] =
+    useState<ProvisionalCounts | null>(null);
   const [progressMessage, setProgressMessage] = useState<string>("");
   const [sourceStatuses, setSourceStatuses] = useState<SearchSourceStatus[]>(
     [],
@@ -67,27 +78,50 @@ export const JobSearchPage: React.FC = () => {
     (event: JobSearchProgressEvent) => {
       switch (event.type) {
         case "started":
+          setParsedSpec(event.parsedSpec);
           setProgressMessage(
-            `Searching ${event.sourcesTotal} sources for: ${event.parsedSpec.roles.join(", ") || "all roles"}`,
+            `Searching ${event.sourcesTotal} source groups for: ${event.parsedSpec.roles.join(", ") || "all roles"}`,
           );
           break;
-        case "source_started":
-          setProgressMessage(`Fetching jobs from ${event.source}...`);
-          break;
-        case "source_completed":
+        case "manifest_started":
           setSourceStatuses((prev) => {
             const next = [...prev];
-            const idx = next.findIndex((s) => s.source === event.source);
+            const idx = next.findIndex((s) => s.source === event.manifestId);
             if (idx >= 0) {
               next[idx] = {
-                source: event.source,
+                ...next[idx],
+                status: "running",
+              };
+            } else {
+              next.push({
+                source: event.manifestId,
+                displayName: event.displayName,
+                selectedSources: event.selectedSources,
+                status: "running",
+                jobsFound: 0,
+                error: null,
+              });
+            }
+            return next;
+          });
+          setProgressMessage(`Fetching jobs from ${event.displayName}...`);
+          break;
+        case "manifest_completed":
+          setSourceStatuses((prev) => {
+            const next = [...prev];
+            const idx = next.findIndex((s) => s.source === event.manifestId);
+            if (idx >= 0) {
+              next[idx] = {
+                ...next[idx],
                 status: event.status,
                 jobsFound: event.jobsFound,
                 error: event.error,
               };
             } else {
               next.push({
-                source: event.source,
+                source: event.manifestId,
+                displayName: event.manifestId,
+                selectedSources: [],
                 status: event.status,
                 jobsFound: event.jobsFound,
                 error: event.error,
@@ -95,12 +129,21 @@ export const JobSearchPage: React.FC = () => {
             }
             return next;
           });
+          setProgressMessage(
+            `${event.manifestId} finished (${event.jobsFound} jobs).`,
+          );
+          break;
+        case "results_partial":
+          setProvisionalResults(event.results);
+          setProvisionalCounts(event.counts);
           break;
         case "phase":
           setProgressMessage(event.message);
           break;
         case "completed":
           setPhase("completed");
+          setProvisionalResults([]);
+          setProvisionalCounts(null);
           // Do NOT unsubscribe yet: email delivery events (sent/failed/skipped)
           // arrive after completion. Results are already available in the UI
           // regardless of what happens with email.
@@ -112,10 +155,7 @@ export const JobSearchPage: React.FC = () => {
         case "failed":
           setPhase("failed");
           setError(event.error);
-          if (unsubscribeRef.current) {
-            unsubscribeRef.current();
-            unsubscribeRef.current = null;
-          }
+          unsubscribeProgress();
           break;
         case "email_sent":
           setSearch((prev) => (prev ? { ...prev, emailStatus: "sent" } : prev));
@@ -150,9 +190,11 @@ export const JobSearchPage: React.FC = () => {
     setError(null);
     setParsedSpec(null);
     setSearch(null);
+    setProvisionalResults([]);
+    setProvisionalCounts(null);
     setSourceStatuses([]);
     setSearchId(null);
-    setProgressMessage("Parsing your search query...");
+    setProgressMessage("Interpreting your search request...");
 
     try {
       const response = await api.createJobSearch({ query: trimmed });
@@ -169,6 +211,15 @@ export const JobSearchPage: React.FC = () => {
 
       setPhase("searching");
       setProgressMessage("Starting search across job sources...");
+
+      // SSE is a notification channel, not the source of truth: reconcile
+      // with GET in case parsing already finished before we subscribed.
+      api
+        .getJobSearch(response.searchId)
+        .then((current) => {
+          if (current.parsedSpec) setParsedSpec(current.parsedSpec);
+        })
+        .catch(() => {});
 
       unsubscribeRef.current = api.subscribeToJobSearchProgress(
         response.searchId,
@@ -467,19 +518,29 @@ export const JobSearchPage: React.FC = () => {
           )}
 
           {/* Source Status */}
-          {results && results.sources.length > 0 && (
+          {(sourceStatuses.length > 0 || (results && results.sources.length > 0)) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Source Status</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
-                  {results.sources.map((s) => (
+                  {(sourceStatuses.length > 0
+                    ? sourceStatuses
+                    : results?.sources ?? []
+                  ).map((s) => (
                     <div
                       key={s.source}
                       className="flex items-center justify-between border-b py-1 text-sm last:border-0"
                     >
-                      <span className="font-mono">{s.source}</span>
+                      <div className="min-w-0">
+                        <span className="font-medium">{s.displayName}</span>
+                        {s.selectedSources.length > 1 && (
+                          <span className="ml-2 font-mono text-xs text-muted-foreground">
+                            {s.selectedSources.join(", ")}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         {s.status === "succeeded" && (
                           <>
@@ -497,6 +558,17 @@ export const JobSearchPage: React.FC = () => {
                             <AlertCircle className="h-4 w-4 text-destructive" />
                           </>
                         )}
+                        {s.status === "skipped" && (
+                          <>
+                            <Badge variant="secondary" className="text-xs">
+                              skipped
+                            </Badge>
+                            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                          </>
+                        )}
+                        {s.status === "running" && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
                         {s.error && (
                           <span className="text-xs text-muted-foreground">
                             {s.error}
@@ -506,6 +578,42 @@ export const JobSearchPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Provisional Results (streaming while sources are still running) */}
+          {phase !== "completed" && provisionalResults.length > 0 && (
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  Provisional Results
+                  <Badge variant="secondary" className="text-xs">
+                    updating...
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {provisionalCounts && (
+                  <div className="mb-3 flex gap-4 text-xs text-muted-foreground">
+                    <span>Discovered: {provisionalCounts.discovered}</span>
+                    <span>After filter: {provisionalCounts.afterFilter}</span>
+                    <span>
+                      Duplicates: {provisionalCounts.duplicatesRemoved}
+                    </span>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  {provisionalResults.slice(0, 20).map((item, i) => (
+                    <JobResultCard key={`prov-${item.job.jobUrl}-${i}`} item={item} index={i} />
+                  ))}
+                </div>
+                {provisionalResults.length > 20 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Showing 20 of {provisionalResults.length} provisional
+                    results — final ranking completes when all sources finish.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -628,9 +736,15 @@ function JobResultCard({
               #{index + 1}
             </span>
             <h3 className="truncate font-semibold">{item.job.title}</h3>
-            <Badge variant="default" className="shrink-0">
-              {item.relevanceScore}
-            </Badge>
+            {item.relevanceScore > 0 ? (
+              <Badge variant="default" className="shrink-0">
+                {item.relevanceScore}
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="shrink-0">
+                pending
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {item.job.employer}

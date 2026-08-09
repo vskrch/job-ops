@@ -560,9 +560,29 @@ export const jobSearches = sqliteTable(
   {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull().default("default-user"),
-    queryHash: text("query_hash").notNull(),
+    admissionHash: text("admission_hash").notNull().default(""),
+    specHash: text("spec_hash"),
+    parserVersion: text("parser_version"),
+    sourcePlanVersion: text("source_plan_version"),
     originalQuery: text("original_query").notNull(),
     parsedSpec: text("parsed_spec", { mode: "json" }),
+    phase: text("phase", {
+      enum: [
+        "queued",
+        "parsing",
+        "planning",
+        "aggregating",
+        "filtering",
+        "provisional_results",
+        "ranking",
+        "reporting",
+        "emailing",
+        "completed",
+        "failed",
+      ],
+    })
+      .notNull()
+      .default("queued"),
     status: text("status", {
       enum: ["running", "completed", "failed"],
     })
@@ -572,6 +592,9 @@ export const jobSearches = sqliteTable(
     sourcesSucceeded: text("sources_succeeded", { mode: "json" }),
     sourcesFailed: text("sources_failed", { mode: "json" }),
     results: text("results", { mode: "json" }),
+    resultVersion: integer("result_version").notNull().default(0),
+    sourcePlan: text("source_plan", { mode: "json" }),
+    evaluationTime: text("evaluation_time"),
     searchStartedAt: text("search_started_at"),
     searchCompletedAt: text("search_completed_at"),
     emailStatus: text("email_status", {
@@ -582,14 +605,16 @@ export const jobSearches = sqliteTable(
     emailSentAt: text("email_sent_at"),
     emailError: text("email_error"),
     errorMessage: text("error_message"),
+    lastProgressAt: text("last_progress_at"),
     createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
-    userHashUnique: uniqueIndex("idx_job_searches_user_hash_unique").on(
-      table.userId,
-      table.queryHash,
-    ),
+    userAdmissionRunningUnique: uniqueIndex(
+      "idx_job_searches_user_admission_running_unique",
+    )
+      .on(table.userId, table.admissionHash)
+      .where(sql`${table.status} = 'running'`),
     userCreatedIndex: index("idx_job_searches_user_created").on(
       table.userId,
       table.createdAt,

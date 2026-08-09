@@ -779,6 +779,86 @@ export const settingsRegistry = {
     serialize: (value: number | null | undefined): string | null =>
       value === null || value === undefined ? null : String(value),
   },
+  jobSearchMaxActiveSearches: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(4),
+    default: (): string => "1",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchSourceConcurrency: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(6),
+    default: (): string => "3",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchRankingConcurrency: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(8),
+    default: (): string => "4",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchMaxCandidates: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(10).max(2000),
+    default: (): string => "500",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchMaxRankedCandidates: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(500),
+    default: (): string => "100",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchSourceTimeoutMs: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1000).max(300000),
+    default: (): string => "120000",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchRankingTimeoutMs: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1000).max(120000),
+    default: (): string => "30000",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  jobSearchPartialResultsEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined
+        ? null
+        : value
+          ? "1"
+          : "0",
+  },
+  jobSearchHighConcurrencyEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined
+        ? null
+        : value
+          ? "1"
+          : "0",
+  },
 } as const;
 
 export type SettingsRegistry = typeof settingsRegistry;

@@ -712,24 +712,31 @@ const migrations = [
   `CREATE TABLE IF NOT EXISTS job_searches (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL DEFAULT 'default-user',
-    query_hash TEXT NOT NULL,
+    admission_hash TEXT NOT NULL DEFAULT '',
+    spec_hash TEXT,
+    parser_version TEXT,
+    source_plan_version TEXT,
     original_query TEXT NOT NULL,
     parsed_spec TEXT,
+    phase TEXT NOT NULL DEFAULT 'queued' CHECK(phase IN ('queued', 'parsing', 'planning', 'aggregating', 'filtering', 'provisional_results', 'ranking', 'reporting', 'emailing', 'completed', 'failed')),
     status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed')),
     sources_searched TEXT,
     sources_succeeded TEXT,
     sources_failed TEXT,
     results TEXT,
+    result_version INTEGER NOT NULL DEFAULT 0,
+    source_plan TEXT,
+    evaluation_time TEXT,
     search_started_at TEXT,
     search_completed_at TEXT,
     email_status TEXT NOT NULL DEFAULT 'pending' CHECK(email_status IN ('pending', 'sent', 'failed', 'skipped')),
     email_sent_at TEXT,
     email_error TEXT,
     error_message TEXT,
+    last_progress_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_job_searches_user_hash_unique ON job_searches(user_id, query_hash)`,
   `CREATE INDEX IF NOT EXISTS idx_job_searches_user_created ON job_searches(user_id, created_at)`,
 ];
 
@@ -823,6 +830,120 @@ for (const col of scoringColumns) {
     sqlite.exec(col.ddl);
     console.log(`✅ Added column jobs.${col.name}`);
   }
+}
+
+// Job search v2 (ADR-002): parallel execution columns.
+// All steps are idempotent via pragma checks so the upgrade can be re-run.
+const jobSearchColumns = [
+  {
+    name: "admission_hash",
+    ddl: "ALTER TABLE job_searches ADD COLUMN admission_hash TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    name: "parser_version",
+    ddl: "ALTER TABLE job_searches ADD COLUMN parser_version TEXT",
+  },
+  {
+    name: "source_plan_version",
+    ddl: "ALTER TABLE job_searches ADD COLUMN source_plan_version TEXT",
+  },
+  {
+    name: "phase",
+    ddl: "ALTER TABLE job_searches ADD COLUMN phase TEXT NOT NULL DEFAULT 'queued' CHECK(phase IN ('queued', 'parsing', 'planning', 'aggregating', 'filtering', 'provisional_results', 'ranking', 'reporting', 'emailing', 'completed', 'failed'))",
+  },
+  {
+    name: "result_version",
+    ddl: "ALTER TABLE job_searches ADD COLUMN result_version INTEGER NOT NULL DEFAULT 0",
+  },
+  {
+    name: "source_plan",
+    ddl: "ALTER TABLE job_searches ADD COLUMN source_plan TEXT",
+  },
+  {
+    name: "evaluation_time",
+    ddl: "ALTER TABLE job_searches ADD COLUMN evaluation_time TEXT",
+  },
+  {
+    name: "last_progress_at",
+    ddl: "ALTER TABLE job_searches ADD COLUMN last_progress_at TEXT",
+  },
+];
+for (const col of jobSearchColumns) {
+  const exists = sqlite
+    .prepare(
+      `SELECT count(*) AS n FROM pragma_table_info('job_searches') WHERE name = ?`,
+    )
+    .get(col.name) as { n: number };
+  if (exists.n === 0) {
+    sqlite.exec(col.ddl);
+    console.log(`✅ Added column job_searches.${col.name}`);
+  }
+}
+
+// Rename query_hash -> spec_hash (semantic hash of the parsed spec).
+const specHashExists = sqlite
+  .prepare(
+    `SELECT count(*) AS n FROM pragma_table_info('job_searches') WHERE name = 'spec_hash'`,
+  )
+  .get() as { n: number };
+if (specHashExists.n === 0) {
+  const queryHashExists = sqlite
+    .prepare(
+      `SELECT count(*) AS n FROM pragma_table_info('job_searches') WHERE name = 'query_hash'`,
+    )
+    .get() as { n: number };
+  if (queryHashExists.n > 0) {
+    sqlite.exec("ALTER TABLE job_searches RENAME COLUMN query_hash TO spec_hash");
+    console.log("✅ Renamed job_searches.query_hash -> spec_hash");
+    // RENAME COLUMN preserves NOT NULL; schema.ts declares spec_hash nullable.
+    try {
+      sqlite.exec("ALTER TABLE job_searches ALTER COLUMN spec_hash DROP NOT NULL");
+    } catch {
+      // Already nullable or unsupported on this SQLite build; harmless.
+    }
+  } else {
+    sqlite.exec("ALTER TABLE job_searches ADD COLUMN spec_hash TEXT");
+    console.log("✅ Added column job_searches.spec_hash");
+  }
+}
+
+// Backfill admission_hash from spec_hash for rows created before the upgrade.
+const admissionBackfill = sqlite
+  .prepare(
+    `SELECT count(*) AS n FROM job_searches WHERE admission_hash = '' AND spec_hash IS NOT NULL`,
+  )
+  .get() as { n: number };
+if (admissionBackfill.n > 0) {
+  sqlite.exec(
+    `UPDATE job_searches SET admission_hash = spec_hash WHERE admission_hash = '' AND spec_hash IS NOT NULL`,
+  );
+  console.log(`✅ Backfilled job_searches.admission_hash (${admissionBackfill.n} rows)`);
+}
+
+// Backfill phase for legacy rows whose status is already terminal.
+sqlite.exec(
+  `UPDATE job_searches SET phase = 'completed' WHERE status = 'completed' AND phase = 'queued'`,
+);
+sqlite.exec(
+  `UPDATE job_searches SET phase = 'failed' WHERE status = 'failed' AND phase = 'queued'`,
+);
+
+// Replace the permanent unique hash index with a partial unique index that
+// only covers active (running) searches. Completed searches can be replaced
+// after cache TTL expiry without deleting history.
+const runningIndexExists = sqlite
+  .prepare(
+    `SELECT count(*) AS n FROM sqlite_master WHERE type = 'index' AND name = 'idx_job_searches_user_admission_running_unique'`,
+  )
+  .get() as { n: number };
+if (runningIndexExists.n === 0) {
+  sqlite.exec("DROP INDEX IF EXISTS idx_job_searches_user_hash_unique");
+  sqlite.exec(
+    `CREATE UNIQUE INDEX idx_job_searches_user_admission_running_unique
+     ON job_searches(user_id, admission_hash)
+     WHERE status = 'running'`,
+  );
+  console.log("✅ Replaced job_searches unique index with partial running index");
 }
 
 sqlite.close();

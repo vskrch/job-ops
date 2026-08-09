@@ -4,6 +4,8 @@ export type RequestContext = {
   requestId: string;
   pipelineRunId?: string;
   jobId?: string;
+  /** Job search run id (job-search feature, ADR-002). */
+  searchId?: string;
   /** Authenticated user id for this request/flow; "default-user" when anon. */
   userId?: string;
 };
