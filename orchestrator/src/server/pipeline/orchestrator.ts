@@ -47,6 +47,52 @@ const DEFAULT_CONFIG: PipelineConfig = {
   enableAutoTailoring: true,
 };
 
+function safeParseSkills(
+  raw: string | null | undefined,
+): Array<{ name: string; keywords: string[] }> {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const groups: Array<{ name: string; keywords: string[] }> = [];
+    const legacyKeywords: string[] = [];
+
+    for (const item of parsed) {
+      if (typeof item === "string") {
+        const keyword = item.trim();
+        if (keyword) legacyKeywords.push(keyword);
+        continue;
+      }
+      if (typeof item !== "object" || item === null) continue;
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      const keywordsRaw = Array.isArray(record.keywords)
+        ? record.keywords
+        : typeof record.keywords === "string"
+          ? record.keywords.split(",")
+          : [];
+      const keywords = keywordsRaw
+        .filter((k): k is string => typeof k === "string")
+        .map((k) => k.trim())
+        .filter(Boolean);
+      if (!name && keywords.length === 0) continue;
+      groups.push({ name, keywords });
+    }
+
+    if (legacyKeywords.length > 0) {
+      groups.push({ name: "Skills", keywords: legacyKeywords });
+    }
+
+    return groups;
+  } catch {
+    logger.warn("Failed to parse tailoredSkills JSON, using empty array", {
+      length: raw.length,
+    });
+    return [];
+  }
+}
+
 // ponytail: module-level lock — single-process only.
 // SQLite + better-sqlite3 is single-connection; this is fine until horizontal scaling.
 // Upgrade path: move to a DB-backed advisory lock (pipeline_runs row) if multi-instance.
@@ -453,7 +499,7 @@ export async function generateFinalPdf(
         {
           summary: job.tailoredSummary || "",
           headline: job.tailoredHeadline || "",
-          skills: job.tailoredSkills ? JSON.parse(job.tailoredSkills) : [],
+          skills: safeParseSkills(job.tailoredSkills),
         },
         job.jobDescription || "",
         undefined, // deprecated baseResumePath parameter

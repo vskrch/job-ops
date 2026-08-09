@@ -380,6 +380,10 @@ async function mockScore(
   };
 }
 
+import { asyncPool } from "@server/utils/async-pool";
+
+const SCORE_AND_RANK_CONCURRENCY = 4;
+
 /**
  * Score multiple jobs and return sorted by score (descending).
  */
@@ -389,16 +393,18 @@ export async function scoreAndRankJobs(
 ): Promise<
   Array<Job & { suitabilityScore: number; suitabilityReason: string }>
 > {
-  const scoredJobs = await Promise.all(
-    jobs.map(async (job) => {
+  const scoredJobs = await asyncPool({
+    items: jobs,
+    concurrency: SCORE_AND_RANK_CONCURRENCY,
+    task: async (job) => {
       const { score, reason } = await scoreJobSuitability(job, profile);
       return {
         ...job,
         suitabilityScore: score,
         suitabilityReason: reason,
       };
-    }),
-  );
+    },
+  });
 
   return scoredJobs.sort((a, b) => b.suitabilityScore - a.suitabilityScore);
 }

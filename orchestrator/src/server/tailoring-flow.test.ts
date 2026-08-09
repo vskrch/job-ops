@@ -51,7 +51,9 @@ describe("Tailoring Flow", () => {
       expect.objectContaining({
         summary: "This is a manually edited summary specifically for this job.",
         headline: "Manually Edited Headline",
-        skills: ["React", "TypeScript", "Vitest"],
+        skills: [
+          { name: "Skills", keywords: ["React", "TypeScript", "Vitest"] },
+        ],
       }),
       "Senior TypeScript Developer", // Original JD
       undefined, // Deprecated profile path

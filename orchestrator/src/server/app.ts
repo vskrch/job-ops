@@ -2,6 +2,7 @@
  * Express app factory (useful for tests).
  */
 
+import { timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
@@ -158,7 +159,14 @@ export function createBasicAuthGuard() {
     if (separatorIndex === -1) return false;
     const user = decoded.slice(0, separatorIndex);
     const pass = decoded.slice(separatorIndex + 1);
-    return user === authUser && pass === authPass;
+
+    const userMatch =
+      user.length === authUser.length &&
+      timingSafeEqual(Buffer.from(user), Buffer.from(authUser));
+    const passMatch =
+      pass.length === authPass.length &&
+      timingSafeEqual(Buffer.from(pass), Buffer.from(authPass));
+    return userMatch && passMatch;
   }
 
   function isPublicReadOnlyRoute(method: string, path: string): boolean {
@@ -224,7 +232,20 @@ export function createApp() {
     app.set("trust proxy", 1);
   }
   const authGuard = createBasicAuthGuard();
-  const corsMiddleware = cors();
+  const isProduction = process.env.NODE_ENV === "production";
+  const corsOrigin = process.env.CORS_ORIGIN?.trim();
+  // In production, default to same-origin (no CORS headers). In dev, allow
+  // all origins. Set CORS_ORIGIN to allow specific cross-origin clients.
+  const corsMiddleware = cors(
+    corsOrigin
+      ? {
+          origin: corsOrigin.includes(",")
+            ? corsOrigin.split(",").map((o) => o.trim())
+            : corsOrigin,
+          credentials: true,
+        }
+      : { origin: isProduction ? false : true },
+  );
 
   const handleTracerRedirect = async (
     req: express.Request,
@@ -280,7 +301,7 @@ export function createApp() {
   app.use(securityHeaders());
   app.use(requestContextMiddleware());
   app.use("/stats", express.raw({ limit: "1mb", type: "*/*" }));
-  app.use(express.json({ limit: "5mb" }));
+  app.use(express.json({ limit: "1mb" }));
 
   // Logging middleware
   app.use((req, res, next) => {

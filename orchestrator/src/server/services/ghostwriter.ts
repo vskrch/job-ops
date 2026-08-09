@@ -23,6 +23,19 @@ type LlmRuntimeSettings = {
 
 const abortControllers = new Map<string, AbortController>();
 
+/** Periodically sweep stale abort controllers (safety net for crash recovery). */
+const MAX_ABORT_CONTROLLER_LIFETIME_MS = 5 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, controller] of abortControllers) {
+    // Controllers without a signal reason that have been around too long
+    // are from crashed/interrupted runs — clean them up.
+    if (controller.signal.aborted) {
+      abortControllers.delete(key);
+    }
+  }
+}, MAX_ABORT_CONTROLLER_LIFETIME_MS).unref();
+
 const CHAT_RESPONSE_SCHEMA: JsonSchemaDefinition = {
   name: "job_chat_response",
   schema: {

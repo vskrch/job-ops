@@ -14,17 +14,29 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { logger } from "@infra/logger";
 
 const COOKIE_NAME = "jobops.session";
 const TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const TTL_MS = TTL_SECONDS * 1000;
+const DEV_FALLBACK_SECRET = "jobops-dev-session-secret-change-in-production";
+
+let devFallbackWarned = false;
 
 function sessionSecret(): string {
-  const secret =
-    process.env.SESSION_SECRET?.trim() ||
-    process.env.BASIC_AUTH_PASSWORD?.trim() ||
-    "jobops-dev-session-secret-change-in-production";
-  return secret;
+  const explicit = process.env.SESSION_SECRET?.trim();
+  if (explicit) return explicit;
+
+  const basicAuthPass = process.env.BASIC_AUTH_PASSWORD?.trim();
+  if (basicAuthPass) return basicAuthPass;
+
+  if (!devFallbackWarned) {
+    devFallbackWarned = true;
+    logger.warn(
+      "SESSION_SECRET is not set — using a publicly known dev fallback. Do NOT deploy without setting SESSION_SECRET.",
+    );
+  }
+  return DEV_FALLBACK_SECRET;
 }
 
 function sign(userId: string, expiresAt: number): string {

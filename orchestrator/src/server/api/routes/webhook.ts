@@ -16,7 +16,16 @@ webhookRouter.post("/trigger", async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   const expectedToken = process.env.WEBHOOK_SECRET;
 
-  if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+  if (!expectedToken) {
+    return fail(
+      res,
+      unauthorized(
+        "Webhook secret is not configured. Set WEBHOOK_SECRET to use the webhook endpoint.",
+      ),
+    );
+  }
+
+  if (authHeader !== `Bearer ${expectedToken}`) {
     return fail(res, unauthorized());
   }
 
