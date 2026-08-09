@@ -15,6 +15,9 @@ import { getEffectiveSettings } from "./settings";
 interface SuitabilityResult {
   score: number; // 0-100
   reason: string; // Explanation
+  grade: string; // Letter grade A-F
+  topProject: string | null; // Recommended project to highlight
+  verdict: string; // "apply" | "maybe" | "skip"
 }
 
 type ScoringPreferences = {
@@ -36,8 +39,25 @@ const SCORING_SCHEMA: JsonSchemaDefinition = {
         type: "string",
         description: "Brief 1-2 sentence explanation of the score",
       },
+      grade: {
+        type: "string",
+        enum: ["A", "B", "C", "D", "F"],
+        description:
+          "Letter grade: A (80-100, apply now), B (65-79, strong match), C (50-64, decent match), D (35-49, weak match), F (0-34, skip)",
+      },
+      topProject: {
+        type: "string",
+        description:
+          "Name of the single project from the candidate's profile that best demonstrates fit for this role. Empty string if none.",
+      },
+      verdict: {
+        type: "string",
+        enum: ["apply", "maybe", "skip"],
+        description:
+          "Action verdict: apply (strong fit, apply now), maybe (partial fit, consider), skip (poor fit)",
+      },
     },
-    required: ["score", "reason"],
+    required: ["score", "reason", "grade", "topProject", "verdict"],
     additionalProperties: false,
   },
 };
@@ -83,6 +103,20 @@ function applySalaryPenalty(
   return { score: adjustedScore, reason: adjustedReason, penaltyApplied: true };
 }
 
+function scoreToGrade(score: number): string {
+  if (score >= 80) return "A";
+  if (score >= 65) return "B";
+  if (score >= 50) return "C";
+  if (score >= 35) return "D";
+  return "F";
+}
+
+function scoreToVerdict(score: number): string {
+  if (score >= 65) return "apply";
+  if (score >= 40) return "maybe";
+  return "skip";
+}
+
 /**
  * Score a job's suitability based on profile and job description.
  * Includes retry logic for when AI returns garbage responses.
@@ -104,7 +138,13 @@ export async function scoreJobSuitability(
   });
 
   const llm = new LlmService();
-  const result = await llm.callJson<{ score: number; reason: string }>({
+  const result = await llm.callJson<{
+    score: number;
+    reason: string;
+    grade: string;
+    topProject: string;
+    verdict: string;
+  }>({
     model,
     messages: [{ role: "user", content: prompt }],
     jsonSchema: SCORING_SCHEMA,
@@ -126,7 +166,7 @@ export async function scoreJobSuitability(
     });
   }
 
-  const { score, reason } = result.data;
+  const { score, reason, grade, topProject, verdict } = result.data;
 
   // Validate we got a reasonable response
   if (typeof score !== "number" || Number.isNaN(score)) {
@@ -141,6 +181,15 @@ export async function scoreJobSuitability(
 
   const clampedScore = Math.min(100, Math.max(0, Math.round(score)));
   const clampedReason = reason || "No explanation provided";
+  const validGrades = ["A", "B", "C", "D", "F"];
+  const clampedGrade = validGrades.includes(grade)
+    ? grade
+    : scoreToGrade(clampedScore);
+  const validVerdicts = ["apply", "maybe", "skip"];
+  const clampedVerdict = validVerdicts.includes(verdict)
+    ? verdict
+    : scoreToVerdict(clampedScore);
+  const cleanTopProject = topProject?.trim() || null;
 
   // Apply salary penalty if enabled
   const penaltyResult = applySalaryPenalty(job, clampedScore, clampedReason, {
@@ -151,6 +200,9 @@ export async function scoreJobSuitability(
   return {
     score: penaltyResult.score,
     reason: penaltyResult.reason,
+    grade: clampedGrade,
+    topProject: cleanTopProject,
+    verdict: clampedVerdict,
   };
 }
 
@@ -377,6 +429,9 @@ async function mockScore(
   return {
     score: penaltyResult.score,
     reason: penaltyResult.reason,
+    grade: scoreToGrade(penaltyResult.score),
+    topProject: null,
+    verdict: scoreToVerdict(penaltyResult.score),
   };
 }
 
@@ -391,17 +446,29 @@ export async function scoreAndRankJobs(
   jobs: Job[],
   profile: Record<string, unknown>,
 ): Promise<
-  Array<Job & { suitabilityScore: number; suitabilityReason: string }>
+  Array<
+    Job & {
+      suitabilityScore: number;
+      suitabilityReason: string;
+      matchGrade: string;
+      topProject: string | null;
+      matchVerdict: string;
+    }
+  >
 > {
   const scoredJobs = await asyncPool({
     items: jobs,
     concurrency: SCORE_AND_RANK_CONCURRENCY,
     task: async (job) => {
-      const { score, reason } = await scoreJobSuitability(job, profile);
+      const { score, reason, grade, topProject, verdict } =
+        await scoreJobSuitability(job, profile);
       return {
         ...job,
         suitabilityScore: score,
         suitabilityReason: reason,
+        matchGrade: grade,
+        topProject,
+        matchVerdict: verdict,
       };
     },
   });

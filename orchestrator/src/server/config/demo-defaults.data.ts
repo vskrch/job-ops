@@ -277,6 +277,9 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   hnhiring: "https://news.ycombinator.com",
   weworkremotely: "https://weworkremotely.com",
   usajobs: "https://www.usajobs.gov",
+  greenhouse: "https://boards-api.greenhouse.io",
+  lever: "https://api.lever.co",
+  ashby: "https://api.ashby.com",
   manual: "https://example.com",
 };
 

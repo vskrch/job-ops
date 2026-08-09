@@ -79,6 +79,7 @@ COPY extractors/remoteok/package*.json ./extractors/remoteok/
 COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
 COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
 COPY extractors/usajobs/package*.json ./extractors/usajobs/
+COPY extractors/ats/package*.json ./extractors/ats/
 
 # Install Node dependencies (dev deps needed for client + docs builds).
 # HOME=/app (inherited) so camoufox downloads to /app/.cache, and the same
@@ -133,6 +134,7 @@ COPY extractors/remoteok/package*.json ./extractors/remoteok/
 COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
 COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
 COPY extractors/usajobs/package*.json ./extractors/usajobs/
+COPY extractors/ats/package*.json ./extractors/ats/
 
 # Install production Node dependencies only.
 RUN npm ci --workspaces --include-workspace-root --omit=dev \

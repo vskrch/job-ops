@@ -30,6 +30,9 @@ export const EXTRACTOR_SOURCE_IDS = [
   "hnhiring",
   "weworkremotely",
   "usajobs",
+  "greenhouse",
+  "lever",
+  "ashby",
   "manual",
 ] as const;
 
@@ -129,6 +132,21 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
     order: 300,
     category: "pipeline",
     requiresCredentials: true,
+  },
+  greenhouse: {
+    label: "Greenhouse",
+    order: 310,
+    category: "pipeline",
+  },
+  lever: {
+    label: "Lever",
+    order: 320,
+    category: "pipeline",
+  },
+  ashby: {
+    label: "Ashby",
+    order: 330,
+    category: "pipeline",
   },
 };
 

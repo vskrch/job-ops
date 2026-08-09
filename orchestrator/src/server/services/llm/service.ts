@@ -27,12 +27,28 @@ import { parseJsonContent } from "./utils/json";
 import { parseErrorMessage, truncate } from "./utils/string";
 
 const DEFAULT_LLM_TIMEOUT_MS = 90_000;
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
+
+function parseApiKeys(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+}
+
+export function getLlmApiKeyCount(): number {
+  return parseApiKeys(toStringOrNull(process.env.LLM_API_KEY)).length;
+}
 
 export class LlmService {
   private readonly provider: LlmProvider;
   private readonly baseUrl: string;
   private readonly apiKey: string | null;
+  private readonly apiKeys: string[];
   private readonly strategy: (typeof strategies)[LlmProvider];
+  private keyRotationIndex = 0;
+  private readonly rateLimitedKeys = new Map<string, number>();
 
   constructor(options: LlmServiceOptions = {}) {
     const normalizedBaseUrl =
@@ -47,7 +63,7 @@ export class LlmService {
     const strategy = strategies[resolvedProvider];
     const baseUrl = normalizedBaseUrl || strategy.defaultBaseUrl;
 
-    let apiKey =
+    const rawApiKey =
       toStringOrNull(options.apiKey) ||
       toStringOrNull(process.env.LLM_API_KEY) ||
       null;
@@ -55,7 +71,7 @@ export class LlmService {
     // Backwards-compat migration: OPENROUTER_API_KEY -> LLM_API_KEY.
     // This prevents users from losing access when upgrading (keys are often only shown once).
     if (
-      !apiKey &&
+      !rawApiKey &&
       resolvedProvider === "openrouter" &&
       toStringOrNull(process.env.OPENROUTER_API_KEY)
     ) {
@@ -65,18 +81,50 @@ export class LlmService {
       const migrated = toStringOrNull(process.env.OPENROUTER_API_KEY);
       if (migrated) {
         process.env.LLM_API_KEY = migrated;
-        apiKey = migrated;
       }
     }
 
+    const resolvedRawApiKey =
+      rawApiKey || toStringOrNull(process.env.LLM_API_KEY) || null;
+
+    const apiKeys = parseApiKeys(resolvedRawApiKey);
+
     this.provider = resolvedProvider;
     this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
+    this.apiKeys = apiKeys;
+    this.apiKey = apiKeys[0] ?? null;
     this.strategy = strategy;
   }
 
+  private getNextApiKey(): string | null {
+    const available = this.apiKeys.filter((key) => {
+      const cooldown = this.rateLimitedKeys.get(key);
+      return !cooldown || cooldown <= Date.now();
+    });
+    if (available.length > 0) {
+      return available[this.keyRotationIndex++ % available.length];
+    }
+    if (this.apiKeys.length > 0) {
+      let soonest = this.apiKeys[0];
+      let soonestTime = this.rateLimitedKeys.get(soonest) ?? Infinity;
+      for (const key of this.apiKeys) {
+        const cooldown = this.rateLimitedKeys.get(key) ?? Infinity;
+        if (cooldown < soonestTime) {
+          soonest = key;
+          soonestTime = cooldown;
+        }
+      }
+      return soonest;
+    }
+    return null;
+  }
+
+  private isRateLimitError(error: string): boolean {
+    return /429|rate.?limit|too many requests/i.test(error);
+  }
+
   async callJson<T>(options: LlmRequestOptions<T>): Promise<LlmResponse<T>> {
-    if (this.strategy.requiresApiKey && !this.apiKey) {
+    if (this.strategy.requiresApiKey && this.apiKeys.length === 0) {
       return { success: false, error: "LLM API key not configured" };
     }
 
@@ -94,32 +142,81 @@ export class LlmService {
     const cacheKey = buildModeCacheKey(this.provider, this.baseUrl);
     const modes = getOrderedModes(cacheKey, this.strategy.modes);
 
-    for (const mode of modes) {
-      const result = await this.tryMode<T>({
-        mode,
-        model,
-        messages,
-        jsonSchema,
-        maxRetries,
-        retryDelayMs,
-        jobId,
-        signal,
-        timeoutMs,
-      });
+    if (this.apiKeys.length <= 1) {
+      for (const mode of modes) {
+        const result = await this.tryMode<T>({
+          mode,
+          model,
+          messages,
+          jsonSchema,
+          maxRetries,
+          retryDelayMs,
+          jobId,
+          signal,
+          timeoutMs,
+        });
 
-      if (result.success) {
-        rememberSuccessfulMode(cacheKey, mode);
+        if (result.success) {
+          rememberSuccessfulMode(cacheKey, mode);
+          return result;
+        }
+
+        if (!result.success && result.error.startsWith("CAPABILITY:")) {
+          continue;
+        }
+
         return result;
       }
-
-      if (!result.success && result.error.startsWith("CAPABILITY:")) {
-        continue;
-      }
-
-      return result;
+      return { success: false, error: "All provider modes failed" };
     }
 
-    return { success: false, error: "All provider modes failed" };
+    let lastError = "All provider modes failed";
+    const triedKeys = new Set<string>();
+
+    for (let keyAttempt = 0; keyAttempt < this.apiKeys.length; keyAttempt++) {
+      const apiKey = this.getNextApiKey();
+      if (!apiKey || triedKeys.has(apiKey)) continue;
+      triedKeys.add(apiKey);
+
+      for (const mode of modes) {
+        const result = await this.tryMode<T>({
+          mode,
+          model,
+          messages,
+          jsonSchema,
+          maxRetries,
+          retryDelayMs,
+          jobId,
+          signal,
+          timeoutMs,
+          apiKeyOverride: apiKey,
+        });
+
+        if (result.success) {
+          rememberSuccessfulMode(cacheKey, mode);
+          return result;
+        }
+
+        if (!result.success && result.error.startsWith("CAPABILITY:")) {
+          continue;
+        }
+
+        if (this.isRateLimitError(result.error)) {
+          this.rateLimitedKeys.set(apiKey, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+          logger.warn("LLM key rate-limited, rotating to next key", {
+            provider: this.provider,
+            keyAttempt: keyAttempt + 1,
+            totalKeys: this.apiKeys.length,
+          });
+          lastError = result.error;
+          break;
+        }
+
+        return result;
+      }
+    }
+
+    return { success: false, error: lastError };
   }
 
   getProvider(): LlmProvider {
@@ -223,6 +320,7 @@ export class LlmService {
     jobId?: string;
     signal?: AbortSignal;
     timeoutMs?: number;
+    apiKeyOverride?: string;
   }): Promise<LlmResponse<T>> {
     const {
       mode,
@@ -259,7 +357,7 @@ export class LlmService {
         const { url, headers, body } = this.strategy.buildRequest({
           mode,
           baseUrl: this.baseUrl,
-          apiKey: this.apiKey,
+          apiKey: args.apiKeyOverride ?? this.apiKey,
           model,
           messages,
           jsonSchema,

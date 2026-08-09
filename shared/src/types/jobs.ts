@@ -149,6 +149,9 @@ export interface Job {
   closedAt: number | null;
   suitabilityScore: number | null; // 0-100 AI-generated score
   suitabilityReason: string | null; // AI explanation
+  matchGrade: string | null; // Letter grade A-F from AI
+  topProject: string | null; // AI-recommended project to highlight
+  matchVerdict: string | null; // One-word verdict (apply/maybe/skip)
   tailoredSummary: string | null; // Generated resume summary
   tailoredHeadline: string | null; // Generated resume headline
   tailoredSkills: string | null; // Generated resume skills (JSON)
@@ -210,6 +213,8 @@ export type JobListItem = Pick<
   | "closedAt"
   | "discoveredByRunId"
   | "suitabilityScore"
+  | "suitabilityReason"
+  | "matchGrade"
   | "sponsorMatchScore"
   | "jobType"
   | "jobFunction"
@@ -308,6 +313,9 @@ export interface UpdateJobInput {
   jobDescription?: string | null;
   suitabilityScore?: number;
   suitabilityReason?: string;
+  matchGrade?: string;
+  topProject?: string | null;
+  matchVerdict?: string;
   tailoredSummary?: string;
   tailoredHeadline?: string;
   tailoredSkills?: string;

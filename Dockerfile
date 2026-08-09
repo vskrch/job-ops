@@ -64,6 +64,7 @@ COPY extractors/remoteok/package*.json ./extractors/remoteok/
 COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
 COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
 COPY extractors/usajobs/package*.json ./extractors/usajobs/
+COPY extractors/ats/package*.json ./extractors/ats/
 
 # Install Node dependencies with npm cache (dev deps needed for build).
 RUN --mount=type=cache,target=/root/.npm \
@@ -130,6 +131,7 @@ COPY extractors/remoteok/package*.json ./extractors/remoteok/
 COPY extractors/hnhiring/package*.json ./extractors/hnhiring/
 COPY extractors/weworkremotely/package*.json ./extractors/weworkremotely/
 COPY extractors/usajobs/package*.json ./extractors/usajobs/
+COPY extractors/ats/package*.json ./extractors/ats/
 
 # Install production Node dependencies only.
 RUN --mount=type=cache,target=/root/.npm \

@@ -779,5 +779,28 @@ if (settingsHasId.n === 0) {
   console.log("✅ Rebuilt legacy settings table (added id primary key)");
 }
 
+// Add scoring enrichment columns (matchGrade, topProject, matchVerdict) if
+// they don't exist. These are added via ALTER TABLE ADD COLUMN which is
+// safe and idempotent (column already exists = skip via pragma check).
+const scoringColumns = [
+  { name: "match_grade", ddl: "ALTER TABLE jobs ADD COLUMN match_grade TEXT" },
+  { name: "top_project", ddl: "ALTER TABLE jobs ADD COLUMN top_project TEXT" },
+  {
+    name: "match_verdict",
+    ddl: "ALTER TABLE jobs ADD COLUMN match_verdict TEXT",
+  },
+];
+for (const col of scoringColumns) {
+  const exists = sqlite
+    .prepare(
+      `SELECT count(*) AS n FROM pragma_table_info('jobs') WHERE name = ?`,
+    )
+    .get(col.name) as { n: number };
+  if (exists.n === 0) {
+    sqlite.exec(col.ddl);
+    console.log(`✅ Added column jobs.${col.name}`);
+  }
+}
+
 sqlite.close();
 console.log("🎉 Database migrations complete!");

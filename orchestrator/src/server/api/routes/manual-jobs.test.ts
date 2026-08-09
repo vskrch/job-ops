@@ -70,6 +70,9 @@ describe.sequential("Manual jobs API routes", () => {
     vi.mocked(scoreJobSuitability).mockResolvedValue({
       score: 88,
       reason: "Strong fit",
+      grade: "A",
+      topProject: null,
+      verdict: "apply",
     });
 
     const res = await fetch(`${baseUrl}/api/manual-jobs/import`, {

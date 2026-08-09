@@ -65,11 +65,15 @@ export async function scoreJobsStep(args: {
           ...job,
           suitabilityScore: job.suitabilityScore as number,
           suitabilityReason: job.suitabilityReason ?? "",
+          matchGrade: job.matchGrade ?? "",
+          topProject: job.topProject ?? null,
+          matchVerdict: job.matchVerdict ?? "",
         });
         return;
       }
 
-      const { score, reason } = await scoreJobSuitability(job, args.profile);
+      const { score, reason, grade, topProject, verdict } =
+        await scoreJobSuitability(job, args.profile);
       if (args.shouldCancel?.()) return;
 
       let sponsorMatchScore = 0;
@@ -109,6 +113,9 @@ export async function scoreJobsStep(args: {
         await jobsRepo.updateJob(job.id, {
           suitabilityScore: score,
           suitabilityReason: reason,
+          matchGrade: grade,
+          topProject,
+          matchVerdict: verdict,
           sponsorMatchScore,
           sponsorMatchNames,
           ...(shouldAutoSkip ? { status: "skipped" } : {}),
@@ -142,6 +149,9 @@ export async function scoreJobsStep(args: {
         ...job,
         suitabilityScore: score,
         suitabilityReason: reason,
+        matchGrade: grade,
+        topProject,
+        matchVerdict: verdict,
       });
     },
   });

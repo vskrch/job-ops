@@ -561,6 +561,9 @@ describe.sequential("Jobs API routes", () => {
     vi.mocked(scoreJobSuitability).mockResolvedValue({
       score: 81,
       reason: "Updated fit from action rescore",
+      grade: "A",
+      topProject: null,
+      verdict: "apply",
     });
 
     const discovered = await createJob({
@@ -757,6 +760,9 @@ describe.sequential("Jobs API routes", () => {
     vi.mocked(scoreJobSuitability).mockResolvedValue({
       score: 77,
       reason: "Updated fit",
+      grade: "B",
+      topProject: null,
+      verdict: "apply",
     });
 
     const job = await createJob({

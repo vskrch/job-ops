@@ -106,7 +106,7 @@ OUTPUT FORMAT (JSON):
       "scoringInstructionsText",
     ] as const,
     defaultTemplate: `
-You are evaluating a job listing for a candidate. Score how suitable this job is for the candidate on a scale of 0-100.
+You are evaluating a job listing for a candidate. Score how suitable this job is for the candidate on a scale of 0-100 and provide a letter grade and action verdict.
 
 SCORING CRITERIA:
 - Skills match (technologies, frameworks, languages): 0-30 points
@@ -135,10 +135,22 @@ SCORING INSTRUCTIONS:
 IMPORTANT: Respond with ONLY a valid JSON object. No markdown, no code fences, no explanation outside the JSON.
 
 REQUIRED FORMAT (exactly this structure):
-{"score": <integer 0-100>, "reason": "<1-2 sentence explanation>"}
+{"score": <integer 0-100>, "reason": "<1-2 sentence explanation>", "grade": "<A|B|C|D|F>", "topProject": "<name of the best project from the candidate profile for this role, or empty string>", "verdict": "<apply|maybe|skip>"}
+
+GRADE GUIDE:
+- A (80-100): Near-perfect fit — apply immediately
+- B (65-79): Strong match — high priority application
+- C (50-64): Decent match — worth applying if pipeline is thin
+- D (35-49): Weak match — only if desperate
+- F (0-34): Poor fit — skip
+
+VERDICT GUIDE:
+- apply: Strong fit, apply now
+- maybe: Partial fit, consider applying
+- skip: Poor fit, do not apply
 
 EXAMPLE VALID RESPONSE:
-{"score": 75, "reason": "Strong skills match with React and TypeScript requirements, but position requires 3+ years experience."}
+{"score": 75, "reason": "Strong skills match with React and TypeScript requirements, but position requires 3+ years experience.", "grade": "B", "topProject": "Real-time Chat Dashboard", "verdict": "apply"}
 `.trim(),
   },
 } as const;

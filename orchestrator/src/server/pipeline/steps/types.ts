@@ -3,6 +3,9 @@ import type { CreateJobInput, Job, PipelineConfig } from "@shared/types";
 export type ScoredJob = Job & {
   suitabilityScore: number;
   suitabilityReason: string;
+  matchGrade: string;
+  topProject: string | null;
+  matchVerdict: string;
 };
 
 export type RunPipelineContext = {

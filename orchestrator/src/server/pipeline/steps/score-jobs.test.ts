@@ -59,6 +59,9 @@ describe("scoreJobsStep auto-skip behavior", () => {
     vi.mocked(scorer.scoreJobSuitability).mockResolvedValue({
       score: 40,
       reason: "Low fit",
+      grade: "D",
+      topProject: null,
+      verdict: "skip",
     });
     vi.mocked(visaSponsors.searchSponsors).mockResolvedValue([]);
     vi.mocked(visaSponsors.calculateSponsorMatchSummary).mockReturnValue({
@@ -103,6 +106,9 @@ describe("scoreJobsStep auto-skip behavior", () => {
     vi.mocked(scorer.scoreJobSuitability).mockResolvedValue({
       score: 50,
       reason: "At threshold",
+      grade: "C",
+      topProject: null,
+      verdict: "maybe",
     });
 
     await scoreJobsStep({ profile: {} });
@@ -205,8 +211,20 @@ describe("scoreJobsStep auto-skip behavior", () => {
     ]);
 
     vi.mocked(scorer.scoreJobSuitability)
-      .mockResolvedValueOnce({ score: 61, reason: "First score" })
-      .mockResolvedValueOnce({ score: 72, reason: "Second score" });
+      .mockResolvedValueOnce({
+        score: 61,
+        reason: "First score",
+        grade: "C",
+        topProject: null,
+        verdict: "maybe",
+      })
+      .mockResolvedValueOnce({
+        score: 72,
+        reason: "Second score",
+        grade: "B",
+        topProject: null,
+        verdict: "apply",
+      });
 
     const result = await scoreJobsStep({ profile: {} });
 
@@ -290,8 +308,20 @@ describe("scoreJobsStep auto-skip behavior", () => {
     ]);
 
     vi.mocked(scorer.scoreJobSuitability)
-      .mockResolvedValueOnce({ score: 50, reason: "ok" })
-      .mockResolvedValueOnce({ score: 80, reason: "good" });
+      .mockResolvedValueOnce({
+        score: 50,
+        reason: "ok",
+        grade: "C",
+        topProject: null,
+        verdict: "maybe",
+      })
+      .mockResolvedValueOnce({
+        score: 80,
+        reason: "good",
+        grade: "A",
+        topProject: null,
+        verdict: "apply",
+      });
 
     vi.mocked(jobsRepo.updateJob)
       .mockRejectedValueOnce(new Error("DB locked"))
@@ -325,6 +355,9 @@ describe("scoreJobsStep auto-skip behavior", () => {
     vi.mocked(scorer.scoreJobSuitability).mockResolvedValue({
       score: 70,
       reason: "good",
+      grade: "B",
+      topProject: null,
+      verdict: "apply",
     });
     vi.mocked(visaSponsors.searchSponsors).mockRejectedValue(
       new Error("Sponsor index corrupted"),
