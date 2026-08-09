@@ -43,7 +43,7 @@ describe("getProfile", () => {
     });
 
     await expect(getProfile()).rejects.toThrow(
-      "Base resume not configured. Please select a base resume from your RxResume account in Settings.",
+      "No resume configured. Create a Design Resume (Design Resume tab → Start from scratch) or connect Reactive Resume in Settings.",
     );
   });
 

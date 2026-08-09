@@ -74,7 +74,7 @@ export const DesignResumePage: React.FC = () => {
   const draftRef = useRef<DesignResumeDocument | null>(null);
   draftRef.current = draft;
 
-  const pdfRenderer = settings?.pdfRenderer?.value ?? "rxresume";
+  const pdfRenderer = settings?.pdfRenderer?.value ?? "latex";
   const latexTemplate = settings?.latexTemplate?.value ?? "jake";
   const rxresumeMode = settings?.rxresumeMode?.value ?? "v5";
   const isRxResumeV4Mode = rxresumeMode === "v4";
@@ -257,6 +257,23 @@ export const DesignResumePage: React.FC = () => {
         importError instanceof Error
           ? importError.message
           : "Failed to import your resume.",
+      );
+    }
+  };
+
+  const handleCreateBlank = async () => {
+    try {
+      setSaveState("saving");
+      const created = await api.createBlankDesignResume();
+      setDesignResume(created);
+      setSaveState("saved");
+      toast.success("Created a blank resume. Start editing!");
+    } catch (createError) {
+      setSaveState("error");
+      toast.error(
+        createError instanceof Error
+          ? createError.message
+          : "Failed to create a blank resume.",
       );
     }
   };
@@ -579,20 +596,26 @@ export const DesignResumePage: React.FC = () => {
                 Design Resume
               </div>
               <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-                Import your resume to start editing it here.
+                Start building your resume here.
               </h2>
               <p className="text-sm leading-7 text-muted-foreground">
-                Once imported, you can update your resume here without jumping
-                between tools.
+                Create a blank resume and fill in your details, or import from
+                Reactive Resume. No RxResume required — the built-in LaTeX
+                renderer produces PDFs on its own.
               </p>
-              <div className="flex justify-center gap-3">
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button type="button" onClick={handleCreateBlank}>
+                  <PenSquare className="mr-2 h-4 w-4" />
+                  Start from scratch
+                </Button>
                 <Button
                   type="button"
+                  variant="outline"
                   onClick={handleImport}
                   disabled={Boolean(importBlockedMessage)}
                 >
                   <Import className="mr-2 h-4 w-4" />
-                  Import resume
+                  Import from RxResume
                 </Button>
                 {importBlockedMessage ? (
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">

@@ -456,6 +456,37 @@ export async function importDesignResumeFromReactiveResume(): Promise<DesignResu
   return (await hydrateDocument(saved)) as DesignResumeDocument;
 }
 
+export async function createBlankDesignResume(): Promise<DesignResumeDocument> {
+  const existingDocument = await getCurrentDesignResume();
+  if (existingDocument) {
+    throw conflict(
+      "A Design Resume already exists. Delete it first to start fresh.",
+    );
+  }
+
+  const { buildDefaultReactiveResumeDocument } = await import(
+    "../rxresume/document"
+  );
+  const blankDocument = buildDefaultReactiveResumeDocument() as Record<
+    string,
+    unknown
+  >;
+  const validated = validateIncomingDesignResumeDocument(blankDocument);
+  const now = new Date().toISOString();
+  const saved = await designResumeRepo.upsertDesignResumeDocument({
+    id: DESIGN_RESUME_DEFAULT_ID,
+    title: "My Resume",
+    resumeJson: validated,
+    revision: 1,
+    sourceResumeId: null,
+    sourceMode: null,
+    importedAt: null,
+    updatedAt: now,
+  });
+
+  return (await hydrateDocument(saved)) as DesignResumeDocument;
+}
+
 export async function updateCurrentDesignResume(
   input: DesignResumePatchRequest,
 ): Promise<DesignResumeDocument> {

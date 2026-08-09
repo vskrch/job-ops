@@ -1392,6 +1392,12 @@ export async function importDesignResumeFromRxResume(): Promise<DesignResumeDocu
   });
 }
 
+export async function createBlankDesignResume(): Promise<DesignResumeDocument> {
+  return fetchApi<DesignResumeDocument>("/design-resume/create-blank", {
+    method: "POST",
+  });
+}
+
 export async function updateDesignResume(
   input: DesignResumePatchRequest,
 ): Promise<DesignResumeDocument> {

@@ -1,6 +1,7 @@
 import { badRequest, notFound, toAppError } from "@infra/errors";
 import { asyncRoute, fail, ok } from "@infra/http";
 import {
+  createBlankDesignResume,
   deleteDesignResumePicture,
   exportDesignResume,
   getCurrentDesignResume,
@@ -191,6 +192,15 @@ designResumeRouter.post(
   "/import/rxresume",
   asyncRoute(async (_req: Request, res: Response) => {
     const document = await importDesignResumeFromReactiveResume();
+    clearProfileCache();
+    ok(res, document, 201);
+  }),
+);
+
+designResumeRouter.post(
+  "/create-blank",
+  asyncRoute(async (_req: Request, res: Response) => {
+    const document = await createBlankDesignResume();
     clearProfileCache();
     ok(res, document, 201);
   }),

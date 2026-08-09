@@ -49,7 +49,7 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
 
   if (!rxresumeBaseResumeId) {
     throw conflict(
-      "Base resume not configured. Please select a base resume from your RxResume account in Settings.",
+      "No resume configured. Create a Design Resume (Design Resume tab → Start from scratch) or connect Reactive Resume in Settings.",
     );
   }
 
