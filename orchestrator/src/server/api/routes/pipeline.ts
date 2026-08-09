@@ -99,7 +99,6 @@ const updateScheduleSchema = z.object({
         ],
       ),
     )
-    .min(1)
     .optional(),
 });
 
@@ -212,7 +211,6 @@ const runPipelineSchema = z.object({
         ],
       ),
     )
-    .min(1)
     .optional(),
 });
 

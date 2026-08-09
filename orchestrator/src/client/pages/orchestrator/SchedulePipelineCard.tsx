@@ -77,10 +77,16 @@ export const SchedulePipelineCard: React.FC<SchedulePipelineCardProps> = ({
     setIsSaving(true);
     setError(null);
     try {
+      const payloadSources =
+        sources.length > 0
+          ? sources
+          : pipelineSources.length > 0
+            ? pipelineSources
+            : undefined;
       const schedule = await api.updatePipelineSchedule({
         enabled,
         hour,
-        sources,
+        ...(payloadSources ? { sources: payloadSources } : {}),
       });
       setEnabled(schedule.enabled);
       setNextRun(schedule.nextRun);
@@ -89,7 +95,7 @@ export const SchedulePipelineCard: React.FC<SchedulePipelineCardProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [enabled, hour, sources]);
+  }, [enabled, hour, sources, pipelineSources]);
 
   const hourLabel = useMemo(
     () => `${String(hour).padStart(2, "0")}:00 UTC (${formatNextRun(nextRun)})`,
