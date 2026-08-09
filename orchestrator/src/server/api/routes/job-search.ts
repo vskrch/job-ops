@@ -55,7 +55,10 @@ jobSearchRouter.post("/", async (req: Request, res: Response) => {
       const cacheTtlRaw = await settingsRepo.getSetting(
         "jobSearchCacheTtlMinutes",
       );
-      const cacheTtl = cacheTtlRaw ? Number.parseInt(cacheTtlRaw, 10) : 60;
+      const cacheTtlParsed = cacheTtlRaw
+        ? Number.parseInt(cacheTtlRaw, 10)
+        : 60;
+      const cacheTtl = Number.isFinite(cacheTtlParsed) ? cacheTtlParsed : 60;
       const cached = await findCachedSearch(queryHash, cacheTtl);
       if (cached) {
         logger.info("Returning cached job search", {
@@ -84,6 +87,26 @@ jobSearchRouter.post("/", async (req: Request, res: Response) => {
       parsedSpec,
       sourcesSearched: availableSources,
     });
+
+    if (!search) {
+      const existing = await jobSearchRepo.getJobSearchByHash(queryHash);
+      if (existing) {
+        return ok(res, {
+          searchId: existing.id,
+          status: existing.status,
+          parsedSpec: existing.parsedSpec,
+          cached: true,
+        });
+      }
+      return fail(
+        res,
+        new AppError({
+          status: 409,
+          code: "CONFLICT",
+          message: "A search with this query is already running.",
+        }),
+      );
+    }
 
     // Launch the search in the background
     runWithRequestContext({}, () => {
@@ -146,14 +169,19 @@ jobSearchRouter.get("/:id", async (req: Request, res: Response) => {
 /**
  * GET /api/job-search/:id/progress — SSE progress stream.
  */
-jobSearchRouter.get("/:id/progress", (req: Request, res: Response) => {
+jobSearchRouter.get("/:id/progress", async (req: Request, res: Response) => {
+  const searchId = req.params.id;
+  const search = await jobSearchRepo.getJobSearch(searchId);
+  if (!search) {
+    return fail(res, notFound("Search not found."));
+  }
+
   setupSse(res, {
     cacheControl: "no-cache, no-transform",
     disableBuffering: true,
     flushHeaders: true,
   });
 
-  const searchId = req.params.id;
   const unsubscribe = subscribeToSearchProgress(searchId, (event) => {
     writeSseData(res, event);
   });

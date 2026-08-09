@@ -77,11 +77,10 @@ async function runSource(
       .filter(([, m]) => m.id === manifest.id)
       .map(([s]) => s);
 
-    const searchTerms =
-      spec.roles.length > 0 ? spec.roles : [spec.skills].flat().filter(Boolean);
-    if (searchTerms.length === 0 && spec.skills.length > 0) {
-      searchTerms.push(...spec.skills);
-    }
+    const searchTerms: string[] = [
+      ...(spec.roles.length > 0 ? spec.roles : []),
+      ...(spec.roles.length === 0 && spec.skills.length > 0 ? spec.skills : []),
+    ];
     if (searchTerms.length === 0) {
       searchTerms.push("software engineer");
     }
@@ -162,9 +161,6 @@ export async function executeJobSearch(
       await jobSearchRepo.updateJobSearch(searchId, {
         status: "running",
       });
-
-      // Update the stored parsed spec
-      await jobSearchRepo.updateJobSearch(searchId, {});
 
       // 2. Resolve sources
       const { sources } = await resolveSources(parsedSpec);
@@ -278,17 +274,12 @@ export async function executeJobSearch(
 
       const filterResults = filterJobs(filterInputs, parsedSpec);
 
-      // Track freshness filtering separately
-      const totalAfterFreshness = filterResults.filter((r) => {
-        if (!parsedSpec.postedWithin.value) return true;
-        return !r.filterReason?.includes("postedWithin");
-      }).length;
-      const removedByFreshness =
-        filterResults.length -
-        totalAfterFreshness -
-        filterResults.filter(
-          (r) => !r.passed && !r.filterReason?.includes("postedWithin"),
-        ).length;
+      // Track freshness filtering: count jobs that failed specifically due to postedWithin.
+      const removedByFreshness = parsedSpec.postedWithin.value
+        ? filterResults.filter(
+            (r) => !r.passed && r.filterReason?.includes("postedWithin"),
+          ).length
+        : 0;
 
       const freshness = computeFreshnessWindow(parsedSpec, removedByFreshness);
 
@@ -377,15 +368,20 @@ export async function executeJobSearch(
           });
           emitSearchProgress({ type: "email_sent", searchId });
         } else {
+          const isConfigIssue =
+            emailResult.error === "SMTP not configured" ||
+            emailResult.error === "No recipient email available";
           await jobSearchRepo.updateJobSearch(searchId, {
-            emailStatus: "failed",
+            emailStatus: isConfigIssue ? "skipped" : "failed",
             emailError: emailResult.error ?? "Unknown email error",
           });
-          emitSearchProgress({
-            type: "email_failed",
-            searchId,
-            error: emailResult.error ?? "Unknown email error",
-          });
+          if (!isConfigIssue) {
+            emitSearchProgress({
+              type: "email_failed",
+              searchId,
+              error: emailResult.error ?? "Unknown email error",
+            });
+          }
         }
       }
 

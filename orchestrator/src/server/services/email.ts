@@ -138,14 +138,14 @@ function renderSearchEmail(
         <p style="margin: 0 0 4px 0; color: #666;">Relevance: <strong>${item.relevanceScore}/100</strong> | Sources: ${item.sources.map((s) => escapeHtml(s)).join(", ")}</p>
         <p style="margin: 0 0 8px 0; font-size: 14px;">${escapeHtml(item.matchExplanation)}</p>
         <p style="margin: 0; font-size: 14px;">Verified: ${item.verifiedConstraints.map((c) => escapeHtml(c)).join(", ") || "none"} | Unverified: ${item.unverifiedConstraints.map((c) => escapeHtml(c)).join(", ") || "none"}</p>
-        ${item.job.applicationLink || item.job.jobUrl ? `<p style="margin: 8px 0 0 0;"><a href="${escapeHtml(item.job.applicationLink ?? item.job.jobUrl)}" style="color: #2563eb;">View Job Posting →</a></p>` : ""}
+        ${item.job.applicationLink || item.job.jobUrl ? `<p style="margin: 8px 0 0 0;"><a href="${safeUrl(item.job.applicationLink ?? item.job.jobUrl)}" style="color: #2563eb;">View Job Posting →</a></p>` : ""}
       </div>`,
     ),
     truncated
       ? `<p>...and ${jobs.length - MAX_JOBS_IN_EMAIL} more. <a href="${escapeHtml(`${publicBaseUrl}/job-search/${search.id}`)}">View full results →</a></p>`
       : "",
     `<hr style="margin: 24px 0;">`,
-    `<p style="font-size: 14px; color: #666;"><a href="${escapeHtml(`${publicBaseUrl}/job-search/${search.id}`)}">View full results in Job Ops →</a></p>`,
+    `<p style="font-size: 14px; color: #666;"><a href="${safeUrl(`${publicBaseUrl}/job-search/${search.id}`)}">View full results in Job Ops →</a></p>`,
     `</div>`,
   ];
 
@@ -164,6 +164,13 @@ function escapeHtml(str: string | null | undefined): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function safeUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) return escapeHtml(trimmed);
+  return "";
 }
 
 /**

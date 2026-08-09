@@ -245,7 +245,14 @@ export async function parseSearchQuery(
   query: string,
 ): Promise<ParsedSearchSpec> {
   const trimmed = query.trim();
-  if (!trimmed) return EMPTY_SPEC;
+  if (!trimmed)
+    return {
+      ...EMPTY_SPEC,
+      location: { ...EMPTY_SPEC.location },
+      experience: { ...EMPTY_SPEC.experience },
+      salary: { ...EMPTY_SPEC.salary },
+      postedWithin: { ...EMPTY_SPEC.postedWithin },
+    };
 
   const [model, settings] = await Promise.all([
     resolveLlmModel("default"),

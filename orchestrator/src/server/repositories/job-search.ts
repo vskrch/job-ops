@@ -31,9 +31,9 @@ function mapRowToJobSearch(row: typeof jobSearches.$inferSelect): JobSearch {
     parsedSpec,
     status: row.status as JobSearchStatus,
     results,
-    sourcesSearched: parseJsonArray(row.sourcesSearched),
-    sourcesSucceeded: parseJsonArray(row.sourcesSucceeded),
-    sourcesFailed: parseJsonArray(row.sourcesFailed),
+    sourcesSearched: row.sourcesSearched as string[],
+    sourcesSucceeded: row.sourcesSucceeded as string[],
+    sourcesFailed: row.sourcesFailed as string[],
     searchStartedAt: row.searchStartedAt,
     searchCompletedAt: row.searchCompletedAt,
     emailStatus: row.emailStatus as SearchEmailStatus,
@@ -45,36 +45,41 @@ function mapRowToJobSearch(row: typeof jobSearches.$inferSelect): JobSearch {
   };
 }
 
-function parseJsonArray(raw: unknown): string[] {
-  if (!raw || !Array.isArray(raw)) return [];
-  return raw.filter((v): v is string => typeof v === "string");
-}
-
 export async function createJobSearch(args: {
   originalQuery: string;
   queryHash: string;
   parsedSpec: ParsedSearchSpec | null;
   sourcesSearched: string[];
-}): Promise<JobSearch> {
+}): Promise<JobSearch | null> {
   const id = randomUUID();
   const now = new Date().toISOString();
   const userId = currentUserId();
 
-  await db.insert(jobSearches).values({
-    id,
-    userId,
-    queryHash: args.queryHash,
-    originalQuery: args.originalQuery,
-    parsedSpec: args.parsedSpec,
-    status: "running",
-    sourcesSearched: args.sourcesSearched,
-    sourcesSucceeded: [],
-    sourcesFailed: [],
-    searchStartedAt: now,
-    emailStatus: "pending",
-    createdAt: now,
-    updatedAt: now,
-  });
+  const result = await db
+    .insert(jobSearches)
+    .values({
+      id,
+      userId,
+      queryHash: args.queryHash,
+      originalQuery: args.originalQuery,
+      parsedSpec: args.parsedSpec,
+      status: "running",
+      sourcesSearched: args.sourcesSearched,
+      sourcesSucceeded: [],
+      sourcesFailed: [],
+      searchStartedAt: now,
+      emailStatus: "pending",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({
+      target: [jobSearches.userId, jobSearches.queryHash],
+    })
+    .returning({ id: jobSearches.id });
+
+  if (result.length === 0) {
+    return null;
+  }
 
   return {
     id,
@@ -115,12 +120,11 @@ export async function updateJobSearch(
     updatedAt: new Date().toISOString(),
   };
   if (update.status !== undefined) setValues.status = update.status;
-  if (update.results !== undefined)
-    setValues.results = update.results ? JSON.stringify(update.results) : null;
+  if (update.results !== undefined) setValues.results = update.results;
   if (update.sourcesSucceeded !== undefined)
-    setValues.sourcesSucceeded = JSON.stringify(update.sourcesSucceeded);
+    setValues.sourcesSucceeded = update.sourcesSucceeded;
   if (update.sourcesFailed !== undefined)
-    setValues.sourcesFailed = JSON.stringify(update.sourcesFailed);
+    setValues.sourcesFailed = update.sourcesFailed;
   if (update.searchCompletedAt !== undefined)
     setValues.searchCompletedAt = update.searchCompletedAt;
   if (update.emailStatus !== undefined)

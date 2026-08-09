@@ -370,9 +370,10 @@ export function computeFreshnessWindow(
   removedByFreshness: number;
 } {
   const window = getFreshnessWindow(spec);
-  const requested = spec.postedWithin.value
-    ? `last ${spec.postedWithin.value} ${spec.postedWithin.unit}`
-    : null;
+  const requested =
+    spec.postedWithin.value !== null && spec.postedWithin.unit !== null
+      ? `last ${spec.postedWithin.value} ${spec.postedWithin.unit}`
+      : null;
   return {
     requested,
     effectiveStart: window?.start.toISOString() ?? null,
