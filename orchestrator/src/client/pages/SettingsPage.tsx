@@ -114,6 +114,8 @@ const DEFAULT_FORM_VALUES: UpdateSettingsInput = {
   ghostwriterSystemPromptTemplate: "",
   tailoringPromptTemplate: "",
   scoringPromptTemplate: "",
+  jobSearchParsePromptTemplate: "",
+  jobSearchCacheTtlMinutes: null,
 };
 
 type LlmProviderValue = LlmProviderId | null;
@@ -669,6 +671,10 @@ const getDerivedSettings = (settings: AppSettings | null) => {
         effective: settings?.scoringPromptTemplate?.value ?? "",
         default: settings?.scoringPromptTemplate?.default ?? "",
       },
+      jobSearchParsePromptTemplate: {
+        effective: settings?.jobSearchParsePromptTemplate?.value ?? "",
+        default: settings?.jobSearchParsePromptTemplate?.default ?? "",
+      },
     },
   };
 };
@@ -1219,6 +1225,10 @@ export const SettingsPage: React.FC = () => {
           normalizeString(data.scoringPromptTemplate),
           promptTemplates.scoringPromptTemplate.default,
         ),
+        jobSearchParsePromptTemplate: nullIfSame(
+          normalizeString(data.jobSearchParsePromptTemplate),
+          promptTemplates.jobSearchParsePromptTemplate.default,
+        ),
         ...envPayload,
       };
 
@@ -1485,7 +1495,9 @@ export const SettingsPage: React.FC = () => {
           promptTemplates.tailoringPromptTemplate.effective !==
             promptTemplates.tailoringPromptTemplate.default ||
           promptTemplates.scoringPromptTemplate.effective !==
-            promptTemplates.scoringPromptTemplate.default
+            promptTemplates.scoringPromptTemplate.default ||
+          promptTemplates.jobSearchParsePromptTemplate.effective !==
+            promptTemplates.jobSearchParsePromptTemplate.default
           ? { label: "Customized", variant: "outline" as const }
           : { label: "Using defaults", variant: "secondary" as const };
       case "scoring":

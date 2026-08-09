@@ -178,6 +178,8 @@ export interface AppSettings {
   ghostwriterSystemPromptTemplate: Resolved<string>;
   tailoringPromptTemplate: Resolved<string>;
   scoringPromptTemplate: Resolved<string>;
+  jobSearchParsePromptTemplate: Resolved<string>;
+  jobSearchCacheTtlMinutes: Resolved<number>;
   searchCities: Resolved<string>;
   jobspyResultsWanted: Resolved<number>;
   jobspyCountryIndeed: Resolved<string>;

@@ -11,6 +11,7 @@ import { demoRouter } from "./routes/demo";
 import { designResumeRouter } from "./routes/design-resume";
 import { extractorHealthRouter } from "./routes/extractor-health";
 import { ghostwriterRouter } from "./routes/ghostwriter";
+import { jobSearchRouter } from "./routes/job-search";
 import { jobsRouter } from "./routes/jobs";
 import { manualJobsRouter } from "./routes/manual-jobs";
 import { onboardingRouter } from "./routes/onboarding";
@@ -32,6 +33,7 @@ apiRouter.use("/auth/register", authLimiter);
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/jobs", jobsRouter);
+apiRouter.use("/job-search", jobSearchRouter);
 apiRouter.use("/jobs/:id/chat", ghostwriterRouter);
 apiRouter.use("/demo", demoRouter);
 apiRouter.use("/settings", settingsRouter);

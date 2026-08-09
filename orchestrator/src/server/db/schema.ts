@@ -554,3 +554,48 @@ export type TracerLinkRow = typeof tracerLinks.$inferSelect;
 export type NewTracerLinkRow = typeof tracerLinks.$inferInsert;
 export type TracerClickEventRow = typeof tracerClickEvents.$inferSelect;
 export type NewTracerClickEventRow = typeof tracerClickEvents.$inferInsert;
+
+export const jobSearches = sqliteTable(
+  "job_searches",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    queryHash: text("query_hash").notNull(),
+    originalQuery: text("original_query").notNull(),
+    parsedSpec: text("parsed_spec", { mode: "json" }),
+    status: text("status", {
+      enum: ["running", "completed", "failed"],
+    })
+      .notNull()
+      .default("running"),
+    sourcesSearched: text("sources_searched", { mode: "json" }),
+    sourcesSucceeded: text("sources_succeeded", { mode: "json" }),
+    sourcesFailed: text("sources_failed", { mode: "json" }),
+    results: text("results", { mode: "json" }),
+    searchStartedAt: text("search_started_at"),
+    searchCompletedAt: text("search_completed_at"),
+    emailStatus: text("email_status", {
+      enum: ["pending", "sent", "failed", "skipped"],
+    })
+      .notNull()
+      .default("pending"),
+    emailSentAt: text("email_sent_at"),
+    emailError: text("email_error"),
+    errorMessage: text("error_message"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    userHashUnique: uniqueIndex("idx_job_searches_user_hash_unique").on(
+      table.userId,
+      table.queryHash,
+    ),
+    userCreatedIndex: index("idx_job_searches_user_created").on(
+      table.userId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type JobSearchRow = typeof jobSearches.$inferSelect;
+export type NewJobSearchRow = typeof jobSearches.$inferInsert;

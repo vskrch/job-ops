@@ -207,6 +207,12 @@ export const createAppSettings = (
     default: getDefaultPromptTemplate("scoringPromptTemplate"),
     override: null,
   },
+  jobSearchParsePromptTemplate: {
+    value: getDefaultPromptTemplate("jobSearchParsePromptTemplate"),
+    default: getDefaultPromptTemplate("jobSearchParsePromptTemplate"),
+    override: null,
+  },
+  jobSearchCacheTtlMinutes: { value: 60, default: 60, override: null },
   searchCities: {
     value: "",
     default: "",

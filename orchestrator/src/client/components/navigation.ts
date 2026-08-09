@@ -5,6 +5,7 @@ import {
   Inbox,
   LayoutDashboard,
   Link2,
+  Search,
   Settings,
   Shield,
 } from "lucide-react";
@@ -28,6 +29,12 @@ export const NAV_LINKS: NavLink[] = [
       "/jobs/applied",
       "/jobs/all",
     ],
+  },
+  {
+    to: "/job-search",
+    label: "Job Search",
+    icon: Search,
+    activePaths: ["/job-search"],
   },
   {
     to: "/applications/in-progress",

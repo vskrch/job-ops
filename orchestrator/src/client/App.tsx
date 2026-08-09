@@ -52,6 +52,9 @@ const InProgressBoardPage = lazy(() =>
     default: m.InProgressBoardPage,
   })),
 );
+const JobSearchPage = lazy(() =>
+  import("./pages/JobSearchPage").then((m) => ({ default: m.JobSearchPage })),
+);
 const JobPage = lazy(() =>
   import("./pages/JobPage").then((m) => ({ default: m.JobPage })),
 );
@@ -103,6 +106,7 @@ const DEMO_WAITLIST_BANNER_DISMISSED_KEY = "jobops.demoWaitlistBannerDismissed";
 const PAGE_TITLES: Array<{ prefix: string; title: string }> = [
   { prefix: "/overview", title: "Overview" },
   { prefix: "/jobs", title: "Orchestrator" },
+  { prefix: "/job-search", title: "Job Search" },
   { prefix: "/applications", title: "In Progress Board" },
   { prefix: "/design-resume", title: "Design Resume" },
   { prefix: "/settings", title: "Settings" },
@@ -235,6 +239,7 @@ export const App: React.FC = () => {
                     element={<GmailOauthCallbackPage />}
                   />
                   <Route path="/job/:id" element={<JobPage />} />
+                  <Route path="/job-search" element={<JobSearchPage />} />
                   <Route
                     path="/applications/in-progress"
                     element={<InProgressBoardPage />}

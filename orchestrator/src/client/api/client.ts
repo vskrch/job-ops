@@ -3,6 +3,7 @@
  */
 
 import { clientDebug } from "@client/lib/debug";
+import { subscribeToEventSource } from "@client/lib/sse";
 import type { UpdateSettingsInput } from "@shared/settings-schema";
 import type {
   ApiResponse,
@@ -11,6 +12,8 @@ import type {
   AppSettings,
   BackupInfo,
   BranchInfo,
+  CreateJobSearchRequest,
+  CreateJobSearchResponse,
   DemoInfoResponse,
   DesignResumeDocument,
   DesignResumeExportResponse,
@@ -27,6 +30,9 @@ import type {
   JobChatThread,
   JobListItem,
   JobOutcome,
+  JobSearch,
+  JobSearchListItem,
+  JobSearchProgressEvent,
   JobSource,
   JobsListResponse,
   JobsRevisionResponse,
@@ -1632,4 +1638,43 @@ export async function deleteBackup(filename: string): Promise<void> {
   await fetchApi<void>(`/backups/${encodeURIComponent(filename)}`, {
     method: "DELETE",
   });
+}
+
+export async function createJobSearch(
+  input: CreateJobSearchRequest,
+): Promise<CreateJobSearchResponse> {
+  return fetchApi<CreateJobSearchResponse>("/job-search", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getJobSearch(id: string): Promise<JobSearch> {
+  return fetchApi<JobSearch>(`/job-search/${id}?t=${Date.now()}`);
+}
+
+export async function getRecentJobSearches(): Promise<JobSearchListItem[]> {
+  return fetchApi<JobSearchListItem[]>("/job-search");
+}
+
+export async function resendJobSearchEmail(
+  id: string,
+): Promise<{ emailStatus: string; error?: string }> {
+  return fetchApi<{ emailStatus: string; error?: string }>(
+    `/job-search/${id}/resend-email`,
+    { method: "POST" },
+  );
+}
+
+export function subscribeToJobSearchProgress(
+  searchId: string,
+  handlers: {
+    onMessage: (event: JobSearchProgressEvent) => void;
+    onError?: () => void;
+  },
+): () => void {
+  return subscribeToEventSource<JobSearchProgressEvent>(
+    `/api/job-search/${searchId}/progress`,
+    handlers,
+  );
 }

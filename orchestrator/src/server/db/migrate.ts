@@ -708,6 +708,29 @@ const migrations = [
   `ALTER TABLE jobs ADD COLUMN discovered_by_run_id TEXT`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_discovered_by_run ON jobs (discovered_by_run_id)`,
   `ALTER TABLE pipeline_runs ADD COLUMN config TEXT`,
+
+  `CREATE TABLE IF NOT EXISTS job_searches (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    query_hash TEXT NOT NULL,
+    original_query TEXT NOT NULL,
+    parsed_spec TEXT,
+    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed')),
+    sources_searched TEXT,
+    sources_succeeded TEXT,
+    sources_failed TEXT,
+    results TEXT,
+    search_started_at TEXT,
+    search_completed_at TEXT,
+    email_status TEXT NOT NULL DEFAULT 'pending' CHECK(email_status IN ('pending', 'sent', 'failed', 'skipped')),
+    email_sent_at TEXT,
+    email_error TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_job_searches_user_hash_unique ON job_searches(user_id, query_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_job_searches_user_created ON job_searches(user_id, created_at)`,
 ];
 
 console.log("🔧 Running database migrations...");

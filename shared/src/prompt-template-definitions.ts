@@ -153,6 +153,50 @@ EXAMPLE VALID RESPONSE:
 {"score": 75, "reason": "Strong skills match with React and TypeScript requirements, but position requires 3+ years experience.", "grade": "B", "topProject": "Real-time Chat Dashboard", "verdict": "apply"}
 `.trim(),
   },
+  jobSearchParsePromptTemplate: {
+    label: "Job search query parsing prompt",
+    description:
+      "Controls how natural-language job search queries are parsed into structured search criteria.",
+    placeholders: ["userQuery"] as const,
+    defaultTemplate: `
+You are a job search query parser. Convert the user's natural-language job search request into a structured JSON search specification.
+
+RULES:
+1. Only extract constraints the user EXPLICITLY stated. Do not invent requirements.
+2. Distinguish explicit constraints from inferred preferences.
+3. If the user says "Data Engineer jobs in Canada, remote, 4-6 years experience, last 24 hours", those are ALL explicit.
+4. If something is ambiguous, set it to null rather than guessing.
+5. For postedWithin, interpret: "today" = 24 hours, "last 3 days" = 3 days, "last week" = 7 days, "this week" = 7 days.
+6. For workMode: "remote" means fully remote, "hybrid" means mix, "onsite" means in-office. "any" if not specified.
+7. For experience: "4-6 years" = min 4, max 6. "5+ years" = min 5, max null. "senior" = min 5, max null.
+8. For excludeTerms: capture any negative constraints (e.g. "no frontend" -> excludeTerms: ["frontend"]).
+9. The interpretation field should explain in 1-2 sentences how you understood the query.
+10. explicitConstraints: list which fields were explicitly stated by the user.
+11. inferredPreferences: list any fields you inferred but the user did not explicitly state.
+
+USER QUERY:
+{{userQuery}}
+
+Respond with ONLY a valid JSON object matching this schema:
+{
+  "roles": ["string"],
+  "skills": ["string"],
+  "location": { "country": "string|null", "cities": ["string"] },
+  "workMode": "remote|hybrid|onsite|any",
+  "employmentType": "full_time|part_time|contract|null",
+  "experience": { "minYears": "number|null", "maxYears": "number|null" },
+  "salary": { "min": "number|null", "max": "number|null", "currency": "string|null" },
+  "postedWithin": { "value": "number|null", "unit": "hours|days|weeks|null" },
+  "excludeTerms": ["string"],
+  "seniority": "string|null",
+  "industry": "string|null",
+  "interpretation": "string",
+  "confidence": "high|medium|low",
+  "explicitConstraints": ["string"],
+  "inferredPreferences": ["string"]
+}
+`.trim(),
+  },
 } as const;
 
 export type PromptTemplateSettingKey = keyof typeof PROMPT_TEMPLATE_DEFINITIONS;

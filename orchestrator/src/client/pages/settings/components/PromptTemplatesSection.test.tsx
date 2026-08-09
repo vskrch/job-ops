@@ -34,6 +34,10 @@ const PromptTemplatesHarness = () => {
               effective: "Custom Scoring",
               default: getDefaultPromptTemplate("scoringPromptTemplate"),
             },
+            jobSearchParsePromptTemplate: {
+              effective: "Custom Search",
+              default: getDefaultPromptTemplate("jobSearchParsePromptTemplate"),
+            },
           }}
           isLoading={false}
           isSaving={false}

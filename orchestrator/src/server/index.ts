@@ -7,6 +7,7 @@ import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { createApp } from "./app";
 import { initializeExtractorRegistry } from "./extractors/registry";
+import * as jobSearchRepo from "./repositories/job-search";
 import * as pipelineRepo from "./repositories/pipeline";
 import * as settingsRepo from "./repositories/settings";
 import {
@@ -73,6 +74,20 @@ async function startServer() {
     }
   } catch (error) {
     logger.warn("Failed to recover orphaned pipeline runs", {
+      error: sanitizeUnknown(error),
+    });
+  }
+
+  // Recover from unclean shutdown: mark any orphaned job searches as failed
+  try {
+    const orphanedSearches = await jobSearchRepo.markOrphanedSearchesAsFailed();
+    if (orphanedSearches > 0) {
+      logger.warn("Marked orphaned job searches as failed", {
+        count: orphanedSearches,
+      });
+    }
+  } catch (error) {
+    logger.warn("Failed to recover orphaned job searches", {
       error: sanitizeUnknown(error),
     });
   }

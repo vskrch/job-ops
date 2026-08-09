@@ -762,6 +762,23 @@ export const settingsRegistry = {
     kind: "virtual" as const,
     schema: z.boolean(),
   },
+  jobSearchParsePromptTemplate: {
+    kind: "typed" as const,
+    schema: z.string().trim().max(12000),
+    default: (): string =>
+      getDefaultPromptTemplate("jobSearchParsePromptTemplate"),
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
+  },
+  jobSearchCacheTtlMinutes: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(0).max(10080),
+    default: (): string => "60",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
 } as const;
 
 export type SettingsRegistry = typeof settingsRegistry;
