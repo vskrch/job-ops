@@ -100,16 +100,34 @@ export const SUPPORTED_COUNTRY_INPUTS = [
 ] as const;
 
 const UK_ONLY_SOURCES = new Set<JobSource>(["gradcracker", "ukvisajobs"]);
-const US_ONLY_SOURCES = new Set<JobSource>(["dice", "builtin", "usajobs"]);
-const US_CA_SOURCES = new Set<JobSource>(["ziprecruiter", "simplyhired"]);
+const US_ONLY_SOURCES = new Set<JobSource>([
+  "dice",
+  "builtin",
+  "usajobs",
+  "snagajob",
+  "flexjobs",
+  "hired",
+]);
+const US_CA_SOURCES = new Set<JobSource>([
+  "ziprecruiter",
+  "simplyhired",
+  "roberthalf",
+]);
 const INDIA_SOURCES = new Set<JobSource>([
   "naukri",
   "instahyre",
   "foundit",
   "shine",
+  "timesjobs",
+  "freshersworld",
+  "iimjobs",
+  "cutshort",
+  "ncs",
+  "apna",
+  "internshala",
 ]);
 const BANGLADESH_SOURCES = new Set<JobSource>(["bdjobs"]);
-const CANADA_SOURCES = new Set<JobSource>(["eluta", "jobbank"]);
+const CANADA_SOURCES = new Set<JobSource>(["eluta", "jobbank", "jobboom"]);
 const GLASSDOOR_SUPPORTED_COUNTRIES = new Set(
   [
     "australia",

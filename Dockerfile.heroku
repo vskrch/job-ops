@@ -85,9 +85,7 @@ COPY extractors/aijobs/package*.json ./extractors/aijobs/
 COPY extractors/himalayas/package*.json ./extractors/himalayas/
 COPY extractors/careerbuilder/package*.json ./extractors/careerbuilder/
 COPY extractors/workopolis/package*.json ./extractors/workopolis/
-COPY extractors/timesjobs/package*.json ./extractors/timesjobs/
 COPY extractors/hasjob/package*.json ./extractors/hasjob/
-COPY extractors/freshersworld/package*.json ./extractors/freshersworld/
 
 # Install Node dependencies (dev deps needed for client + docs builds).
 # HOME=/app (inherited) so camoufox downloads to /app/.cache, and the same
@@ -148,9 +146,7 @@ COPY extractors/aijobs/package*.json ./extractors/aijobs/
 COPY extractors/himalayas/package*.json ./extractors/himalayas/
 COPY extractors/careerbuilder/package*.json ./extractors/careerbuilder/
 COPY extractors/workopolis/package*.json ./extractors/workopolis/
-COPY extractors/timesjobs/package*.json ./extractors/timesjobs/
 COPY extractors/hasjob/package*.json ./extractors/hasjob/
-COPY extractors/freshersworld/package*.json ./extractors/freshersworld/
 
 # Install production Node dependencies only.
 RUN npm ci --workspaces --include-workspace-root --omit=dev \

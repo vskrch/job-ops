@@ -294,6 +294,66 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
     settings: {},
   },
+  wellfound: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  snagajob: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  roberthalf: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  flexjobs: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  arcdev: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  hired: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  iimjobs: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  cutshort: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  ncs: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  jobboom: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  apna: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  internshala: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
   manual: {
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,

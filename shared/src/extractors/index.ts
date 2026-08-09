@@ -41,6 +41,18 @@ export const EXTRACTOR_SOURCE_IDS = [
   "timesjobs",
   "hasjob",
   "freshersworld",
+  "wellfound",
+  "snagajob",
+  "roberthalf",
+  "flexjobs",
+  "arcdev",
+  "hired",
+  "iimjobs",
+  "cutshort",
+  "ncs",
+  "jobboom",
+  "apna",
+  "internshala",
   "manual",
 ] as const;
 
@@ -194,6 +206,66 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
   freshersworld: {
     label: "Freshersworld",
     order: 410,
+    category: "pipeline",
+  },
+  wellfound: {
+    label: "Wellfound",
+    order: 420,
+    category: "pipeline",
+  },
+  snagajob: {
+    label: "Snagajob",
+    order: 430,
+    category: "pipeline",
+  },
+  roberthalf: {
+    label: "Robert Half",
+    order: 440,
+    category: "pipeline",
+  },
+  flexjobs: {
+    label: "FlexJobs",
+    order: 450,
+    category: "pipeline",
+  },
+  arcdev: {
+    label: "Arc.dev",
+    order: 460,
+    category: "pipeline",
+  },
+  hired: {
+    label: "Hired",
+    order: 470,
+    category: "pipeline",
+  },
+  iimjobs: {
+    label: "iimjobs",
+    order: 480,
+    category: "pipeline",
+  },
+  cutshort: {
+    label: "Cutshort",
+    order: 490,
+    category: "pipeline",
+  },
+  ncs: {
+    label: "NCS (India)",
+    order: 500,
+    category: "pipeline",
+  },
+  jobboom: {
+    label: "Jobboom",
+    order: 510,
+    category: "pipeline",
+  },
+  apna: {
+    label: "Apna",
+    order: 520,
+    category: "pipeline",
+  },
+  internshala: {
+    label: "Internshala",
+    order: 530,
     category: "pipeline",
   },
 };

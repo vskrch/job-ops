@@ -288,6 +288,18 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   timesjobs: "https://www.timesjobs.com",
   hasjob: "https://hasjob.co",
   freshersworld: "https://www.freshersworld.com",
+  wellfound: "https://wellfound.com",
+  snagajob: "https://www.snagajob.com",
+  roberthalf: "https://www.roberthalf.com",
+  flexjobs: "https://www.flexjobs.com",
+  arcdev: "https://arc.dev",
+  hired: "https://hired.com",
+  iimjobs: "https://www.iimjobs.com",
+  cutshort: "https://cutshort.io",
+  ncs: "https://www.ncs.gov.in",
+  jobboom: "https://www.jobboom.com",
+  apna: "https://apna.co",
+  internshala: "https://internshala.com",
   manual: "https://example.com",
 };
 

@@ -244,7 +244,7 @@ export function createApp() {
             : corsOrigin,
           credentials: true,
         }
-      : { origin: isProduction ? false : true },
+      : { origin: !isProduction },
   );
 
   const handleTracerRedirect = async (
