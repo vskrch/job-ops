@@ -62,6 +62,7 @@ vi.mock("@server/services/scorer", () => ({
 
 vi.mock("@server/services/profile", () => ({
   getProfile: vi.fn().mockResolvedValue({}),
+  getProfileOrEmpty: vi.fn().mockResolvedValue({}),
   clearProfileCache: vi.fn(),
 }));
 
