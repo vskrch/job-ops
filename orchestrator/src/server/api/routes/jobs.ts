@@ -34,7 +34,7 @@ import {
   simulateRescoreJob,
   simulateSummarizeJob,
 } from "@server/services/demo-simulator";
-import { getProfile, getProfileOrEmpty } from "@server/services/profile";
+import { getProfile } from "@server/services/profile";
 import { scoreJobSuitability } from "@server/services/scorer";
 import { getTracerReadiness } from "@server/services/tracer-links";
 import * as visaSponsors from "@server/services/visa-sponsors/index";
@@ -321,7 +321,7 @@ function createSharedRescoreProfileLoader(): () => Promise<
   return async () => {
     if (!profilePromise) {
       profilePromise = (async () => {
-        const rawProfile = await getProfileOrEmpty();
+        const rawProfile = await getProfile().catch(() => ({}));
         if (
           !rawProfile ||
           typeof rawProfile !== "object" ||
@@ -438,7 +438,7 @@ async function executeJobActionForJob(
     const profile = options?.getProfileForRescore
       ? await options.getProfileForRescore()
       : await (async () => {
-          const rawProfile = await getProfileOrEmpty();
+          const rawProfile = await getProfile().catch(() => ({}));
           if (
             !rawProfile ||
             typeof rawProfile !== "object" ||
