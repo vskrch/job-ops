@@ -70,6 +70,7 @@ function readCrawl4aiConfig(): Crawl4AIConfig | undefined {
   return {
     baseUrl,
     apiToken: process.env.CRAWL4AI_API_TOKEN?.trim() || undefined,
+    undetectedBrowser: process.env.CRAWL4AI_UNDETECTED?.trim() === "true",
   };
 }
 

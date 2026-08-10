@@ -1,3 +1,4 @@
+export * from "./agentic-search";
 export * from "./api";
 export * from "./chat";
 export * from "./design-resume";
@@ -8,4 +9,5 @@ export * from "./jobs";
 export * from "./pipeline";
 export * from "./post-application";
 export * from "./settings";
+export * from "./user-profile";
 export * from "./visa-sponsors";

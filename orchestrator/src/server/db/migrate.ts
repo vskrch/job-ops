@@ -738,6 +738,82 @@ const migrations = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE INDEX IF NOT EXISTS idx_job_searches_user_created ON job_searches(user_id, created_at)`,
+
+  `CREATE TABLE IF NOT EXISTS agentic_searches (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    original_query TEXT NOT NULL,
+    query_hash TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'created' CHECK(status IN ('created', 'planning', 'searching', 'normalizing', 'deduplicating', 'filtering', 'evaluating', 'verifying', 'refining', 'ranking', 'reporting', 'completed', 'failed', 'partial', 'cancelled', 'timed_out')),
+    goal TEXT,
+    hard_constraints TEXT,
+    soft_preferences TEXT,
+    search_plan TEXT,
+    current_step TEXT,
+    iteration_count INTEGER NOT NULL DEFAULT 0,
+    max_iterations INTEGER NOT NULL DEFAULT 8,
+    results TEXT,
+    budget_used TEXT,
+    search_expansions TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    failure_reason TEXT,
+    fallback_search_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_agentic_searches_user_created ON agentic_searches(user_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_agentic_searches_status ON agentic_searches(status)`,
+
+  `CREATE TABLE IF NOT EXISTS agentic_tool_calls (
+    id TEXT PRIMARY KEY,
+    search_id TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    arguments_summary TEXT,
+    result_summary TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed')),
+    latency_ms INTEGER,
+    iteration INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (search_id) REFERENCES agentic_searches(id) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_agentic_tool_calls_search_id ON agentic_tool_calls(search_id)`,
+
+  `CREATE TABLE IF NOT EXISTS job_verifications (
+    id TEXT PRIMARY KEY,
+    search_id TEXT,
+    job_url TEXT NOT NULL,
+    constraint_key TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('verified', 'not_verified', 'contradicted', 'unknown')),
+    confidence REAL,
+    evidence TEXT,
+    verified_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (search_id) REFERENCES agentic_searches(id) ON DELETE SET NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_job_verifications_search_id ON job_verifications(search_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_job_verifications_job_url ON job_verifications(job_url)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_job_verifications_job_constraint ON job_verifications(job_url, constraint_key)`,
+  `CREATE TABLE IF NOT EXISTS user_profiles (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    source TEXT NOT NULL DEFAULT 'pdf_upload',
+    full_name TEXT,
+    email TEXT,
+    phone TEXT,
+    location TEXT,
+    headline TEXT,
+    summary TEXT,
+    skills TEXT,
+    experience TEXT,
+    education TEXT,
+    certifications TEXT,
+    languages TEXT,
+    links TEXT,
+    file_name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id)`,
 ];
 
 console.log("🔧 Running database migrations...");

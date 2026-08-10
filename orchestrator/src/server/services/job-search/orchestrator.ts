@@ -23,6 +23,7 @@ import type {
   SearchSourceStatus,
 } from "@shared/types";
 import { sendSearchResultsEmail } from "../email";
+import { getProfile } from "../profile";
 import { SearchAccumulator } from "./accumulator";
 import { computeFreshnessWindow } from "./filter";
 import { clearSearchProgress, emitSearchProgress } from "./progress";
@@ -232,6 +233,7 @@ export async function executeJobSearch(
       const freshness = computeFreshnessWindow(parsedSpec, removedByFreshness);
 
       await updatePhase(searchId, "ranking", "Ranking jobs by relevance...");
+      const userProfile = await loadRankingProfile();
       const rankedJobs: JobSearchResultItem[] = await rankJobs(
         filterResults,
         parsedSpec,
@@ -239,6 +241,7 @@ export async function executeJobSearch(
           concurrency: limits.rankingConcurrency,
           maxCandidates: limits.maxRankedCandidates,
           timeoutMs: limits.rankingTimeoutMs,
+          userProfile,
         },
       );
 
@@ -445,6 +448,23 @@ export async function attemptEmailDelivery(searchId: string): Promise<void> {
 }
 
 export { parseSearchQuery, computeSearchHash };
+
+/**
+ * Load the user profile for personalized ranking. Never throws — ranking
+ * degrades to relevance-only when no profile is configured or the
+ * personalization flag is off.
+ */
+async function loadRankingProfile(): Promise<
+  import("@shared/types").ResumeProfile | null
+> {
+  const raw = await settingsRepo.getSetting("agenticPersonalizationEnabled");
+  if (raw === "0" || raw === "false") return null;
+  try {
+    return await getProfile();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Search status helpers for the route layer.

@@ -1,10 +1,12 @@
 import { conflict } from "@infra/errors";
 import { logger } from "@infra/logger";
+import * as userProfileRepo from "@server/repositories/user-profile";
 import type { ResumeProfile } from "@shared/types";
 import {
   designResumeToProfile,
   isLegacyDesignResumeError,
 } from "./design-resume";
+import { profileToResumeProfile } from "./resume-parser";
 import { getResume, RxResumeAuthConfigError } from "./rxresume";
 import { getConfiguredRxResumeBaseResumeId } from "./rxresume/baseResumeId";
 
@@ -42,6 +44,21 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
         error,
       },
     );
+  }
+
+  // Fallback: an uploaded PDF resume (Settings → Resume) converted to the
+  // base resume format. Lets scoring and tailoring work before a Design
+  // Resume or Reactive Resume is configured. Never breaks the normal flow:
+  // any failure (e.g. missing table on a fresh database) falls through.
+  try {
+    const uploadedProfile = await userProfileRepo.getCurrentUserProfile();
+    if (uploadedProfile) {
+      const converted = profileToResumeProfile(uploadedProfile);
+      cachedLocalProfile = converted;
+      return converted;
+    }
+  } catch (error) {
+    logger.warn("Failed to load uploaded resume profile fallback", { error });
   }
 
   const { resumeId: rxresumeBaseResumeId } =

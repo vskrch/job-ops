@@ -7,6 +7,7 @@ import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { createApp } from "./app";
 import { initializeExtractorRegistry } from "./extractors/registry";
+import * as agenticRepo from "./repositories/agentic-search";
 import * as jobSearchRepo from "./repositories/job-search";
 import * as pipelineRepo from "./repositories/pipeline";
 import * as settingsRepo from "./repositories/settings";
@@ -194,6 +195,22 @@ async function startServer() {
       await refreshPipelineScheduler();
     } catch (error) {
       logger.warn("Failed to initialize scheduled pipeline runner", {
+        error: sanitizeUnknown(error),
+      });
+    }
+
+    // Recover agentic searches interrupted by a restart: in-progress rows
+    // can never resume in-process, so mark them failed instead of leaving
+    // them stuck in a non-terminal state.
+    try {
+      const orphaned = await agenticRepo.markOrphanedAgenticSearchesAsFailed();
+      if (orphaned > 0) {
+        logger.warn("Marked orphaned agentic searches as failed", {
+          count: orphaned,
+        });
+      }
+    } catch (error) {
+      logger.warn("Failed to recover orphaned agentic searches", {
         error: sanitizeUnknown(error),
       });
     }

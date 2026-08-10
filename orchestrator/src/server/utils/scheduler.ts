@@ -1,6 +1,10 @@
 /**
  * Shared daily scheduler utility for running tasks at a specific hour.
- * Used by visa-sponsors and backup services.
+ * Used by visa-sponsors, backup, and pipeline services.
+ *
+ * Resilience: on start(), if the scheduled hour already passed today and the
+ * task has not run (or the timer was lost, e.g. after a Heroku dyno sleep),
+ * the task runs immediately before scheduling for tomorrow.
  */
 
 import { logger } from "@infra/logger";
@@ -14,18 +18,21 @@ export interface Scheduler {
   getNextRun(): string | null;
   /** Check if scheduler is currently running */
   isRunning(): boolean;
+  /** Run the task immediately (useful for manual triggers or missed runs) */
+  runNow(): Promise<void>;
 }
 
 interface SchedulerState {
   timer: ReturnType<typeof setTimeout> | null;
   nextRunTime: Date | null;
   currentHour: number | null;
+  lastRunDate: string | null;
+  running: boolean;
 }
 
 /**
- * Calculate the next occurrence of a specific hour (UTC)
+ * Calculate the next occurrence of a specific hour (UTC).
  * @param hour - Hour of day (0-23) in UTC
- * @returns Date object set to the next UTC occurrence of that hour
  */
 export function calculateNextTime(hour: number): Date {
   const now = new Date();
@@ -40,11 +47,16 @@ export function calculateNextTime(hour: number): Date {
   return next;
 }
 
+/** ISO date key for today (YYYY-MM-DD) in UTC. */
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /**
- * Create a reusable daily scheduler
- * @param name - Service name for logging
- * @param callback - Async function to execute at scheduled time
- * @returns Scheduler interface with start/stop/getNextRun methods
+ * Create a reusable daily scheduler.
+ *
+ * @param name    Service name for logging
+ * @param callback Async function to execute at scheduled time
  */
 export function createScheduler(
   name: string,
@@ -54,22 +66,43 @@ export function createScheduler(
     timer: null,
     nextRunTime: null,
     currentHour: null,
+    lastRunDate: null,
+    running: false,
   };
 
-  function clearState(): void {
+  function clearTimer(): void {
     if (state.timer) {
       clearTimeout(state.timer);
     }
     state.timer = null;
-    state.nextRunTime = null;
-    state.currentHour = null;
+  }
+
+  async function executeTask(): Promise<void> {
+    if (state.running) {
+      logger.debug("Scheduler task already running, skipping", {
+        scheduler: name,
+      });
+      return;
+    }
+    state.running = true;
+    logger.info("Scheduler task starting", { scheduler: name });
+    const startedAt = Date.now();
+    try {
+      await callback();
+    } catch (error) {
+      logger.error("Scheduled task failed", { scheduler: name, error });
+    } finally {
+      state.running = false;
+      state.lastRunDate = todayKey();
+    }
+    logger.debug("Scheduler task completed", {
+      scheduler: name,
+      durationMs: Date.now() - startedAt,
+    });
   }
 
   function scheduleNext(hour: number): void {
-    // Clear any existing timer
-    if (state.timer) {
-      clearState();
-    }
+    clearTimer();
 
     state.currentHour = hour;
     state.nextRunTime = calculateNextTime(hour);
@@ -81,18 +114,7 @@ export function createScheduler(
     });
 
     state.timer = setTimeout(async () => {
-      logger.info("Scheduler task starting", { scheduler: name });
-      const startedAt = Date.now();
-      try {
-        await callback();
-      } catch (error) {
-        logger.error("Scheduled task failed", { scheduler: name, error });
-      }
-      logger.debug("Scheduler task completed", {
-        scheduler: name,
-        durationMs: Date.now() - startedAt,
-      });
-      // Reschedule for next occurrence
+      await executeTask();
       scheduleNext(hour);
     }, delay);
   }
@@ -101,18 +123,34 @@ export function createScheduler(
     start(hour: number): void {
       if (state.timer) {
         logger.info("Scheduler restarting", { scheduler: name, hour });
-        clearState();
+        clearTimer();
       } else {
         logger.info("Scheduler starting", { scheduler: name, hour });
       }
+
+      // Resilience: if the scheduled hour already passed today and the task
+      // didn't run (dyno sleep, deploy restart, etc.), run immediately.
+      const now = new Date();
+      const scheduledToday = new Date(now);
+      scheduledToday.setUTCHours(hour, 0, 0, 0);
+      const alreadyRanToday = state.lastRunDate === todayKey();
+
+      if (scheduledToday <= now && !alreadyRanToday) {
+        logger.info(
+          "Scheduler missed scheduled time (dyno sleep?), running now",
+          { scheduler: name, missedHour: hour },
+        );
+        executeTask().catch(() => {});
+      }
+
       scheduleNext(hour);
     },
 
     stop(): void {
-      if (state.timer) {
-        clearState();
-        logger.info("Scheduler stopped", { scheduler: name });
-      }
+      clearTimer();
+      state.currentHour = null;
+      state.nextRunTime = null;
+      logger.info("Scheduler stopped", { scheduler: name });
     },
 
     getNextRun(): string | null {
@@ -121,6 +159,11 @@ export function createScheduler(
 
     isRunning(): boolean {
       return state.timer !== null;
+    },
+
+    async runNow(): Promise<void> {
+      logger.info("Scheduler manual trigger", { scheduler: name });
+      await executeTask();
     },
   };
 }

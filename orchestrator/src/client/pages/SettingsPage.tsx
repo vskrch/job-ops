@@ -20,8 +20,10 @@ import { DangerZoneSection } from "@client/pages/settings/components/DangerZoneS
 import { DisplaySettingsSection } from "@client/pages/settings/components/DisplaySettingsSection";
 import { EnvironmentSettingsSection } from "@client/pages/settings/components/EnvironmentSettingsSection";
 import { ModelSettingsSection } from "@client/pages/settings/components/ModelSettingsSection";
+import { PipelineScheduleSettingsSection } from "@client/pages/settings/components/PipelineScheduleSettingsSection";
 import { PromptTemplatesSection } from "@client/pages/settings/components/PromptTemplatesSection";
 import { ReactiveResumeSection } from "@client/pages/settings/components/ReactiveResumeSection";
+import { ResumeUploadSettingsSection } from "@client/pages/settings/components/ResumeUploadSettingsSection";
 import { ScoringSettingsSection } from "@client/pages/settings/components/ScoringSettingsSection";
 import { TracerLinksSettingsSection } from "@client/pages/settings/components/TracerLinksSettingsSection";
 import { WebhooksSection } from "@client/pages/settings/components/WebhooksSection";
@@ -138,11 +140,13 @@ type SettingsSectionId =
   | "prompt-templates"
   | "scoring"
   | "reactive-resume"
+  | "my-resume"
   | "webhooks"
   | "tracer-links"
   | "environment"
   | "display"
   | "backup"
+  | "pipeline-schedule"
   | "danger-zone";
 
 type SettingsGroupId =
@@ -217,6 +221,12 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         searchTerms: ["rxresume", "resume", "projects", "template"],
       },
       {
+        id: "my-resume",
+        label: "My Resume",
+        description: "Upload your resume PDF as the base resume.",
+        searchTerms: ["upload", "pdf", "resume", "profile", "base resume"],
+      },
+      {
         id: "webhooks",
         label: "Webhooks",
         description: "Pipeline and job completion event destinations.",
@@ -263,6 +273,12 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Backups",
         description: "Automatic schedules, retention, and manual snapshots.",
         searchTerms: ["recovery", "database", "restore", "schedule"],
+      },
+      {
+        id: "pipeline-schedule",
+        label: "Pipeline Schedule",
+        description: "Daily automated pipeline runs and sources.",
+        searchTerms: ["cron", "scheduler", "pipeline", "daily", "hour"],
       },
     ],
   },
@@ -323,6 +339,7 @@ const SECTION_FIELD_MAP: Record<
     "rxresumeUrl",
     "resumeProjects",
   ],
+  "my-resume": [],
   webhooks: ["pipelineWebhookUrl", "jobCompleteWebhookUrl", "webhookSecret"],
   "tracer-links": [],
   environment: [
@@ -336,6 +353,7 @@ const SECTION_FIELD_MAP: Record<
   ],
   display: ["showSponsorInfo", "renderMarkdownInJobDescriptions"],
   backup: ["backupEnabled", "backupHour", "backupMaxCount"],
+  "pipeline-schedule": [],
   "danger-zone": [],
 };
 
@@ -1510,6 +1528,10 @@ export const SettingsPage: React.FC = () => {
         return hasRxResumeAccess
           ? { label: "Connected", variant: "outline" as const }
           : null;
+      case "my-resume":
+        return null;
+      case "pipeline-schedule":
+        return null;
       case "webhooks":
         return pipelineWebhook.effective || jobCompleteWebhook.effective
           ? { label: "Configured", variant: "outline" as const }
@@ -1674,6 +1696,14 @@ export const SettingsPage: React.FC = () => {
           layoutMode="panel"
         />
       );
+      break;
+    case "pipeline-schedule":
+      activeSectionContent = (
+        <PipelineScheduleSettingsSection layoutMode="panel" />
+      );
+      break;
+    case "my-resume":
+      activeSectionContent = <ResumeUploadSettingsSection layoutMode="panel" />;
       break;
     case "danger-zone":
       activeSectionContent = (

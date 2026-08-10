@@ -60,6 +60,7 @@ import type {
   TracerAnalyticsResponse,
   TracerReadinessResponse,
   UpdatePipelineScheduleInput,
+  UserProfile,
   ValidationResult,
   VisaSponsor,
   VisaSponsorSearchResponse,
@@ -1062,6 +1063,87 @@ export async function cancelPipeline(): Promise<{
     alreadyRequested: boolean;
   }>("/pipeline/cancel", {
     method: "POST",
+  });
+}
+
+// User Profile API (uploaded resume)
+export type UploadedResumeProfileResponse = {
+  profile: UserProfile;
+  baseResume: ResumeProfile;
+};
+
+async function fetchAndParseUpload<T>(
+  endpoint: string,
+  method: string,
+  form: FormData,
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  const cached = getCachedBasicAuthHeader();
+  if (cached) headers.Authorization = cached;
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method,
+    body: form,
+    headers,
+  });
+  const text = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new ApiClientError(
+      `Server error (${response.status}): Expected JSON but received HTML.`,
+      { status: response.status },
+    );
+  }
+  const parsed = normalizeApiResponse<T>(payload);
+  if ("ok" in parsed) {
+    if (!parsed.ok) {
+      throw new ApiClientError(parsed.error.message || "API request failed", {
+        requestId: parsed.meta?.requestId,
+        status: response.status,
+        code: parsed.error.code,
+      });
+    }
+    return parsed.data;
+  }
+  if (!parsed.success) {
+    throw new ApiClientError(
+      parsed.error || parsed.message || "API request failed",
+      { status: response.status },
+    );
+  }
+  return parsed.data as T;
+}
+
+/** Upload a resume PDF; replaces any previous upload. */
+export async function uploadResumeProfile(
+  file: File,
+): Promise<UploadedResumeProfileResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return fetchAndParseUpload<UploadedResumeProfileResponse>(
+    "/user-profile/resume",
+    "POST",
+    form,
+  );
+}
+
+/** Get the currently uploaded resume profile (404 when none exists). */
+export async function getUserProfile(): Promise<{ profile: UserProfile }> {
+  return fetchApi<{ profile: UserProfile }>("/user-profile");
+}
+
+/** Get the uploaded profile converted to the base resume format. */
+export async function getUserBaseResume(): Promise<{
+  baseResume: ResumeProfile;
+}> {
+  return fetchApi<{ baseResume: ResumeProfile }>("/user-profile/base-resume");
+}
+
+/** Delete the uploaded resume profile. */
+export async function deleteUserProfile(): Promise<{ deleted: boolean }> {
+  return fetchApi<{ deleted: boolean }>("/user-profile", {
+    method: "DELETE",
   });
 }
 

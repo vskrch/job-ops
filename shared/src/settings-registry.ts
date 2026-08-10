@@ -851,6 +851,60 @@ export const settingsRegistry = {
     serialize: (value: boolean | null | undefined): string | null =>
       value === null || value === undefined ? null : value ? "1" : "0",
   },
+
+  // --- Agentic Search Settings ---
+  agenticSearchEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  agenticVerificationEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "1",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  agenticRefinementEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "1",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  agenticMaxIterations: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(10),
+    default: (): string => "5",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  agenticMaxCostPerSearch: {
+    kind: "typed" as const,
+    schema: z.coerce.number().min(0).max(10),
+    default: (): string => "0.50",
+    parse: (raw: string | undefined): number | null => {
+      if (!raw) return null;
+      const parsed = parseFloat(raw);
+      return Number.isNaN(parsed) ? null : Math.min(10, Math.max(0, parsed));
+    },
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  agenticPersonalizationEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "1",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
 } as const;
 
 export type SettingsRegistry = typeof settingsRegistry;

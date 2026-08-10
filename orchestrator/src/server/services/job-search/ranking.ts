@@ -16,10 +16,17 @@ import type {
   CreateJobInput,
   JobSearchResultItem,
   ParsedSearchSpec,
+  ResumeProfile,
+  UserProfile,
 } from "@shared/types";
 import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
 import { resolveLlmModel, resolveLlmRuntimeSettings } from "../modelSelection";
+import {
+  blendProfileScore,
+  computeProfileMatchScore,
+  type ProfileLike,
+} from "../personalized-ranking";
 import type { FilterResult } from "./filter";
 
 const RELEVANCE_SCHEMA: JsonSchemaDefinition = {
@@ -53,6 +60,12 @@ export interface RankingOptions {
   maxCandidates?: number;
   /** Per-request timeout (default 30s). */
   timeoutMs?: number;
+  /**
+   * Optional user profile (from an uploaded resume or the base resume).
+   * When provided, LLM relevance (70%) is blended with the deterministic
+   * profile match (30%) for personalized ranking.
+   */
+  userProfile?: ResumeProfile | UserProfile | ProfileLike | null;
 }
 
 /**
@@ -228,6 +241,19 @@ export async function rankJobs(
 
   const candidates = selectRankingCandidates(passed, maxCandidates);
 
+  // Precompute deterministic profile-match scores once (never inside the
+  // concurrent pool, and never per candidate when no profile is available).
+  const profileScores = new Map<string, number>();
+  if (options.userProfile) {
+    for (const candidate of passed) {
+      const score = computeProfileMatchScore(
+        candidate.job,
+        options.userProfile,
+      );
+      if (score > 0) profileScores.set(candidate.job.jobUrl, score);
+    }
+  }
+
   const scored = await asyncPool({
     items: candidates,
     concurrency,
@@ -240,7 +266,16 @@ export async function rankJobs(
         runtime,
         timeoutMs,
       );
-      return { filter: filterResult, score, explanation };
+      const profileScore = profileScores.get(filterResult.job.jobUrl);
+      if (profileScore === undefined) {
+        return { filter: filterResult, score, explanation };
+      }
+      const blended = blendProfileScore(score, profileScore, explanation, true);
+      return {
+        filter: filterResult,
+        score: blended.score,
+        explanation: blended.explanation,
+      };
     },
   });
 

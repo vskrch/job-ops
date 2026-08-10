@@ -130,4 +130,54 @@ describe("crawl4aiFetch", () => {
 
     expect(receivedHeaders?.get("authorization")).toBe("Bearer secret-token");
   });
+
+  it("sends browser_type=undetected and omits enable_stealth when undetectedBrowser is true", async () => {
+    let receivedBody: Record<string, unknown> | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      receivedBody = JSON.parse(init?.body as string) as Record<
+        string,
+        unknown
+      >;
+      return jsonRes({
+        results: [{ markdown: "# ok", status_code: 200 }],
+      }) as Response;
+    });
+
+    await crawl4aiFetch("https://example.com/jobs/1", {
+      ...CONFIG,
+      undetectedBrowser: true,
+    });
+
+    const browserConfig = receivedBody?.browser_config as Record<
+      string,
+      unknown
+    >;
+    const params = browserConfig?.params as Record<string, unknown>;
+    expect(params.browser_type).toBe("undetected");
+    expect(params.enable_stealth).toBeUndefined();
+    expect(Array.isArray(params.extra_args)).toBe(true);
+  });
+
+  it("sends enable_stealth (not browser_type) when undetectedBrowser is false or unset", async () => {
+    let receivedBody: Record<string, unknown> | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      receivedBody = JSON.parse(init?.body as string) as Record<
+        string,
+        unknown
+      >;
+      return jsonRes({
+        results: [{ markdown: "# ok", status_code: 200 }],
+      }) as Response;
+    });
+
+    await crawl4aiFetch("https://example.com/jobs/1", CONFIG);
+
+    const browserConfig = receivedBody?.browser_config as Record<
+      string,
+      unknown
+    >;
+    const params = browserConfig?.params as Record<string, unknown>;
+    expect(params.enable_stealth).toBe(true);
+    expect(params.browser_type).toBeUndefined();
+  });
 });

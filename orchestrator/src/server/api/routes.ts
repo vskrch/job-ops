@@ -4,6 +4,7 @@
 
 import { rateLimitMiddleware } from "@infra/rate-limit";
 import { Router } from "express";
+import { agenticSearchRouter } from "./routes/agentic-search";
 import { authRouter } from "./routes/auth";
 import { backupRouter } from "./routes/backup";
 import { databaseRouter } from "./routes/database";
@@ -21,6 +22,7 @@ import { postApplicationReviewRouter } from "./routes/post-application-review";
 import { profileRouter } from "./routes/profile";
 import { settingsRouter } from "./routes/settings";
 import { tracerLinksRouter } from "./routes/tracer-links";
+import { userProfileRouter } from "./routes/user-profile";
 import { visaSponsorsRouter } from "./routes/visa-sponsors";
 import { webhookRouter } from "./routes/webhook";
 
@@ -34,6 +36,7 @@ apiRouter.use("/auth/register", authLimiter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/jobs", jobsRouter);
 apiRouter.use("/job-search", jobSearchRouter);
+apiRouter.use("/agentic-searches", agenticSearchRouter);
 apiRouter.use("/jobs/:id/chat", ghostwriterRouter);
 apiRouter.use("/demo", demoRouter);
 apiRouter.use("/settings", settingsRouter);
@@ -49,4 +52,5 @@ apiRouter.use("/visa-sponsors", visaSponsorsRouter);
 apiRouter.use("/onboarding", onboardingRouter);
 apiRouter.use("/backups", backupRouter);
 apiRouter.use("/tracer-links", tracerLinksRouter);
+apiRouter.use("/user-profile", userProfileRouter);
 apiRouter.use("/", extractorHealthRouter);

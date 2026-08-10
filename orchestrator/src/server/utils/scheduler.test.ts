@@ -103,8 +103,9 @@ describe("createScheduler", () => {
     const callback = vi.fn().mockResolvedValue(undefined);
     const scheduler = createScheduler("test", callback);
 
-    // Start at hour 10 tomorrow (24 hours from now in this test)
-    scheduler.start(10);
+    // Start at hour 14 (still in the future today, so no missed-run catch-up
+    // fires; the timer drives the only invocation).
+    scheduler.start(14);
 
     // Fast-forward time by 24 hours to trigger the callback
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
@@ -167,6 +168,67 @@ describe("createScheduler", () => {
     scheduler.stop();
   });
 
+  it("runs immediately when the scheduled hour already passed (missed-run recovery)", async () => {
+    const now = new Date("2026-01-15T10:00:00Z");
+    vi.setSystemTime(now);
+
+    const callback = vi.fn().mockResolvedValue(undefined);
+    const scheduler = createScheduler("test", callback);
+
+    // Hour 8 already passed today: the task must catch up immediately,
+    // then schedule for tomorrow at the same hour.
+    scheduler.start(8);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    const nextRun = scheduler.getNextRun();
+    expect(nextRun).not.toBeNull();
+    if (nextRun) {
+      const date = new Date(nextRun);
+      expect(date.getUTCHours()).toBe(8);
+      expect(date.getUTCDate()).toBe(16); // Tomorrow
+    }
+
+    scheduler.stop();
+  });
+
+  it("does not re-run the missed task when restarted the same day", async () => {
+    const now = new Date("2026-01-15T10:00:00Z");
+    vi.setSystemTime(now);
+
+    const callback = vi.fn().mockResolvedValue(undefined);
+    const scheduler = createScheduler("test", callback);
+
+    scheduler.start(8); // catch-up run
+    await vi.advanceTimersByTimeAsync(0);
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    scheduler.stop();
+    scheduler.start(8); // restart same day: already ran, no catch-up
+    await vi.advanceTimersByTimeAsync(0);
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    scheduler.stop();
+  });
+
+  it("should execute the callback immediately via runNow()", async () => {
+    const now = new Date("2026-01-15T10:00:00Z");
+    vi.setSystemTime(now);
+
+    const callback = vi.fn().mockResolvedValue(undefined);
+    const scheduler = createScheduler("test", callback);
+
+    scheduler.start(14);
+    expect(callback).not.toHaveBeenCalled();
+
+    await scheduler.runNow();
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    scheduler.stop();
+  });
+
   it("should handle callback errors gracefully", async () => {
     const now = new Date("2026-01-15T10:00:00Z");
     vi.setSystemTime(now);
@@ -175,7 +237,8 @@ describe("createScheduler", () => {
     const callback = vi.fn().mockRejectedValue(new Error("Test error"));
     const scheduler = createScheduler("test", callback);
 
-    scheduler.start(10);
+    // Hour 14 is still in the future today, so only the timer fires.
+    scheduler.start(14);
 
     // Fast-forward 24 hours to trigger execution
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);

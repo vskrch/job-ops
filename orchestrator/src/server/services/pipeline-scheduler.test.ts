@@ -39,6 +39,13 @@ describe("pipeline-scheduler", () => {
     vi.setSystemTime(new Date("2026-01-15T10:00:00Z"));
     mockGetSetting.mockReset();
     mockRunPipeline.mockReset();
+    // mockReset() wipes the factory default; restore a resolved result so
+    // scheduler callback logging never sees an undefined pipeline result.
+    mockRunPipeline.mockResolvedValue({
+      success: true,
+      jobsDiscovered: 5,
+      jobsProcessed: 3,
+    });
     mockGetSetting.mockImplementation(async (key) => {
       if (key === "pipelineScheduleEnabled") return "0";
       return null;
@@ -84,7 +91,14 @@ describe("pipeline-scheduler", () => {
     expect(schedule.sources).toEqual(["linkedin", "indeed"]);
     expect(schedule.nextRun).not.toBeNull();
 
-    // Now is 10:00 UTC; next run is tomorrow 02:00 UTC.
+    // Now is 10:00 UTC; hour 2 already passed, so the missed run catches up
+    // immediately (dyno-sleep recovery) with the configured sources.
+    expect(mockRunPipeline).toHaveBeenCalledTimes(1);
+    expect(mockRunPipeline).toHaveBeenCalledWith({
+      sources: ["linkedin", "indeed"],
+    });
+
+    // The next scheduled run is tomorrow 02:00 UTC.
     const nextRun = new Date(schedule.nextRun as string);
     expect(nextRun.getUTCHours()).toBe(2);
     expect(nextRun > new Date("2026-01-15T10:00:00Z")).toBe(true);
@@ -93,8 +107,8 @@ describe("pipeline-scheduler", () => {
     // scheduler re-arms for the next day but we don't advance further).
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
 
-    expect(mockRunPipeline).toHaveBeenCalledTimes(1);
-    expect(mockRunPipeline).toHaveBeenCalledWith({
+    expect(mockRunPipeline).toHaveBeenCalledTimes(2);
+    expect(mockRunPipeline).toHaveBeenLastCalledWith({
       sources: ["linkedin", "indeed"],
     });
   });
@@ -107,9 +121,14 @@ describe("pipeline-scheduler", () => {
     });
 
     await refreshPipelineScheduler();
-    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
 
+    // Hour 3 already passed: catch-up runs now without any sources.
     expect(mockRunPipeline).toHaveBeenCalledTimes(1);
     expect(mockRunPipeline).toHaveBeenCalledWith({});
+
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+
+    expect(mockRunPipeline).toHaveBeenCalledTimes(2);
+    expect(mockRunPipeline).toHaveBeenLastCalledWith({});
   });
 });

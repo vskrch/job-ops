@@ -71,6 +71,8 @@ services:
   # =============================================================================
   # Provides JS rendering + stealth for the crawl engine's `crawl4ai` backend.
   # Enabled automatically when CRAWL4AI_BASE_URL is set on the job-ops service.
+  # Set CRAWL4AI_UNDETECTED=true to use undetected-browser mode (v0.7.3+)
+  # which bypasses Cloudflare/Akamai bot detection.
   crawl4ai:
     image: unclecode/crawl4ai:latest
     container_name: crawl4ai

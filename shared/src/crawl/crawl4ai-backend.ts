@@ -20,6 +20,13 @@ export interface Crawl4AIConfig {
   apiToken?: string;
   /** Enable stealth mode (default: true). */
   stealth?: boolean;
+  /**
+   * Use Crawl4AI's undetected-browser mode (v0.7.3+) which bypasses
+   * Cloudflare, Akamai, and custom bot-detection systems. When true,
+   * `browser_type: "undetected"` is sent instead of `enable_stealth`.
+   * Default: false (stealth mode is used).
+   */
+  undetectedBrowser?: boolean;
   /** Request timeout in ms (default: 30000). */
   timeoutMs?: number;
 }
@@ -99,14 +106,29 @@ function authHeaders(config: Crawl4AIConfig): Record<string, string> {
 
 function buildRequestBody(url: string, config: Crawl4AIConfig) {
   const stealth = config.stealth ?? true;
+  const useUndetected = config.undetectedBrowser === true;
+
+  // When undetected-browser mode is enabled (Crawl4AI v0.7.3+), the
+  // browser_type is set to "undetected" which bypasses Cloudflare/Akamai.
+  // The stealth flag is redundant in this mode and omitted.
+  const browserParams: Record<string, unknown> = {
+    headless: true,
+  };
+  if (useUndetected) {
+    browserParams.browser_type = "undetected";
+    browserParams.extra_args = [
+      "--disable-blink-features=AutomationControlled",
+      "--disable-web-security",
+    ];
+  } else {
+    browserParams.enable_stealth = stealth;
+  }
+
   return {
     urls: [url],
     browser_config: {
       type: "BrowserConfig",
-      params: {
-        headless: true,
-        enable_stealth: stealth,
-      },
+      params: browserParams,
     },
     crawler_run_config: {
       type: "CrawlerRunConfig",

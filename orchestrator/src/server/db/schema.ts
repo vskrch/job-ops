@@ -622,5 +622,148 @@ export const jobSearches = sqliteTable(
   }),
 );
 
+export const agenticSearches = sqliteTable(
+  "agentic_searches",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    originalQuery: text("original_query").notNull(),
+    queryHash: text("query_hash").notNull().default(""),
+    status: text("status", {
+      enum: [
+        "created",
+        "planning",
+        "searching",
+        "normalizing",
+        "deduplicating",
+        "filtering",
+        "evaluating",
+        "verifying",
+        "refining",
+        "ranking",
+        "reporting",
+        "completed",
+        "failed",
+        "partial",
+        "cancelled",
+        "timed_out",
+      ],
+    })
+      .notNull()
+      .default("created"),
+    goal: text("goal", { mode: "json" }),
+    hardConstraints: text("hard_constraints", { mode: "json" }),
+    softPreferences: text("soft_preferences", { mode: "json" }),
+    searchPlan: text("search_plan", { mode: "json" }),
+    currentStep: text("current_step"),
+    iterationCount: integer("iteration_count").notNull().default(0),
+    maxIterations: integer("max_iterations").notNull().default(8),
+    results: text("results", { mode: "json" }),
+    budgetUsed: text("budget_used", { mode: "json" }),
+    searchExpansions: text("search_expansions", { mode: "json" }),
+    startedAt: text("started_at"),
+    completedAt: text("completed_at"),
+    failureReason: text("failure_reason"),
+    fallbackSearchId: text("fallback_search_id"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    userIdCreatedAtIndex: index("idx_agentic_searches_user_created").on(
+      table.userId,
+      table.createdAt,
+    ),
+    statusIndex: index("idx_agentic_searches_status").on(table.status),
+  }),
+);
+
+export const agenticToolCalls = sqliteTable(
+  "agentic_tool_calls",
+  {
+    id: text("id").primaryKey(),
+    searchId: text("search_id")
+      .notNull()
+      .references(() => agenticSearches.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    argumentsSummary: text("arguments_summary"),
+    resultSummary: text("result_summary"),
+    status: text("status", {
+      enum: ["pending", "running", "completed", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    latencyMs: integer("latency_ms"),
+    iteration: integer("iteration").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    searchIdIndex: index("idx_agentic_tool_calls_search_id").on(table.searchId),
+  }),
+);
+
+export const jobVerifications = sqliteTable(
+  "job_verifications",
+  {
+    id: text("id").primaryKey(),
+    searchId: text("search_id").references(() => agenticSearches.id, {
+      onDelete: "set null",
+    }),
+    jobUrl: text("job_url").notNull(),
+    constraintKey: text("constraint_key").notNull(),
+    status: text("status", {
+      enum: ["verified", "not_verified", "contradicted", "unknown"],
+    })
+      .notNull()
+      .default("unknown"),
+    confidence: real("confidence"),
+    evidence: text("evidence"),
+    verifiedAt: text("verified_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    searchIdIndex: index("idx_job_verifications_search_id").on(table.searchId),
+    jobUrlIndex: index("idx_job_verifications_job_url").on(table.jobUrl),
+    jobConstraintUnique: uniqueIndex("idx_job_verifications_job_constraint").on(
+      table.jobUrl,
+      table.constraintKey,
+    ),
+  }),
+);
+
+export const userProfiles = sqliteTable(
+  "user_profiles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    source: text("source").notNull().default("pdf_upload"),
+    fullName: text("full_name"),
+    email: text("email"),
+    phone: text("phone"),
+    location: text("location"),
+    headline: text("headline"),
+    summary: text("summary"),
+    skills: text("skills", { mode: "json" }),
+    experience: text("experience", { mode: "json" }),
+    education: text("education", { mode: "json" }),
+    certifications: text("certifications", { mode: "json" }),
+    languages: text("languages", { mode: "json" }),
+    links: text("links", { mode: "json" }),
+    fileName: text("file_name"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    userIdIndex: index("idx_user_profiles_user_id").on(table.userId),
+  }),
+);
+
+export type AgenticSearchRow = typeof agenticSearches.$inferSelect;
+export type NewAgenticSearchRow = typeof agenticSearches.$inferInsert;
+export type AgenticToolCallRow = typeof agenticToolCalls.$inferSelect;
+export type NewAgenticToolCallRow = typeof agenticToolCalls.$inferInsert;
+export type JobVerificationRow = typeof jobVerifications.$inferSelect;
+export type NewJobVerificationRow = typeof jobVerifications.$inferInsert;
+export type UserProfileRow = typeof userProfiles.$inferSelect;
+export type NewUserProfileRow = typeof userProfiles.$inferInsert;
+
 export type JobSearchRow = typeof jobSearches.$inferSelect;
 export type NewJobSearchRow = typeof jobSearches.$inferInsert;

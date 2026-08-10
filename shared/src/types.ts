@@ -5,6 +5,7 @@
  * This file re-exports everything for backward compatibility.
  */
 
+export * from "./types/agentic-search";
 export * from "./types/api";
 export * from "./types/chat";
 export * from "./types/design-resume";
@@ -15,4 +16,5 @@ export * from "./types/jobs";
 export * from "./types/pipeline";
 export * from "./types/post-application";
 export * from "./types/settings";
+export * from "./types/user-profile";
 export * from "./types/visa-sponsors";
