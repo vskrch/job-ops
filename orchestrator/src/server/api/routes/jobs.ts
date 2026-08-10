@@ -34,7 +34,7 @@ import {
   simulateRescoreJob,
   simulateSummarizeJob,
 } from "@server/services/demo-simulator";
-import { getProfile } from "@server/services/profile";
+import { getProfile, getProfileOrEmpty } from "@server/services/profile";
 import { scoreJobSuitability } from "@server/services/scorer";
 import { getTracerReadiness } from "@server/services/tracer-links";
 import * as visaSponsors from "@server/services/visa-sponsors/index";
@@ -321,13 +321,13 @@ function createSharedRescoreProfileLoader(): () => Promise<
   return async () => {
     if (!profilePromise) {
       profilePromise = (async () => {
-        const rawProfile = await getProfile();
+        const rawProfile = await getProfileOrEmpty();
         if (
           !rawProfile ||
           typeof rawProfile !== "object" ||
           Array.isArray(rawProfile)
         ) {
-          throw badRequest("Invalid resume profile format");
+          return {} as Record<string, unknown>;
         }
         return rawProfile as Record<string, unknown>;
       })();
@@ -438,13 +438,13 @@ async function executeJobActionForJob(
     const profile = options?.getProfileForRescore
       ? await options.getProfileForRescore()
       : await (async () => {
-          const rawProfile = await getProfile();
+          const rawProfile = await getProfileOrEmpty();
           if (
             !rawProfile ||
             typeof rawProfile !== "object" ||
             Array.isArray(rawProfile)
           ) {
-            throw badRequest("Invalid resume profile format");
+            return {} as Record<string, unknown>;
           }
           return rawProfile as Record<string, unknown>;
         })();

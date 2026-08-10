@@ -17,7 +17,7 @@ import * as jobsRepo from "../repositories/jobs";
 import * as pipelineRepo from "../repositories/pipeline";
 import { getSetting } from "../repositories/settings";
 import { generatePdf } from "../services/pdf";
-import { getProfile } from "../services/profile";
+import { getProfile, getProfileOrEmpty } from "../services/profile";
 import { pickProjectIdsForJob } from "../services/projectSelection";
 import {
   extractProjectsFromProfile,
@@ -398,7 +398,7 @@ export async function summarizeJob(
       const job = await jobsRepo.getJobById(jobId);
       if (!job) return { success: false, error: "Job not found" };
 
-      const profile = await getProfile();
+      const profile = await getProfileOrEmpty();
 
       // 1. Generate Summary & Tailoring
       let tailoredSummary = job.tailoredSummary;

@@ -118,6 +118,25 @@ export async function getPersonName(): Promise<string> {
 }
 
 /**
+ * Get the base resume profile, falling back to an empty object if no resume is configured.
+ */
+export async function getProfileOrEmpty(
+  forceRefresh = false,
+): Promise<ResumeProfile> {
+  try {
+    return await getProfile(forceRefresh);
+  } catch (error) {
+    logger.info(
+      "No base resume configured, proceeding with empty profile fallback",
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return {} as ResumeProfile;
+  }
+}
+
+/**
  * Clear the profile cache.
  */
 export function clearProfileCache(): void {
