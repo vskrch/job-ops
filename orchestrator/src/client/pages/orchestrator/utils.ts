@@ -179,16 +179,27 @@ export const getJobCounts = (
     ready: 0,
     discovered: 0,
     applied: 0,
+    in_progress: 0,
+    skipped: 0,
+    expired: 0,
     all: jobs.length,
   };
 
   for (const job of jobs) {
     if (job.closedAt != null) continue;
-    if (job.status === "in_progress") continue;
+    if (job.status === "in_progress") {
+      byTab.in_progress += 1;
+      continue;
+    }
     if (job.status === "ready" || job.status === "processing") byTab.ready += 1;
     if (job.status === "applied") byTab.applied += 1;
     if (job.status === "discovered" || job.status === "processing")
       byTab.discovered += 1;
+  }
+
+  for (const job of jobs) {
+    if (job.status === "skipped") byTab.skipped += 1;
+    if (job.status === "expired") byTab.expired += 1;
   }
 
   return byTab;

@@ -35,7 +35,7 @@ export const FloatingJobActionsBar: React.FC<FloatingJobActionsBarProps> = ({
           exit={{ opacity: 0, y: 16 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <div className="pointer-events-auto flex w-full max-w-md flex-col items-stretch gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-2 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-card/85 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="pointer-events-auto flex w-full max-w-md flex-col items-stretch gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 shadow-xl sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center">
             <div className="text-xs text-muted-foreground tabular-nums sm:mr-1">
               {selectedCount} selected
             </div>

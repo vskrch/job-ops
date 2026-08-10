@@ -2,7 +2,7 @@
  * Main App component.
  */
 
-import { X } from "lucide-react";
+import { SearchX, X } from "lucide-react";
 import React, { lazy, Suspense, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
@@ -15,6 +15,9 @@ import { useDemoInfo } from "./hooks/useDemoInfo";
 
 const NotFoundPage: React.FC = () => (
   <main className="container mx-auto flex min-h-[60vh] flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border/60 bg-muted/40">
+      <SearchX className="h-6 w-6 text-muted-foreground" />
+    </div>
     <div className="text-5xl font-bold tracking-tight text-muted-foreground/60">
       404
     </div>
@@ -22,9 +25,14 @@ const NotFoundPage: React.FC = () => (
     <p className="max-w-md text-sm text-muted-foreground">
       The page you're looking for doesn't exist or may have moved.
     </p>
-    <Button asChild className="mt-2">
-      <a href="/jobs/ready">Back to orchestrator</a>
-    </Button>
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+      <Button asChild>
+        <a href="/jobs/ready">Back to orchestrator</a>
+      </Button>
+      <Button asChild variant="outline">
+        <a href="/job-search">Search jobs</a>
+      </Button>
+    </div>
   </main>
 );
 
@@ -163,8 +171,9 @@ export const App: React.FC = () => {
         <div className="sticky top-0 z-50 w-full border-b border-orange-400/60 bg-orange-500 px-4 py-2 text-xs text-orange-950 shadow-sm">
           <div className="mx-auto flex items-center justify-center gap-3">
             <p className="flex-1 text-center font-medium">
-              This is a read-only demo. Want JobOps without the Docker setup? ☁️{" "}
-              Cloud version coming soon — join the waitlist at{" "}
+              Read-only demo — integrations are simulated and data resets every{" "}
+              {demoInfo.resetCadenceHours} hours. Want JobOps without the Docker
+              setup? ☁️ Cloud version coming soon — join the waitlist at{" "}
               <a
                 className="font-semibold underline underline-offset-2 hover:text-orange-900"
                 href="https://try.jobops.app?utm_source=demo&utm_medium=banner&utm_campaign=waitlist"
@@ -194,8 +203,8 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
-      {demoInfo?.demoMode && (
-        <div className="w-full border-b border-amber-400/50 bg-amber-500/20 px-4 py-2 text-center text-xs text-amber-100 backdrop-blur">
+      {demoInfo?.demoMode && demoWaitlistBannerDismissed && (
+        <div className="w-full border-b border-amber-400/50 bg-amber-500/30 px-4 py-1.5 text-center text-xs font-medium text-amber-100">
           Demo mode: integrations are simulated and data resets every{" "}
           {demoInfo.resetCadenceHours} hours.
         </div>
@@ -209,14 +218,27 @@ export const App: React.FC = () => {
             classNames="page"
             unmountOnExit
           >
-            <div ref={nodeRef}>
+            <div
+              ref={nodeRef}
+              id="main-content"
+              tabIndex={-1}
+              className="outline-none"
+            >
               <Suspense
                 fallback={
-                  <main className="flex min-h-[50vh] items-center justify-center">
-                    <output
-                      className="block h-8 w-8 animate-spin rounded-full border-2 border-border border-t-foreground"
-                      aria-label="Loading"
-                    />
+                  <main
+                    className="mx-auto w-full max-w-6xl space-y-4 px-4 py-6"
+                    aria-label="Loading"
+                  >
+                    <div className="h-9 w-56 animate-pulse rounded-md bg-muted/60" />
+                    <div className="h-4 w-96 max-w-full animate-pulse rounded-md bg-muted/40" />
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+                      <div className="space-y-2">
+                        <div className="h-64 animate-pulse rounded-xl border border-border/60 bg-muted/30" />
+                        <div className="h-64 animate-pulse rounded-xl border border-border/60 bg-muted/30" />
+                      </div>
+                      <div className="h-96 animate-pulse rounded-xl border border-border/60 bg-muted/30" />
+                    </div>
                   </main>
                 }
               >
@@ -265,7 +287,7 @@ export const App: React.FC = () => {
         </SwitchTransition>
       </div>
 
-      <Toaster position="bottom-right" richColors closeButton />
+      <Toaster position="top-right" richColors closeButton />
     </>
   );
 };

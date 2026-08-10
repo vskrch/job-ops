@@ -38,13 +38,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -53,7 +46,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 type ValidationState = ValidationResult & { checked: boolean };
@@ -639,7 +631,7 @@ export const OnboardingGate: React.FC = () => {
     <AlertDialog open>
       <AlertDialogContent
         className="max-w-3xl max-h-[90vh] overflow-hidden p-0"
-        onEscapeKeyDown={(event) => event.preventDefault()}
+        onEscapeKeyDown={handleSkip}
       >
         <div className="space-y-6 px-6 py-6 max-h-[calc(90vh-3.5rem)] overflow-y-auto">
           <AlertDialogHeader>
@@ -650,57 +642,57 @@ export const OnboardingGate: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <Tabs value={currentStep} onValueChange={setCurrentStep}>
-            <TabsList className="grid h-auto w-full grid-cols-1 gap-2 border-b border-border/60 bg-transparent p-0 text-left sm:grid-cols-3">
-              {steps.map((step, index) => {
-                const isActive = step.id === currentStep;
-                const isComplete = step.complete;
+          <ol className="grid h-auto w-full grid-cols-1 gap-2 border-b border-border/60 p-0 sm:grid-cols-3">
+            {steps.map((step, index) => {
+              const isActive = step.id === currentStep;
+              const isComplete = step.complete;
 
-                return (
-                  <FieldLabel
-                    key={step.id}
+              return (
+                <li key={step.id} className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(step.id)}
+                    disabled={step.disabled}
+                    aria-current={isActive ? "step" : undefined}
                     className={cn(
-                      "w-full [&>[data-slot=field]]:border-0 [&>[data-slot=field]]:p-0 [&>[data-slot=field]]:rounded-none",
-                      step.disabled && "opacity-50 cursor-not-allowed",
+                      "flex w-full items-start gap-3 rounded-md border-b-2 border-transparent px-3 py-4 text-left transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50",
+                      isActive
+                        ? "border-primary bg-muted/60 text-foreground"
+                        : "text-muted-foreground",
                     )}
                   >
-                    <TabsTrigger
-                      value={step.id}
-                      disabled={step.disabled}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        {step.label}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {step.subtitle}
+                      </span>
+                    </span>
+                    <span
+                      role="img"
+                      aria-label={`Step ${index + 1}: ${step.label}${isComplete ? ", completed" : ""}`}
                       className={cn(
-                        "w-full rounded-md hover:bg-muted/60 border-b-2 border-transparent px-3 py-4 text-left shadow-none",
-                        isActive
-                          ? "border-primary !bg-muted/60 text-foreground"
-                          : "text-muted-foreground",
+                        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold",
+                        isComplete
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground",
                       )}
                     >
-                      <Field orientation="horizontal" className="items-start">
-                        <FieldContent>
-                          <FieldTitle>{step.label}</FieldTitle>
-                          <FieldDescription>{step.subtitle}</FieldDescription>
-                        </FieldContent>
-                        <span
-                          className={cn(
-                            "mt-0.5 flex h-6 w-6 items-center justify-center rounded-md text-xs font-semibold",
-                            isComplete
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {isComplete ? (
-                            <Check className="h-3.5 w-3.5" />
-                          ) : (
-                            index + 1
-                          )}
-                        </span>
-                      </Field>
-                    </TabsTrigger>
-                  </FieldLabel>
-                );
-              })}
-            </TabsList>
+                      {isComplete ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
 
-            <TabsContent value="llm" className="space-y-4 pt-6">
+          {currentStep === "llm" && (
+            <div className="space-y-4 pt-6">
               <div>
                 <p className="text-sm font-semibold">Connect LLM provider</p>
                 <p className="text-xs text-muted-foreground">
@@ -784,9 +776,11 @@ export const OnboardingGate: React.FC = () => {
                   />
                 )}
               </div>
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="rxresume" className="space-y-4 pt-6">
+          {currentStep === "rxresume" && (
+            <div className="space-y-4 pt-6">
               <ReactiveResumeConfigPanel
                 mode={rxresumeModeCurrent}
                 onModeChange={(mode) => {
@@ -832,9 +826,11 @@ export const OnboardingGate: React.FC = () => {
                     setValue("rxresumePassword", value),
                 }}
               />
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="baseresume" className="space-y-4 pt-6">
+          {currentStep === "baseresume" && (
+            <div className="space-y-4 pt-6">
               <div>
                 <p className="text-sm font-semibold">
                   Select your template resume
@@ -862,8 +858,8 @@ export const OnboardingGate: React.FC = () => {
                   />
                 )}
               />
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <Button

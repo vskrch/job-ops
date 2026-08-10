@@ -10,12 +10,6 @@ interface JobRowContentProps {
   className?: string;
 }
 
-function getSuitabilityScoreTone(score: number): string {
-  if (score >= 70) return "text-emerald-400/90";
-  if (score >= 50) return "text-foreground/60";
-  return "text-muted-foreground/60";
-}
-
 export const JobRowContent = ({
   job,
   isSelected = false,
@@ -25,7 +19,6 @@ export const JobRowContent = ({
 }: JobRowContentProps) => {
   const hasScore = job.suitabilityScore != null;
   const statusToken = statusTokens[job.status] ?? defaultStatusToken;
-  const suitabilityTone = getSuitabilityScoreTone(job.suitabilityScore ?? 0);
 
   return (
     <div className={cn("flex min-w-0 flex-1 items-center gap-3", className)}>
@@ -64,7 +57,7 @@ export const JobRowContent = ({
 
       {hasScore && (
         <div className="shrink-0 text-right">
-          <span className={cn("text-xs tabular-nums", suitabilityTone)}>
+          <span className="text-xs tabular-nums text-foreground">
             {job.suitabilityScore}
           </span>
         </div>

@@ -34,11 +34,11 @@ interface JobHeaderProps {
 
 const ScoreMeter: React.FC<{ score: number | null }> = ({ score }) => {
   if (score == null) {
-    return <span className="text-[10px] text-muted-foreground/60">-</span>;
+    return <span className="text-xs text-muted-foreground/60">-</span>;
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <div className="h-1 w-12 rounded-full bg-muted/30">
         <div
           className="h-1 rounded-full bg-primary/50"
@@ -142,7 +142,7 @@ const SponsorPill: React.FC<SponsorPillProps> = ({ score, names, onCheck }) => {
           <span>{parsedNames.join(", ")}</span>
         </p>
       )}
-      <p className="opacity-80 mt-1 text-[10px]">{`${score}% match`}</p>
+      <p className="opacity-80 mt-1 text-xs">{`${score}% match`}</p>
     </>
   );
 
@@ -187,14 +187,14 @@ export const JobHeader: React.FC<JobHeaderProps> = ({
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <Badge
             variant="outline"
-            className="text-[10px] uppercase tracking-wide text-muted-foreground border-border/50"
+            className="text-xs uppercase tracking-wide text-muted-foreground border-border/50"
           >
             {sourceLabel[job.source]}
           </Badge>
           {job.isRemote === true && (
             <Badge
               variant="outline"
-              className="text-[10px] uppercase tracking-wide text-muted-foreground border-border/50"
+              className="text-xs uppercase tracking-wide text-muted-foreground border-border/50"
             >
               Remote
             </Badge>
@@ -204,7 +204,7 @@ export const JobHeader: React.FC<JobHeaderProps> = ({
               asChild
               size="sm"
               variant="ghost"
-              className="h-6 px-2 text-[10px] uppercase tracking-wide"
+              className="h-7 px-2.5 text-xs uppercase tracking-wide"
             >
               <Link to={`/job/${job.id}`}>
                 View
@@ -216,7 +216,7 @@ export const JobHeader: React.FC<JobHeaderProps> = ({
       </div>
 
       {/* Tertiary metadata - subdued */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/70">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {job.location && (
           <span className="flex items-center gap-1">
             <MapPin className="h-3 w-3" />

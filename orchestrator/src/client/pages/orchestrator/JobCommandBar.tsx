@@ -45,18 +45,12 @@ export const JobCommandBar: React.FC<JobCommandBarProps> = ({
   enabled = true,
 }) => {
   const lockDialogAccentClass: Record<StatusLock, string> = {
-    ready:
-      "border-emerald-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_0_36px_-12px_rgba(16,185,129,0.55)]",
-    discovered:
-      "border-sky-500/50 shadow-[0_0_0_1px_rgba(14,165,233,0.2),0_0_36px_-12px_rgba(14,165,233,0.55)]",
-    applied:
-      "border-emerald-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_0_36px_-12px_rgba(16,185,129,0.55)]",
-    in_progress:
-      "border-cyan-500/50 shadow-[0_0_0_1px_rgba(6,182,212,0.2),0_0_36px_-12px_rgba(6,182,212,0.55)]",
-    skipped:
-      "border-rose-500/50 shadow-[0_0_0_1px_rgba(244,63,94,0.2),0_0_36px_-12px_rgba(244,63,94,0.55)]",
-    expired:
-      "border-zinc-400/40 shadow-[0_0_0_1px_rgba(161,161,170,0.2),0_0_32px_-12px_rgba(161,161,170,0.45)]",
+    ready: "border-emerald-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]",
+    discovered: "border-sky-500/50 shadow-[0_0_0_1px_rgba(14,165,233,0.15)]",
+    applied: "border-emerald-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]",
+    in_progress: "border-cyan-500/50 shadow-[0_0_0_1px_rgba(6,182,212,0.15)]",
+    skipped: "border-rose-500/50 shadow-[0_0_0_1px_rgba(244,63,94,0.15)]",
+    expired: "border-zinc-400/40 shadow-[0_0_0_1px_rgba(161,161,170,0.15)]",
   };
   const [internalOpen, setInternalOpen] = useState(false);
   const [query, setQuery] = useState("");

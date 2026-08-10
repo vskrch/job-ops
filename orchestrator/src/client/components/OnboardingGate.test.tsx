@@ -230,6 +230,14 @@ describe("OnboardingGate", () => {
 
     render(<OnboardingGate />);
 
+    await waitFor(() => {
+      expect(screen.getByText("Welcome to Job Ops")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Connect Reactive Resume/i }),
+    );
+
     await waitFor(() =>
       expect(screen.getByLabelText("RxResume URL")).toBeInTheDocument(),
     );

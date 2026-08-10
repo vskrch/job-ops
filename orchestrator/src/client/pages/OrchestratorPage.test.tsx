@@ -603,7 +603,7 @@ describe("OrchestratorPage", () => {
     });
   });
 
-  it("removes legacy q query params on load", async () => {
+  it("preserves q query param as search filter", async () => {
     window.matchMedia = createMatchMedia(
       true,
     ) as unknown as typeof window.matchMedia;
@@ -621,7 +621,7 @@ describe("OrchestratorPage", () => {
     await waitFor(() => {
       const locationText = screen.getByTestId("location").textContent || "";
       expect(locationText).toContain("sort=title-asc");
-      expect(locationText).not.toContain("q=");
+      expect(locationText).toContain("q=backend");
     });
   });
 

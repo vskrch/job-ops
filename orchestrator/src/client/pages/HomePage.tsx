@@ -140,6 +140,16 @@ export const HomePage: React.FC = () => {
       />
 
       <PageMain>
+        {!isLoading && !error && appliedDates.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border/60 bg-card p-6 text-center shadow-sm">
+            <div className="text-base font-semibold">No applications yet</div>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+              Run the pipeline, tailor a job, and mark it applied — your
+              application analytics will appear here.
+            </p>
+          </div>
+        )}
+
         <ApplicationsPerDayChart
           appliedAt={appliedDates}
           isLoading={isLoading}

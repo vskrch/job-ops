@@ -50,6 +50,16 @@ export const OrchestratorPage: React.FC = () => {
     setSort,
     runFilter,
     setRunFilter,
+    searchQuery,
+    setSearchQuery,
+    locationFilter,
+    setLocationFilter,
+    matchGradeFilter,
+    setMatchGradeFilter,
+    jobTypeFilter,
+    setJobTypeFilter,
+    scoreThreshold,
+    setScoreThreshold,
     resetFilters,
   } = useOrchestratorFilters();
 
@@ -99,7 +109,15 @@ export const OrchestratorPage: React.FC = () => {
       navigate("/applications/in-progress", { replace: true });
       return;
     }
-    const validTabs: FilterTab[] = ["ready", "discovered", "applied", "all"];
+    const validTabs: FilterTab[] = [
+      "ready",
+      "discovered",
+      "applied",
+      "in_progress",
+      "skipped",
+      "expired",
+      "all",
+    ];
     if (tab && !validTabs.includes(tab as FilterTab)) {
       navigateWithContext("ready", null, true);
     }
@@ -173,6 +191,11 @@ export const OrchestratorPage: React.FC = () => {
     salaryFilter,
     sort,
     runFilter,
+    searchQuery,
+    locationFilter,
+    matchGradeFilter,
+    jobTypeFilter,
+    scoreThreshold,
   );
   const setActiveTab = useCallback(
     (newTab: FilterTab) => {
@@ -301,6 +324,11 @@ export const OrchestratorPage: React.FC = () => {
         "appliedRange",
         "appliedStart",
         "appliedEnd",
+        "q",
+        "location",
+        "grade",
+        "jobType",
+        "minScore",
       ]) {
         nextParams.delete(key);
       }
@@ -468,10 +496,20 @@ export const OrchestratorPage: React.FC = () => {
             runs={pipelineRuns}
             runFilter={runFilter}
             onRunFilterChange={setRunFilter}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            locationFilter={locationFilter}
+            onLocationFilterChange={setLocationFilter}
+            matchGradeFilter={matchGradeFilter}
+            onMatchGradeFilterChange={setMatchGradeFilter}
+            jobTypeFilter={jobTypeFilter}
+            onJobTypeFilterChange={setJobTypeFilter}
+            scoreThreshold={scoreThreshold}
+            onScoreThresholdChange={setScoreThreshold}
           />
 
           {/* List/Detail grid - directly under tabs, no extra section */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
             {/* Primary region: Job list with highest visual weight */}
             <JobListPanel
               isLoading={isLoading}

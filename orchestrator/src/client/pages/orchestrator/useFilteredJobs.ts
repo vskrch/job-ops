@@ -5,10 +5,17 @@ import type {
   FilterTab,
   JobDateFilter,
   JobSort,
+  JobTypeFilter,
+  MatchGradeFilter,
   SalaryFilter,
   SponsorFilter,
 } from "./constants";
-import { compareJobs, getJobDateValue, parseSalaryBounds } from "./utils";
+import {
+  compareJobs,
+  getJobDateValue,
+  jobMatchesQuery,
+  parseSalaryBounds,
+} from "./utils";
 
 const getSponsorCategory = (score: number | null): SponsorFilter => {
   if (score == null) return "unknown";
@@ -24,6 +31,17 @@ const dateSortPriorityOrder: DateFilterDimension[] = [
   "discovered",
 ];
 
+const normalizeJobType = (raw: string | null): string | null => {
+  if (!raw) return null;
+  const lower = raw.toLowerCase().replace(/[\s_-]/g, "");
+  if (lower.includes("fulltime") || lower.includes("full")) return "fulltime";
+  if (lower.includes("contract")) return "contract";
+  if (lower.includes("parttime") || lower.includes("part")) return "parttime";
+  if (lower.includes("intern")) return "internship";
+  if (lower.includes("temp")) return "temporary";
+  return null;
+};
+
 export const useFilteredJobs = (
   jobs: JobListItem[],
   activeTab: FilterTab,
@@ -33,6 +51,11 @@ export const useFilteredJobs = (
   salaryFilter: SalaryFilter,
   sort: JobSort,
   runFilter: string | null = null,
+  searchQuery: string = "",
+  locationFilter: string = "",
+  matchGradeFilter: MatchGradeFilter = "all",
+  jobTypeFilter: JobTypeFilter = "all",
+  scoreThreshold: number | null = null,
 ) =>
   useMemo(() => {
     let filtered = [...jobs];
@@ -45,6 +68,12 @@ export const useFilteredJobs = (
       );
     } else if (activeTab === "applied") {
       filtered = filtered.filter((job) => job.status === "applied");
+    } else if (activeTab === "in_progress") {
+      filtered = filtered.filter((job) => job.status === "in_progress");
+    } else if (activeTab === "skipped") {
+      filtered = filtered.filter((job) => job.status === "skipped");
+    } else if (activeTab === "expired") {
+      filtered = filtered.filter((job) => job.status === "expired");
     } else if (activeTab === "all") {
       const includeClosedJobs = dateFilter.dimensions.includes("closed");
       if (!includeClosedJobs) {
@@ -72,6 +101,39 @@ export const useFilteredJobs = (
       filtered = filtered.filter(
         (job) => getSponsorCategory(job.sponsorMatchScore) === sponsorFilter,
       );
+    }
+
+    if (matchGradeFilter !== "all") {
+      filtered = filtered.filter(
+        (job) => (job.matchGrade ?? "F") === matchGradeFilter,
+      );
+    }
+
+    if (jobTypeFilter !== "all") {
+      filtered = filtered.filter(
+        (job) => normalizeJobType(job.jobType) === jobTypeFilter,
+      );
+    }
+
+    if (scoreThreshold != null) {
+      filtered = filtered.filter(
+        (job) =>
+          typeof job.suitabilityScore === "number" &&
+          job.suitabilityScore >= scoreThreshold,
+      );
+    }
+
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) {
+      filtered = filtered.filter((job) => jobMatchesQuery(job, trimmedQuery));
+    }
+
+    const trimmedLocation = locationFilter.trim().toLowerCase();
+    if (trimmedLocation) {
+      filtered = filtered.filter((job) => {
+        if (!job.location) return false;
+        return job.location.toLowerCase().includes(trimmedLocation);
+      });
     }
 
     const hasMin =
@@ -127,6 +189,11 @@ export const useFilteredJobs = (
     salaryFilter,
     sort,
     runFilter,
+    searchQuery,
+    locationFilter,
+    matchGradeFilter,
+    jobTypeFilter,
+    scoreThreshold,
   ]);
 
 const matchesDateDimension = (

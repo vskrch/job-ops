@@ -380,7 +380,7 @@ export const JobPage: React.FC = () => {
       )}
 
       {job && (
-        <div className="rounded-xl border border-border/60 bg-card/80 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/65">
+        <div className="rounded-xl border border-border/60 bg-card p-2 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               {jobLink && (

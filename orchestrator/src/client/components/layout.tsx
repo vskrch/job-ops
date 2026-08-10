@@ -120,7 +120,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 border-b bg-background">
       <div className="container mx-auto flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <Sheet open={navOpen} onOpenChange={setNavOpen}>
@@ -263,7 +263,7 @@ export const ListPanel: React.FC<ListPanelProps> = ({
 }) => (
   <div
     className={cn(
-      "min-w-0 rounded-xl border border-border/60 bg-card/40 flex flex-col",
+      "min-w-0 rounded-xl border border-border/60 bg-card shadow-sm flex flex-col",
       className,
     )}
   >
@@ -304,7 +304,7 @@ export const ListItem: React.FC<ListItemProps> = ({
       selected ? "bg-muted/40" : "hover:bg-muted/30",
       className,
     )}
-    aria-pressed={selected}
+    aria-current={selected ? "true" : undefined}
   >
     {children}
   </button>
@@ -327,7 +327,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
 }) => (
   <div
     className={cn(
-      "min-w-0 rounded-xl border border-border/60 bg-card/40 p-4",
+      "min-w-0 rounded-xl border border-border/60 bg-card shadow-sm p-4",
       sticky && "lg:sticky lg:top-24 lg:self-start",
       className,
     )}
@@ -446,7 +446,7 @@ export const SectionCard: React.FC<SectionCardProps> = ({
 }) => (
   <section
     className={cn(
-      "rounded-xl border border-border/60 bg-card/40 p-4",
+      "rounded-xl border border-border/60 bg-card shadow-sm p-4",
       className,
     )}
   >

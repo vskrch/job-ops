@@ -33,6 +33,8 @@ import type {
   FilterTab,
   JobDateFilter,
   JobSort,
+  JobTypeFilter,
+  MatchGradeFilter,
   SalaryFilter,
   SalaryFilterMode,
   SponsorFilter,
@@ -68,6 +70,16 @@ interface OrchestratorFiltersProps {
   runs?: PipelineRun[];
   runFilter?: string | null;
   onRunFilterChange?: (runId: string | null) => void;
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+  locationFilter?: string;
+  onLocationFilterChange?: (location: string) => void;
+  matchGradeFilter?: MatchGradeFilter;
+  onMatchGradeFilterChange?: (value: MatchGradeFilter) => void;
+  jobTypeFilter?: JobTypeFilter;
+  onJobTypeFilterChange?: (value: JobTypeFilter) => void;
+  scoreThreshold?: number | null;
+  onScoreThresholdChange?: (value: number | null) => void;
 }
 
 const sponsorOptions: Array<{
@@ -116,6 +128,30 @@ const datePresetOptions: Array<{
   { value: "14", label: "14 days" },
   { value: "30", label: "30 days" },
   { value: "90", label: "90 days" },
+];
+
+const matchGradeOptions: Array<{
+  value: MatchGradeFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All grades" },
+  { value: "A", label: "A (excellent)" },
+  { value: "B", label: "B (good)" },
+  { value: "C", label: "C (fair)" },
+  { value: "D", label: "D (weak)" },
+  { value: "F", label: "F (poor)" },
+];
+
+const jobTypeOptions: Array<{
+  value: JobTypeFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All types" },
+  { value: "fulltime", label: "Full-time" },
+  { value: "contract", label: "Contract" },
+  { value: "parttime", label: "Part-time" },
+  { value: "internship", label: "Internship" },
+  { value: "temporary", label: "Temporary" },
 ];
 
 const toDateInputValue = (date: Date) => {
@@ -200,6 +236,16 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
   runs = [],
   runFilter = null,
   onRunFilterChange,
+  searchQuery = "",
+  onSearchQueryChange,
+  locationFilter = "",
+  onLocationFilterChange,
+  matchGradeFilter = "all",
+  onMatchGradeFilterChange,
+  jobTypeFilter = "all",
+  onJobTypeFilterChange,
+  scoreThreshold = null,
+  onScoreThresholdChange,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isFiltersOpen = isFiltersOpenProp ?? internalOpen;
@@ -217,13 +263,21 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
       Number(
         (typeof salaryFilter.min === "number" && salaryFilter.min > 0) ||
           (typeof salaryFilter.max === "number" && salaryFilter.max > 0),
-      ),
+      ) +
+      Number(matchGradeFilter !== "all") +
+      Number(jobTypeFilter !== "all") +
+      Number(scoreThreshold != null) +
+      Number(locationFilter.trim() !== ""),
     [
       sourceFilter,
       sponsorFilter,
       dateFilter.dimensions.length,
       salaryFilter.min,
       salaryFilter.max,
+      matchGradeFilter,
+      jobTypeFilter,
+      scoreThreshold,
+      locationFilter,
     ],
   );
 
@@ -249,7 +303,7 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
               <KbdHint shortcut={String(index + 1)} className="mr-0.5" />
               <span>{tab.label}</span>
               {counts[tab.id] > 0 && (
-                <span className="text-[10px] mt-[2px] tabular-nums opacity-60">
+                <span className="text-xs mt-[2px] tabular-nums opacity-70">
                   {counts[tab.id]}
                 </span>
               )}
@@ -258,6 +312,19 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
         </TabsList>
 
         <div className="flex lg:flex-nowrap flex-wrap items-center justify-end gap-2">
+          {onSearchQueryChange && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Filter jobs..."
+                value={searchQuery}
+                onChange={(e) => onSearchQueryChange(e.target.value)}
+                className="h-8 w-[140px] pl-8 text-xs lg:w-[180px]"
+                aria-label="Inline job search"
+              />
+            </div>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -630,6 +697,129 @@ export const OrchestratorFilters: React.FC<OrchestratorFiltersProps> = ({
                           Clear run filter
                         </Button>
                       ) : null}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Location</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Input
+                        id="location-filter"
+                        type="text"
+                        placeholder="e.g. London, Remote, New York..."
+                        value={locationFilter}
+                        onChange={(e) =>
+                          onLocationFilterChange?.(e.target.value)
+                        }
+                        className="h-8"
+                        aria-label="Location filter"
+                      />
+                      {locationFilter && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onLocationFilterChange?.("")}
+                        >
+                          Clear location
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Match grade</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {matchGradeOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant={
+                            matchGradeFilter === option.value
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() =>
+                            onMatchGradeFilterChange?.(option.value)
+                          }
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Job type</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {jobTypeOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant={
+                            jobTypeFilter === option.value
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() => onJobTypeFilterChange?.(option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle>Score threshold</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="score-threshold-filter"
+                          type="number"
+                          min={0}
+                          max={100}
+                          placeholder="Min score (0-100)"
+                          value={scoreThreshold ?? ""}
+                          onChange={(e) => {
+                            const raw = e.target.value.trim();
+                            const parsed = Number.parseInt(raw, 10);
+                            onScoreThresholdChange?.(
+                              Number.isFinite(parsed) &&
+                                parsed >= 0 &&
+                                parsed <= 100
+                                ? parsed
+                                : null,
+                            );
+                          }}
+                          className="h-8"
+                          inputMode="numeric"
+                          aria-label="Minimum suitability score"
+                        />
+                        {scoreThreshold != null && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onScoreThresholdChange?.(null)}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Show only jobs with a suitability score at or above this
+                        value.
+                      </p>
                     </CardContent>
                   </Card>
 

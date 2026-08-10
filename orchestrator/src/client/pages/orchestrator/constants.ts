@@ -73,7 +73,14 @@ export const defaultStatusToken = {
   dot: "bg-muted-foreground",
 };
 
-export type FilterTab = "ready" | "discovered" | "applied" | "all";
+export type FilterTab =
+  | "ready"
+  | "discovered"
+  | "applied"
+  | "all"
+  | "in_progress"
+  | "skipped"
+  | "expired";
 export type DateFilterPreset = "7" | "14" | "30" | "90" | "custom";
 export type DateFilterDimension = "ready" | "applied" | "closed" | "discovered";
 
@@ -92,6 +99,14 @@ export type SponsorFilter =
   | "not_found"
   | "unknown";
 export type SalaryFilterMode = "at_least" | "at_most" | "between";
+export type MatchGradeFilter = "all" | "A" | "B" | "C" | "D" | "F";
+export type JobTypeFilter =
+  | "all"
+  | "fulltime"
+  | "contract"
+  | "parttime"
+  | "internship"
+  | "temporary";
 
 export interface SalaryFilter {
   mode: SalaryFilterMode;
@@ -150,6 +165,9 @@ export const tabs: Array<{
     statuses: ["discovered", "processing"],
   },
   { id: "applied", label: "Applied", statuses: ["applied"] },
+  { id: "in_progress", label: "In Progress", statuses: ["in_progress"] },
+  { id: "skipped", label: "Skipped", statuses: ["skipped"] },
+  { id: "expired", label: "Expired", statuses: ["expired"] },
   { id: "all", label: "All Jobs", statuses: [] },
 ];
 
@@ -157,6 +175,9 @@ export const emptyStateCopy: Record<FilterTab, string> = {
   ready: "Run the pipeline to discover and process new jobs.",
   discovered: "All discovered jobs have been processed.",
   applied: "You have not applied to any jobs yet.",
+  in_progress: "No jobs are currently in progress.",
+  skipped: "No skipped jobs. Skipped jobs appear here when you skip them.",
+  expired: "No expired jobs. Jobs with passed deadlines appear here.",
   all: "No jobs in the system yet. Run the pipeline to get started.",
 };
 

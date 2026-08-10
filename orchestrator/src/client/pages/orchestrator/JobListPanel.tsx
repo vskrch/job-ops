@@ -74,7 +74,10 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
         )}
       </div>
     ) : (
-      <div className="divide-y divide-border/40">
+      <div className="divide-y divide-border/40" aria-busy={isLoading}>
+        <p className="sr-only" aria-live="polite">
+          {isLoading ? "Loading jobs…" : `${activeJobs.length} jobs shown`}
+        </p>
         <div className="flex items-center justify-between gap-3 px-4 py-2 opacity-100 transition-opacity sm:opacity-50 sm:hover:opacity-100">
           <label
             htmlFor="job-list-select-all"
@@ -150,7 +153,7 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
                 onClick={() => onSelectJob(job.id)}
                 data-testid={`select-${job.id}`}
                 className="flex min-w-0 flex-1 cursor-pointer text-left"
-                aria-pressed={isSelected}
+                aria-current={isSelected ? "true" : undefined}
               >
                 <JobRowContent
                   job={job}

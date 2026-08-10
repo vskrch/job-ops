@@ -142,7 +142,7 @@ describe("JobListPanel", () => {
 
     expect(
       screen.getByRole("button", { name: /Backend Engineer/i }),
-    ).toHaveAttribute("aria-pressed", "true");
+    ).toHaveAttribute("aria-current", "true");
 
     fireEvent.click(screen.getByRole("button", { name: /Frontend Engineer/i }));
     expect(onSelectJob).toHaveBeenCalledWith("job-2");

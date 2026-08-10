@@ -1,11 +1,13 @@
 import type { JobSource } from "@shared/types.js";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type {
   DateFilterDimension,
   DateFilterPreset,
   JobDateFilter,
   JobSort,
+  JobTypeFilter,
+  MatchGradeFilter,
   SalaryFilter,
   SalaryFilterMode,
   SponsorFilter,
@@ -40,6 +42,15 @@ const allowedDateFilterPresets: DateFilterPreset[] = [
   "90",
   "custom",
 ];
+const allowedMatchGrades: MatchGradeFilter[] = ["all", "A", "B", "C", "D", "F"];
+const allowedJobTypes: JobTypeFilter[] = [
+  "all",
+  "fulltime",
+  "contract",
+  "parttime",
+  "internship",
+  "temporary",
+];
 
 const isValidDateInput = (value: string | null): value is string =>
   value != null && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -61,17 +72,6 @@ const parseDateDimensions = (value: string | null): DateFilterDimension[] => {
 
 export const useOrchestratorFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-
-  useEffect(() => {
-    if (!searchParams.has("q")) return;
-    setSearchParams(
-      (prev) => {
-        prev.delete("q");
-        return prev;
-      },
-      { replace: true },
-    );
-  }, [searchParams, setSearchParams]);
 
   const sourceFilter =
     (searchParams.get("source") as JobSource | "all") || "all";
@@ -250,6 +250,101 @@ export const useOrchestratorFilters = () => {
     [setSearchParams],
   );
 
+  const searchQuery = searchParams.get("q") ?? "";
+  const setSearchQuery = useCallback(
+    (query: string) => {
+      setSearchParams(
+        (prev) => {
+          if (query.trim()) prev.set("q", query.trim());
+          else prev.delete("q");
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const locationFilter = searchParams.get("location") ?? "";
+  const setLocationFilter = useCallback(
+    (location: string) => {
+      setSearchParams(
+        (prev) => {
+          if (location.trim()) prev.set("location", location.trim());
+          else prev.delete("location");
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const matchGradeFilter = useMemo((): MatchGradeFilter => {
+    const raw = searchParams.get("grade") ?? "all";
+    return allowedMatchGrades.includes(raw as MatchGradeFilter)
+      ? (raw as MatchGradeFilter)
+      : "all";
+  }, [searchParams]);
+
+  const setMatchGradeFilter = useCallback(
+    (value: MatchGradeFilter) => {
+      setSearchParams(
+        (prev) => {
+          if (value === "all") prev.delete("grade");
+          else prev.set("grade", value);
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const jobTypeFilter = useMemo((): JobTypeFilter => {
+    const raw = searchParams.get("jobType") ?? "all";
+    return allowedJobTypes.includes(raw as JobTypeFilter)
+      ? (raw as JobTypeFilter)
+      : "all";
+  }, [searchParams]);
+
+  const setJobTypeFilter = useCallback(
+    (value: JobTypeFilter) => {
+      setSearchParams(
+        (prev) => {
+          if (value === "all") prev.delete("jobType");
+          else prev.set("jobType", value);
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const scoreThreshold = useMemo((): number | null => {
+    const raw = searchParams.get("minScore");
+    if (!raw) return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100
+      ? parsed
+      : null;
+  }, [searchParams]);
+
+  const setScoreThreshold = useCallback(
+    (value: number | null) => {
+      setSearchParams(
+        (prev) => {
+          if (value == null) prev.delete("minScore");
+          else prev.set("minScore", String(value));
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const resetFilters = useCallback(() => {
     setSearchParams(
       (prev) => {
@@ -265,6 +360,11 @@ export const useOrchestratorFilters = () => {
         prev.delete("appliedEnd");
         prev.delete("appliedRange");
         prev.delete("run");
+        prev.delete("q");
+        prev.delete("location");
+        prev.delete("grade");
+        prev.delete("jobType");
+        prev.delete("minScore");
         return prev;
       },
       { replace: true },
@@ -285,6 +385,16 @@ export const useOrchestratorFilters = () => {
     setSort,
     runFilter,
     setRunFilter,
+    searchQuery,
+    setSearchQuery,
+    locationFilter,
+    setLocationFilter,
+    matchGradeFilter,
+    setMatchGradeFilter,
+    jobTypeFilter,
+    setJobTypeFilter,
+    scoreThreshold,
+    setScoreThreshold,
     resetFilters,
   };
 };
