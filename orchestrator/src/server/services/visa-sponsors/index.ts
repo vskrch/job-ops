@@ -35,8 +35,13 @@ export type VisaSponsorStatus = VisaSponsorStatusResponse;
 // Per-provider in-memory state
 // ============================================================================
 
+export interface CachedSponsor {
+  sponsor: VisaSponsor;
+  normalizedName: string;
+}
+
 interface ProviderState {
-  cache: VisaSponsor[] | null;
+  cache: CachedSponsor[] | null;
   cacheLoadedAt: Date | null;
   isUpdating: boolean;
   updateError: string | null;
@@ -87,46 +92,62 @@ const COMPANY_SUFFIXES = [
   "the",
 ];
 
+const COMPANY_SUFFIX_REGEX = new RegExp(
+  `\\b(${COMPANY_SUFFIXES.join("|")})\\b`,
+  "gi",
+);
+
 export function normalizeCompanyName(name: string): string {
   let normalized = name.toLowerCase().trim();
   normalized = normalized.replace(/[.,'"()[\]{}!?@#$%^&*+=|\\/<>:;`~]/g, " ");
-  for (const suffix of COMPANY_SUFFIXES) {
-    const regex = new RegExp(`\\b${suffix}\\b`, "gi");
-    normalized = normalized.replace(regex, "");
-  }
+  normalized = normalized.replace(COMPANY_SUFFIX_REGEX, "");
   return normalizeWhitespace(normalized);
 }
 
-export function calculateSimilarity(str1: string, str2: string): number {
+export function calculateSimilarity(
+  str1: string,
+  str2: string,
+  minScore = 0,
+): number {
   const s1 = str1.toLowerCase();
   const s2 = str2.toLowerCase();
 
   if (s1 === s2) return 100;
   if (s1.length === 0 || s2.length === 0) return 0;
 
-  if (s1.includes(s2) || s2.includes(s1)) {
-    const longerLen = Math.max(s1.length, s2.length);
-    const shorterLen = Math.min(s1.length, s2.length);
-    return Math.round((shorterLen / longerLen) * 100);
+  const maxLen = Math.max(s1.length, s2.length);
+  const minLen = Math.min(s1.length, s2.length);
+
+  // Fast-path length discrepancy check
+  if (maxLen > 0 && Math.round((minLen / maxLen) * 100) < minScore) {
+    return 0;
   }
 
-  const matrix: number[][] = [];
-  for (let i = 0; i <= s1.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= s2.length; j++) matrix[0][j] = j;
+  if (s1.includes(s2) || s2.includes(s1)) {
+    return Math.round((minLen / maxLen) * 100);
+  }
+
+  // Zero-allocation 1D Levenshtein distance
+  let row0 = new Int32Array(s2.length + 1);
+  let row1 = new Int32Array(s2.length + 1);
+
+  for (let j = 0; j <= s2.length; j++) {
+    row0[j] = j;
+  }
 
   for (let i = 1; i <= s1.length; i++) {
+    row1[0] = i;
+    const charCode1 = s1.charCodeAt(i - 1);
     for (let j = 1; j <= s2.length; j++) {
-      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost,
-      );
+      const cost = charCode1 === s2.charCodeAt(j - 1) ? 0 : 1;
+      row1[j] = Math.min(row0[j] + 1, row1[j - 1] + 1, row0[j - 1] + cost);
     }
+    const temp = row0;
+    row0 = row1;
+    row1 = temp;
   }
 
-  const distance = matrix[s1.length][s2.length];
-  const maxLen = Math.max(s1.length, s2.length);
+  const distance = row0[s2.length];
   return Math.round(((maxLen - distance) / maxLen) * 100);
 }
 
@@ -309,7 +330,7 @@ async function downloadLatestDataForProvider(
   }
 }
 
-function loadSponsorsForProvider(providerId: string): VisaSponsor[] {
+function loadSponsorsForProvider(providerId: string): CachedSponsor[] {
   const state = getOrCreateProviderState(providerId);
 
   // Return valid cache (< 1 hour old)
@@ -341,9 +362,13 @@ function loadSponsorsForProvider(providerId: string): VisaSponsor[] {
   try {
     const content = fs.readFileSync(csvPath, "utf-8");
     const sponsors = parseCsv(content);
-    state.cache = sponsors;
+    const cached: CachedSponsor[] = sponsors.map((s) => ({
+      sponsor: s,
+      normalizedName: normalizeCompanyName(s.organisationName),
+    }));
+    state.cache = cached;
     state.cacheLoadedAt = new Date();
-    return sponsors;
+    return cached;
   } catch (error) {
     logger.error("Failed to load sponsors for provider", {
       providerId,
@@ -431,7 +456,7 @@ async function loadAllSponsors(countryKey?: string): Promise<
   {
     providerId: VisaSponsorProviderManifest["id"];
     countryKey: string;
-    sponsors: VisaSponsor[];
+    sponsors: CachedSponsor[];
   }[]
 > {
   const reg = await getVisaSponsorProviderRegistry();
@@ -462,6 +487,9 @@ export async function searchSponsors(
 
   const providerData = await loadAllSponsors(countryKey);
   const normalizedQuery = normalizeCompanyName(query);
+  if (!normalizedQuery) return [];
+
+  const queryLen = normalizedQuery.length;
   const results: VisaSponsorSearchResult[] = [];
   const seen = new Set<string>();
   const searchStartedAt = Date.now();
@@ -471,13 +499,24 @@ export async function searchSponsors(
     countryKey: providerCountryKey,
     sponsors,
   } of providerData) {
-    for (const sponsor of sponsors) {
+    for (const { sponsor, normalizedName } of sponsors) {
       const dedupeKey = `${providerId}::${sponsor.organisationName}`;
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
 
-      const normalizedSponsor = normalizeCompanyName(sponsor.organisationName);
-      const score = calculateSimilarity(normalizedQuery, normalizedSponsor);
+      // Fast-path length discrepancy filter before computing similarity
+      const sponsorLen = normalizedName.length;
+      const maxLen = Math.max(queryLen, sponsorLen);
+      const minLen = Math.min(queryLen, sponsorLen);
+      if (maxLen > 0 && Math.round((minLen / maxLen) * 100) < minScore) {
+        continue;
+      }
+
+      const score = calculateSimilarity(
+        normalizedQuery,
+        normalizedName,
+        minScore,
+      );
 
       if (score >= minScore) {
         results.push({
@@ -485,7 +524,7 @@ export async function searchSponsors(
           countryKey: providerCountryKey,
           sponsor,
           score,
-          matchedName: normalizedSponsor,
+          matchedName: normalizedName,
         });
       }
     }
@@ -566,6 +605,7 @@ export async function getOrganizationDetails(
     : await loadAllSponsors();
   return providerData
     .flatMap(({ sponsors }) => sponsors)
+    .map(({ sponsor }) => sponsor)
     .filter((s) => s.organisationName === organisationName);
 }
 
@@ -575,7 +615,9 @@ export async function getOrganizationDetails(
  */
 export async function loadSponsors(): Promise<VisaSponsor[]> {
   const providerData = await loadAllSponsors();
-  return providerData.flatMap(({ sponsors }) => sponsors);
+  return providerData
+    .flatMap(({ sponsors }) => sponsors)
+    .map(({ sponsor }) => sponsor);
 }
 
 // ============================================================================

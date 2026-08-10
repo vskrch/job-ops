@@ -25,6 +25,7 @@ ENV PYTHON_PATH=/usr/bin/python3
 ENV DATA_DIR=/app/data
 ENV HOME=/app
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV NODE_OPTIONS="--max-old-space-size=384"
 ENV PATH=/usr/local/bin:${PATH}
 
 # Install runtime dependencies shared by build and production stages.

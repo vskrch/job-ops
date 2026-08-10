@@ -8,7 +8,7 @@ import type { Job } from "@shared/types";
 import { progressHelpers, updateProgress } from "../progress";
 import type { ScoredJob } from "./types";
 
-const SCORING_CONCURRENCY = 4;
+const SCORING_CONCURRENCY = 2;
 
 export async function scoreJobsStep(args: {
   profile: Record<string, unknown>;

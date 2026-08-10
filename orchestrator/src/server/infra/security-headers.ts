@@ -7,21 +7,23 @@
  *   - Referrer-Policy: strict-origin-when-cross-origin
  *   - Strict-Transport-Security: max-age=31536000 (HSTS, production-only)
  *   - X-DNS-Prefetch-Control: off
- *   - Content-Security-Policy: script-src 'self' (blocks inline scripts)
+ *   - Content-Security-Policy: script-src 'self' + inline theme script hash
  *
  * The client is a Vite SPA with inline styles from third-party UI libs,
- * so style-src allows 'unsafe-inline'. script-src is locked to 'self'
- * to block stored XSS from crawled job descriptions.
+ * so style-src allows 'unsafe-inline'. script-src stays locked to 'self'
+ * plus the specific inline theme script hash, and the allowlisted external
+ * origins required by the app (Google Fonts, Umami analytics, GitHub
+ * releases version check) to block stored XSS from crawled job descriptions.
  */
 import type { RequestHandler } from "express";
 
 const CSP_HEADER =
   "default-src 'self'; " +
-  "script-src 'self'; " +
-  "style-src 'self' 'unsafe-inline'; " +
+  "script-src 'self' https://umami.dakheera47.com 'sha256-8bkRvcaLNNeLyGHEmrhXzsb7x5nmpThfnk8I57a/Q+s='; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
   "img-src 'self' data: https:; " +
-  "font-src 'self' https:; " +
-  "connect-src 'self'; " +
+  "font-src 'self' https: https://fonts.gstatic.com; " +
+  "connect-src 'self' https://api.github.com; " +
   "frame-ancestors 'none'";
 
 export function securityHeaders(): RequestHandler {

@@ -34,6 +34,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -511,6 +512,9 @@ export const DesignResumePage: React.FC = () => {
               >
                 <SheetHeader>
                   <SheetTitle>Design Resume</SheetTitle>
+                  <SheetDescription className="sr-only">
+                    Edit resume content from your phone.
+                  </SheetDescription>
                 </SheetHeader>
                 <div className="mt-6">{rail}</div>
               </SheetContent>

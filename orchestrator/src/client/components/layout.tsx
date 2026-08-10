@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -133,6 +134,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             <SheetContent side="left" className="w-64 flex flex-col">
               <SheetHeader>
                 <SheetTitle>JobOps</SheetTitle>
+                <SheetDescription className="sr-only">
+                  Navigation menu for JobOps.
+                </SheetDescription>
               </SheetHeader>
               <nav className="mt-6 flex flex-col gap-2">
                 {NAV_LINKS.map(({ to, label, icon: NavIcon, activePaths }) => (
