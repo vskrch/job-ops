@@ -52,6 +52,22 @@ export interface PipelineStatusResponse {
   isRunning: boolean;
   lastRun: PipelineRun | null;
   nextScheduledRun: string | null;
+  /** Live progress snapshot when a run is active; absent when idle. */
+  progress?: PipelineProgressSnapshot;
+}
+
+/**
+ * Subset of pipeline progress surfaced via the status endpoint so
+ * reconnecting clients can render the current step without SSE.
+ */
+export interface PipelineProgressSnapshot {
+  step: string;
+  message: string;
+  detail?: string;
+  jobsDiscovered: number;
+  jobsScored: number;
+  jobsProcessed: number;
+  totalToProcess: number;
 }
 
 export interface PipelineScheduleResponse {

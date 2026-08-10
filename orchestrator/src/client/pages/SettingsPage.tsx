@@ -1804,7 +1804,10 @@ export const SettingsPage: React.FC = () => {
             </div>
           </aside>
 
-          <section className="space-y-4">
+          <section
+            className="space-y-4"
+            aria-labelledby="settings-section-title"
+          >
             <header className="space-y-4 border-b border-border/70 pb-5">
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground">
                 <span>{activeGroup.label}</span>
@@ -1815,7 +1818,10 @@ export const SettingsPage: React.FC = () => {
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-semibold tracking-tight">
+                    <h2
+                      id="settings-section-title"
+                      className="text-2xl font-semibold tracking-tight"
+                    >
                       {activeSectionMeta.label}
                     </h2>
                     {selectedSectionBadge ? (

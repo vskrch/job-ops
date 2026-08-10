@@ -16,6 +16,7 @@ import {
 } from "@server/extractors/registry";
 import {
   getPipelineStatus,
+  getProgress,
   requestPipelineCancel,
   runPipeline,
   subscribeToProgress,
@@ -46,10 +47,12 @@ pipelineRouter.get("/status", async (_req: Request, res: Response) => {
     const { isRunning } = getPipelineStatus();
     const lastRun = await pipelineRepo.getLatestPipelineRun();
     const schedule = getPipelineSchedule();
+    const progress = getProgress();
     const data: PipelineStatusResponse = {
       isRunning,
       lastRun,
       nextScheduledRun: schedule.nextRun,
+      progress: isRunning ? progress : undefined,
     };
     ok(res, data);
   } catch (error) {

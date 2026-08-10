@@ -47,9 +47,14 @@ export interface PipelineProgress {
   completedAt?: string;
 }
 
-// Event emitter for progress updates
+// Event emitter for progress updates with bounded replay buffer.
+// Late or reconnecting subscribers receive buffered events in order so
+// they can reconstruct state missed while the page was closed.
 type ProgressListener = (progress: PipelineProgress) => void;
 const listeners: Set<ProgressListener> = new Set();
+
+const MAX_REPLAY_EVENTS = 100;
+const replayBuffer: PipelineProgress[] = [];
 
 let currentProgress: PipelineProgress = {
   step: "idle",
@@ -143,9 +148,16 @@ function aggregateCrawlingStats() {
 
 /**
  * Update the current progress and notify all listeners.
+ * Each update is pushed to a bounded replay buffer so reconnecting
+ * clients can catch up on missed events.
  */
 export function updateProgress(update: Partial<PipelineProgress>): void {
   currentProgress = { ...currentProgress, ...update };
+
+  replayBuffer.push({ ...currentProgress });
+  if (replayBuffer.length > MAX_REPLAY_EVENTS) {
+    replayBuffer.splice(0, replayBuffer.length - MAX_REPLAY_EVENTS);
+  }
 
   // Notify all listeners
   for (const listener of listeners) {
@@ -166,12 +178,20 @@ export function getProgress(): PipelineProgress {
 
 /**
  * Subscribe to progress updates.
+ * Replays buffered events in order so late subscribers (e.g. a user
+ * reopening the page mid-run) can reconstruct missed state.
  */
 export function subscribeToProgress(listener: ProgressListener): () => void {
   listeners.add(listener);
 
-  // Send current state immediately
-  listener(currentProgress);
+  // Replay buffered events in order so late subscribers reconstruct state.
+  for (const event of replayBuffer) {
+    try {
+      listener(event);
+    } catch (error) {
+      logger.error("Error replaying progress to listener", error);
+    }
+  }
 
   // Return unsubscribe function
   return () => {
@@ -180,10 +200,11 @@ export function subscribeToProgress(listener: ProgressListener): () => void {
 }
 
 /**
- * Reset progress to idle state.
+ * Reset progress to idle state and clear the replay buffer.
  */
 export function resetProgress(): void {
   crawlingStatsBySource.clear();
+  replayBuffer.length = 0;
   currentProgress = {
     step: "idle",
     message: "Ready",
