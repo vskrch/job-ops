@@ -11,8 +11,12 @@
  */
 
 import { logger } from "@infra/logger";
-import type { SearchManifestResult, SearchManifestTask, SearchResourceGroup } from "@shared/types";
 import { asyncPool } from "@server/utils/async-pool";
+import type {
+  SearchManifestResult,
+  SearchManifestTask,
+  SearchResourceGroup,
+} from "@shared/types";
 
 // ---------------------------------------------------------------------------
 // Process-wide active search limit
@@ -29,7 +33,9 @@ export function getActiveSearchCount(): number {
  * Acquire a process-wide search slot. Waits in a bounded FIFO queue when at
  * capacity. Throws when the queue is full so the caller can fail fast.
  */
-export async function acquireSearchSlot(maxActive: number): Promise<() => void> {
+export async function acquireSearchSlot(
+  maxActive: number,
+): Promise<() => void> {
   const safeMax = Math.max(1, maxActive);
   if (activeSearchCount < safeMax) {
     activeSearchCount += 1;
@@ -69,7 +75,10 @@ interface GroupState {
 
 const groupStates = new Map<SearchResourceGroup, GroupState>();
 
-function acquireGroupSlot(group: SearchResourceGroup, maxConcurrency: number): Promise<() => void> {
+function acquireGroupSlot(
+  group: SearchResourceGroup,
+  maxConcurrency: number,
+): Promise<() => void> {
   const state = groupStates.get(group) ?? { active: 0, waiters: [] };
   groupStates.set(group, state);
 
@@ -124,7 +133,8 @@ export interface RunManifestTasksOptions {
 export async function runManifestTasks(
   options: RunManifestTasksOptions,
 ): Promise<SearchManifestResult[]> {
-  const { tasks, perSearchConcurrency, onTaskStarted, onTaskSettled, task } = options;
+  const { tasks, perSearchConcurrency, onTaskStarted, onTaskSettled, task } =
+    options;
   if (tasks.length === 0) return [];
 
   const safeConcurrency = Math.max(1, Math.min(6, perSearchConcurrency));
@@ -143,7 +153,8 @@ export async function runManifestTasks(
         onTaskSettled?.(result);
         return result;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
         logger.warn("Manifest task aborted unexpectedly", {
           manifestId: plannedTask.manifestId,
           error: message,

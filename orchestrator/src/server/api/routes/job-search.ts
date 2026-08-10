@@ -16,16 +16,16 @@ import { runWithRequestContext } from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import * as jobSearchRepo from "@server/repositories/job-search";
 import * as settingsRepo from "@server/repositories/settings";
+import { sendSearchResultsEmail } from "@server/services/email";
 import {
   computeAdmissionHash,
   executeJobSearch,
+  findReusableSearch,
   getRunningSearchByAdmissionHash,
   JOB_SEARCH_PARSER_VERSION,
-  findReusableSearch,
   SOURCE_PLAN_VERSION,
   subscribeToSearchProgress,
 } from "@server/services/job-search";
-import { sendSearchResultsEmail } from "@server/services/email";
 import type { CreateJobSearchRequest } from "@shared/types";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
@@ -199,40 +199,43 @@ jobSearchRouter.get("/:id/progress", async (req: Request, res: Response) => {
 /**
  * POST /api/job-search/:id/resend-email — Re-send the results email.
  */
-jobSearchRouter.post("/:id/resend-email", async (req: Request, res: Response) => {
-  try {
-    const search = await jobSearchRepo.getJobSearch(req.params.id);
-    if (!search) {
-      return fail(res, notFound("Search not found."));
-    }
-    if (search.status !== "completed") {
-      return fail(
-        res,
-        badRequest("Search must be completed before sending email."),
-      );
-    }
+jobSearchRouter.post(
+  "/:id/resend-email",
+  async (req: Request, res: Response) => {
+    try {
+      const search = await jobSearchRepo.getJobSearch(req.params.id);
+      if (!search) {
+        return fail(res, notFound("Search not found."));
+      }
+      if (search.status !== "completed") {
+        return fail(
+          res,
+          badRequest("Search must be completed before sending email."),
+        );
+      }
 
-    const publicBaseUrl =
-      process.env.JOBOPS_PUBLIC_BASE_URL?.trim() || "http://localhost:3001";
+      const publicBaseUrl =
+        process.env.JOBOPS_PUBLIC_BASE_URL?.trim() || "http://localhost:3001";
 
-    const emailResult = await sendSearchResultsEmail(search, publicBaseUrl);
-    const now = new Date().toISOString();
+      const emailResult = await sendSearchResultsEmail(search, publicBaseUrl);
+      const now = new Date().toISOString();
 
-    if (emailResult.success) {
-      await jobSearchRepo.updateJobSearch(search.id, {
-        emailStatus: "sent",
-        emailSentAt: now,
-      });
-      ok(res, { message: "Email sent.", emailStatus: "sent" as const });
-    } else {
-      await jobSearchRepo.updateJobSearch(search.id, {
-        emailStatus: "failed",
-        emailError: emailResult.error ?? "Unknown email error",
-      });
-      ok(res, { emailStatus: "failed" as const, error: emailResult.error });
+      if (emailResult.success) {
+        await jobSearchRepo.updateJobSearch(search.id, {
+          emailStatus: "sent",
+          emailSentAt: now,
+        });
+        ok(res, { message: "Email sent.", emailStatus: "sent" as const });
+      } else {
+        await jobSearchRepo.updateJobSearch(search.id, {
+          emailStatus: "failed",
+          emailError: emailResult.error ?? "Unknown email error",
+        });
+        ok(res, { emailStatus: "failed" as const, error: emailResult.error });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
-  }
-});
+  },
+);

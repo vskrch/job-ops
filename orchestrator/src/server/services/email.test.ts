@@ -6,8 +6,8 @@
  * search itself always completes and results remain visible in the UI.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JobSearch } from "@shared/types";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const originalEnv = { ...process.env };
 

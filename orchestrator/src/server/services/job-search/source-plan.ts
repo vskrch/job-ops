@@ -8,17 +8,21 @@
 
 import { logger } from "@infra/logger";
 import type { ExtractorRegistry } from "@server/extractors/registry";
+import type { ExtractorSourceId } from "@shared/extractors";
 import {
   isSourceAllowedForCountry,
   normalizeCountryKey,
 } from "@shared/location-support.js";
 import type {
-  ExtractorSourceId,
   ParsedSearchSpec,
   SearchManifestTask,
   SearchSourcePlan,
 } from "@shared/types";
-import { SOURCE_PLAN_VERSION, credentialsAvailableForSource, getCapability } from "./resource-limits";
+import {
+  credentialsAvailableForSource,
+  getCapability,
+  SOURCE_PLAN_VERSION,
+} from "./resource-limits";
 
 type SettingsLike = Partial<Record<string, string | undefined>>;
 
@@ -60,7 +64,10 @@ export async function buildSourcePlan(
   for (const [manifestId, selectedSources] of groupedByManifest) {
     const manifest = registry.manifests.get(manifestId);
     if (!manifest) {
-      skippedSources.push({ source: manifestId, reason: "manifest-not-registered" });
+      skippedSources.push({
+        source: manifestId,
+        reason: "manifest-not-registered",
+      });
       continue;
     }
     const capability = getCapability(manifestId);

@@ -841,11 +841,7 @@ export const settingsRegistry = {
     default: (): string => "0",
     parse: parseBitBoolOrNull,
     serialize: (value: boolean | null | undefined): string | null =>
-      value === null || value === undefined
-        ? null
-        : value
-          ? "1"
-          : "0",
+      value === null || value === undefined ? null : value ? "1" : "0",
   },
   jobSearchHighConcurrencyEnabled: {
     kind: "typed" as const,
@@ -853,11 +849,7 @@ export const settingsRegistry = {
     default: (): string => "0",
     parse: parseBitBoolOrNull,
     serialize: (value: boolean | null | undefined): string | null =>
-      value === null || value === undefined
-        ? null
-        : value
-          ? "1"
-          : "0",
+      value === null || value === undefined ? null : value ? "1" : "0",
   },
 } as const;
 

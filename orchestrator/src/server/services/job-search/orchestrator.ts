@@ -24,9 +24,9 @@ import type {
 } from "@shared/types";
 import { sendSearchResultsEmail } from "../email";
 import { SearchAccumulator } from "./accumulator";
-import { computeFreshnessWindow, filterJobs } from "./filter";
-import { computeSearchHash, parseSearchQuery } from "./query-parser";
+import { computeFreshnessWindow } from "./filter";
 import { clearSearchProgress, emitSearchProgress } from "./progress";
+import { computeSearchHash, parseSearchQuery } from "./query-parser";
 import { rankJobs } from "./ranking";
 import { resolveSearchLimits } from "./resource-limits";
 import { acquireSearchSlot } from "./scheduler";
@@ -42,7 +42,17 @@ function getPublicBaseUrl(): string {
 
 async function updatePhase(
   searchId: string,
-  phase: "queued" | "parsing" | "planning" | "aggregating" | "filtering" | "ranking" | "reporting" | "emailing" | "completed" | "failed",
+  phase:
+    | "queued"
+    | "parsing"
+    | "planning"
+    | "aggregating"
+    | "filtering"
+    | "ranking"
+    | "reporting"
+    | "emailing"
+    | "completed"
+    | "failed",
   message: string,
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -80,7 +90,8 @@ export async function executeJobSearch(
       try {
         releaseSearchSlot = await acquireSearchSlot(limits.maxActiveSearches);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Search capacity reached";
+        const message =
+          error instanceof Error ? error.message : "Search capacity reached";
         await jobSearchRepo.updateJobSearch(searchId, {
           status: "failed",
           phase: "failed",
@@ -92,7 +103,11 @@ export async function executeJobSearch(
       }
 
       // 1. Parse the query in the background.
-      await updatePhase(searchId, "parsing", "Interpreting your search request...");
+      await updatePhase(
+        searchId,
+        "parsing",
+        "Interpreting your search request...",
+      );
       const parsedSpec = await parseSearchQuery(query);
       const specHash = computeSearchHash(query, parsedSpec);
 
@@ -132,7 +147,7 @@ export async function executeJobSearch(
       });
 
       // 3. Aggregate through the scheduler; ingest into one accumulator.
-      const accumulator = new SearchAccumulator(searchId, parsedSpec);
+      const accumulator = new SearchAccumulator(parsedSpec);
       const existingJobUrlsPromise: Promise<string[]> = Promise.resolve([]);
       const { runManifestTasks } = await import("./scheduler");
 
@@ -202,7 +217,11 @@ export async function executeJobSearch(
       });
 
       // 4. Final authoritative dedup + filter + ranking.
-      await updatePhase(searchId, "filtering", "Deduplicating and filtering results...");
+      await updatePhase(
+        searchId,
+        "filtering",
+        "Deduplicating and filtering results...",
+      );
       const { deduped, filterResults } = accumulator.finalFiltered();
 
       const removedByFreshness = parsedSpec.postedWithin.value
@@ -349,7 +368,10 @@ export async function attemptEmailDelivery(searchId: string): Promise<void> {
       return;
     }
 
-    const emailResult = await sendSearchResultsEmail(search, getPublicBaseUrl());
+    const emailResult = await sendSearchResultsEmail(
+      search,
+      getPublicBaseUrl(),
+    );
     const emailNow = new Date().toISOString();
 
     if (emailResult.success) {
@@ -409,7 +431,9 @@ export async function attemptEmailDelivery(searchId: string): Promise<void> {
     } catch (updateError) {
       emailLogger.error("Failed to record email error status", {
         error:
-          updateError instanceof Error ? updateError.message : String(updateError),
+          updateError instanceof Error
+            ? updateError.message
+            : String(updateError),
       });
     }
     emitSearchProgress({

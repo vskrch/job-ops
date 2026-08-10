@@ -150,8 +150,10 @@ export async function updateJobSearch(
     setValues.sourcesFailed = update.sourcesFailed;
   if (update.searchCompletedAt !== undefined)
     setValues.searchCompletedAt = update.searchCompletedAt;
-  if (update.emailStatus !== undefined) setValues.emailStatus = update.emailStatus;
-  if (update.emailSentAt !== undefined) setValues.emailSentAt = update.emailSentAt;
+  if (update.emailStatus !== undefined)
+    setValues.emailStatus = update.emailStatus;
+  if (update.emailSentAt !== undefined)
+    setValues.emailSentAt = update.emailSentAt;
   if (update.emailError !== undefined) setValues.emailError = update.emailError;
   if (update.errorMessage !== undefined)
     setValues.errorMessage = update.errorMessage;
@@ -170,9 +172,7 @@ export async function getJobSearch(id: string): Promise<JobSearch | null> {
   const [row] = await db
     .select()
     .from(jobSearches)
-    .where(
-      and(eq(jobSearches.id, id), eq(jobSearches.userId, currentUserId())),
-    )
+    .where(and(eq(jobSearches.id, id), eq(jobSearches.userId, currentUserId())))
     .limit(1);
   return row ? mapRowToJobSearch(row) : null;
 }

@@ -518,7 +518,8 @@ export const JobSearchPage: React.FC = () => {
           )}
 
           {/* Source Status */}
-          {(sourceStatuses.length > 0 || (results && results.sources.length > 0)) && (
+          {(sourceStatuses.length > 0 ||
+            (results && results.sources.length > 0)) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Source Status</CardTitle>
@@ -527,7 +528,7 @@ export const JobSearchPage: React.FC = () => {
                 <div className="space-y-1">
                   {(sourceStatuses.length > 0
                     ? sourceStatuses
-                    : results?.sources ?? []
+                    : (results?.sources ?? [])
                   ).map((s) => (
                     <div
                       key={s.source}
@@ -605,7 +606,11 @@ export const JobSearchPage: React.FC = () => {
                 )}
                 <div className="space-y-3">
                   {provisionalResults.slice(0, 20).map((item, i) => (
-                    <JobResultCard key={`prov-${item.job.jobUrl}-${i}`} item={item} index={i} />
+                    <JobResultCard
+                      key={`prov-${item.job.jobUrl}-${i}`}
+                      item={item}
+                      index={i}
+                    />
                   ))}
                 </div>
                 {provisionalResults.length > 20 && (

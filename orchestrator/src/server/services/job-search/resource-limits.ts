@@ -4,8 +4,8 @@
  * deliberately conservative: unknown manifests default to one concurrent run.
  */
 
-import type { SearchResourceGroup } from "@shared/types";
 import * as settingsRepo from "@server/repositories/settings";
+import type { SearchResourceGroup } from "@shared/types";
 
 export const SOURCE_PLAN_VERSION = "1";
 
@@ -87,7 +87,10 @@ export function getCapability(manifestId: string): ExtractorCapability {
  * Environment (or settings) keys that gate a provider's availability.
  * A source is skipped when it requires credentials and none are present.
  */
-const CREDENTIAL_KEYS_BY_SOURCE: Record<string, Array<{ env: string; setting?: string }>> = {
+const CREDENTIAL_KEYS_BY_SOURCE: Record<
+  string,
+  Array<{ env: string; setting?: string }>
+> = {
   adzuna: [
     { env: "ADZUNA_APP_ID", setting: "adzunaAppId" },
     { env: "ADZUNA_APP_KEY", setting: "adzunaAppKey" },
@@ -166,7 +169,14 @@ export async function resolveSearchLimits(): Promise<SearchLimits> {
   const settings = await settingsRepo.getAllSettings();
   const sourceConcurrency = Math.max(
     1,
-    Math.min(6, readInt(settings, "jobSearchSourceConcurrency", DEFAULTS.sourceConcurrency)),
+    Math.min(
+      6,
+      readInt(
+        settings,
+        "jobSearchSourceConcurrency",
+        DEFAULTS.sourceConcurrency,
+      ),
+    ),
   );
   const highConcurrencyEnabled = readBool(
     settings,
@@ -177,7 +187,14 @@ export async function resolveSearchLimits(): Promise<SearchLimits> {
   return {
     maxActiveSearches: Math.max(
       1,
-      Math.min(4, readInt(settings, "jobSearchMaxActiveSearches", DEFAULTS.maxActiveSearches)),
+      Math.min(
+        4,
+        readInt(
+          settings,
+          "jobSearchMaxActiveSearches",
+          DEFAULTS.maxActiveSearches,
+        ),
+      ),
     ),
     // The flag gates the configured value: without it, concurrency is capped
     // at the safe default of 3 even if a user raised the setting.
@@ -186,23 +203,50 @@ export async function resolveSearchLimits(): Promise<SearchLimits> {
       : Math.min(sourceConcurrency, 3),
     rankingConcurrency: Math.max(
       1,
-      Math.min(8, readInt(settings, "jobSearchRankingConcurrency", DEFAULTS.rankingConcurrency)),
+      Math.min(
+        8,
+        readInt(
+          settings,
+          "jobSearchRankingConcurrency",
+          DEFAULTS.rankingConcurrency,
+        ),
+      ),
     ),
     maxCandidates: Math.max(
       10,
-      Math.min(2000, readInt(settings, "jobSearchMaxCandidates", DEFAULTS.maxCandidates)),
+      Math.min(
+        2000,
+        readInt(settings, "jobSearchMaxCandidates", DEFAULTS.maxCandidates),
+      ),
     ),
     maxRankedCandidates: Math.max(
       1,
-      Math.min(500, readInt(settings, "jobSearchMaxRankedCandidates", DEFAULTS.maxRankedCandidates)),
+      Math.min(
+        500,
+        readInt(
+          settings,
+          "jobSearchMaxRankedCandidates",
+          DEFAULTS.maxRankedCandidates,
+        ),
+      ),
     ),
     sourceTimeoutMs: Math.max(
       1000,
-      Math.min(300_000, readInt(settings, "jobSearchSourceTimeoutMs", DEFAULTS.sourceTimeoutMs)),
+      Math.min(
+        300_000,
+        readInt(settings, "jobSearchSourceTimeoutMs", DEFAULTS.sourceTimeoutMs),
+      ),
     ),
     rankingTimeoutMs: Math.max(
       1000,
-      Math.min(120_000, readInt(settings, "jobSearchRankingTimeoutMs", DEFAULTS.rankingTimeoutMs)),
+      Math.min(
+        120_000,
+        readInt(
+          settings,
+          "jobSearchRankingTimeoutMs",
+          DEFAULTS.rankingTimeoutMs,
+        ),
+      ),
     ),
     partialResultsEnabled: readBool(
       settings,

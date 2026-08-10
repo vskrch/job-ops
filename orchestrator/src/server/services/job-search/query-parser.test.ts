@@ -3,7 +3,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { computeSearchHash } from "./query-parser";
+import {
+  computeAdmissionHash,
+  computeSearchHash,
+  JOB_SEARCH_PARSER_VERSION,
+} from "./query-parser";
 
 describe("computeSearchHash", () => {
   it("produces identical hashes for identical queries and specs", () => {
@@ -119,6 +123,75 @@ describe("computeSearchHash", () => {
     };
     expect(computeSearchHash(query, spec1)).not.toBe(
       computeSearchHash(query, spec2),
+    );
+  });
+
+  it("includes salary and exclude terms in the semantic hash", () => {
+    const query = "some query";
+    const base = {
+      roles: [],
+      skills: [],
+      location: { country: null, cities: [] },
+      workMode: "any" as const,
+      employmentType: null,
+      experience: { minYears: null, maxYears: null },
+      salary: { min: null, max: null, currency: null },
+      postedWithin: { value: null, unit: null },
+      excludeTerms: [] as string[],
+      seniority: null,
+      industry: null,
+      interpretation: "",
+      confidence: "high" as const,
+      explicitConstraints: [],
+      inferredPreferences: [],
+    };
+    const withSalary = {
+      ...base,
+      salary: { min: 100000, max: null, currency: "CAD" },
+    };
+    const withExcludes = { ...base, excludeTerms: ["frontend"] };
+    expect(computeSearchHash(query, base)).not.toBe(
+      computeSearchHash(query, withSalary),
+    );
+    expect(computeSearchHash(query, base)).not.toBe(
+      computeSearchHash(query, withExcludes),
+    );
+  });
+});
+
+describe("computeAdmissionHash", () => {
+  it("is deterministic for the same normalized query and versions", () => {
+    expect(computeAdmissionHash("Data Engineer in Canada")).toBe(
+      computeAdmissionHash("data engineer   in canada"),
+    );
+  });
+
+  it("differs for different queries", () => {
+    expect(computeAdmissionHash("Data Engineer")).not.toBe(
+      computeAdmissionHash("Backend Developer"),
+    );
+  });
+
+  it("differs when the parser version changes", () => {
+    const withV1 = JSON.parse(computeAdmissionHash("query"));
+    const withV2 = JSON.parse(
+      computeAdmissionHash("query", { sourcePlanVersion: "2" }),
+    );
+    expect(withV1[1]).toBe(JOB_SEARCH_PARSER_VERSION);
+    expect(withV2[1]).toBe(JOB_SEARCH_PARSER_VERSION);
+    expect(withV1[2]).toBe("1");
+    expect(withV2[2]).toBe("2");
+  });
+
+  it("produces a unique nonce for fresh searches", () => {
+    const a = computeAdmissionHash("same query", { fresh: true });
+    const b = computeAdmissionHash("same query", { fresh: true });
+    expect(a).not.toBe(b);
+  });
+
+  it("is identical for fresh=false or omitted", () => {
+    expect(computeAdmissionHash("same query")).toBe(
+      computeAdmissionHash("same query", { fresh: false }),
     );
   });
 });

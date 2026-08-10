@@ -220,7 +220,11 @@ export const createAppSettings = (
   jobSearchMaxRankedCandidates: { value: 100, default: 100, override: null },
   jobSearchSourceTimeoutMs: { value: 120000, default: 120000, override: null },
   jobSearchRankingTimeoutMs: { value: 30000, default: 30000, override: null },
-  jobSearchPartialResultsEnabled: { value: false, default: false, override: null },
+  jobSearchPartialResultsEnabled: {
+    value: false,
+    default: false,
+    override: null,
+  },
   jobSearchHighConcurrencyEnabled: {
     value: false,
     default: false,

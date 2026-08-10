@@ -11,12 +11,12 @@
  */
 
 import { logger } from "@infra/logger";
+import { asyncPool } from "@server/utils/async-pool";
 import type {
   CreateJobInput,
   JobSearchResultItem,
   ParsedSearchSpec,
 } from "@shared/types";
-import { asyncPool } from "@server/utils/async-pool";
 import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
 import { resolveLlmModel, resolveLlmRuntimeSettings } from "../modelSelection";
@@ -68,9 +68,7 @@ export async function createRankingRuntime(
   const runtime = await resolveLlmRuntimeSettings("default");
   const llm = options.llm ?? new LlmService(runtime);
   const model =
-    options.model ??
-    runtime.model ??
-    (await resolveLlmModel("default"));
+    options.model ?? runtime.model ?? (await resolveLlmModel("default"));
   return { llm, model };
 }
 
@@ -95,14 +93,9 @@ function selectRankingCandidates(
     return { filterResult, heuristic, index };
   });
 
-  scored.sort(
-    (a, b) =>
-      b.heuristic - a.heuristic || a.index - b.index,
-  );
+  scored.sort((a, b) => b.heuristic - a.heuristic || a.index - b.index);
 
-  return scored
-    .slice(0, maxCandidates)
-    .map(({ filterResult }) => filterResult);
+  return scored.slice(0, maxCandidates).map(({ filterResult }) => filterResult);
 }
 
 /**
@@ -164,7 +157,10 @@ Score 0-100 based on: title match (0-30), skills match (0-25), location/work-mod
 
 Respond with ONLY valid JSON: {"score": <integer 0-100>, "explanation": "<1-2 sentences referencing specific matched constraints>"}`;
 
-    const result = await runtime.llm.callJson<{ score: number; explanation: string }>({
+    const result = await runtime.llm.callJson<{
+      score: number;
+      explanation: string;
+    }>({
       model: runtime.model,
       messages: [{ role: "user", content: prompt }],
       jsonSchema: RELEVANCE_SCHEMA,
@@ -197,7 +193,8 @@ Respond with ONLY valid JSON: {"score": <integer 0-100>, "explanation": "<1-2 se
     });
     return {
       score: fallbackScore(verifiedConstraints, unverifiedConstraints),
-      explanation: "Relevance scored by deterministic fallback (scoring error).",
+      explanation:
+        "Relevance scored by deterministic fallback (scoring error).",
     };
   }
 }

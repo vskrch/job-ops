@@ -14,7 +14,7 @@ import type {
   SearchManifestResult,
 } from "@shared/types";
 import { deduplicateJobs } from "./dedup";
-import { filterJobs, type FilterResult } from "./filter";
+import { type FilterResult, filterJobs } from "./filter";
 
 export interface SearchAccumulatorSnapshot {
   resultVersion: number;
@@ -33,10 +33,7 @@ export class SearchAccumulator {
   private resultVersionValue = 0;
   private chain: Promise<void> = Promise.resolve();
 
-  constructor(
-    private readonly searchId: string,
-    private readonly spec: ParsedSearchSpec,
-  ) {
+  constructor(private readonly spec: ParsedSearchSpec) {
     this.evaluationTime = new Date().toISOString();
   }
 
@@ -80,7 +77,9 @@ export class SearchAccumulator {
     const sourceMap = new Map(deduped.jobs.map((j) => [j.jobUrl, j.sources]));
     const items: JobSearchResultItem[] = passed.map((filterResult) => ({
       job: filterResult.job,
-      sources: sourceMap.get(filterResult.job.jobUrl) ?? [filterResult.job.source],
+      sources: sourceMap.get(filterResult.job.jobUrl) ?? [
+        filterResult.job.source,
+      ],
       relevanceScore: 0,
       matchExplanation: PROVISIONAL_EXPLANATION,
       verifiedConstraints: filterResult.verifiedConstraints,

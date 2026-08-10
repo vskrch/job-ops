@@ -893,11 +893,15 @@ if (specHashExists.n === 0) {
     )
     .get() as { n: number };
   if (queryHashExists.n > 0) {
-    sqlite.exec("ALTER TABLE job_searches RENAME COLUMN query_hash TO spec_hash");
+    sqlite.exec(
+      "ALTER TABLE job_searches RENAME COLUMN query_hash TO spec_hash",
+    );
     console.log("✅ Renamed job_searches.query_hash -> spec_hash");
     // RENAME COLUMN preserves NOT NULL; schema.ts declares spec_hash nullable.
     try {
-      sqlite.exec("ALTER TABLE job_searches ALTER COLUMN spec_hash DROP NOT NULL");
+      sqlite.exec(
+        "ALTER TABLE job_searches ALTER COLUMN spec_hash DROP NOT NULL",
+      );
     } catch {
       // Already nullable or unsupported on this SQLite build; harmless.
     }
@@ -917,7 +921,9 @@ if (admissionBackfill.n > 0) {
   sqlite.exec(
     `UPDATE job_searches SET admission_hash = spec_hash WHERE admission_hash = '' AND spec_hash IS NOT NULL`,
   );
-  console.log(`✅ Backfilled job_searches.admission_hash (${admissionBackfill.n} rows)`);
+  console.log(
+    `✅ Backfilled job_searches.admission_hash (${admissionBackfill.n} rows)`,
+  );
 }
 
 // Backfill phase for legacy rows whose status is already terminal.
@@ -943,7 +949,9 @@ if (runningIndexExists.n === 0) {
      ON job_searches(user_id, admission_hash)
      WHERE status = 'running'`,
   );
-  console.log("✅ Replaced job_searches unique index with partial running index");
+  console.log(
+    "✅ Replaced job_searches unique index with partial running index",
+  );
 }
 
 sqlite.close();
