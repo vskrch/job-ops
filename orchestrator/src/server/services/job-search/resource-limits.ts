@@ -129,8 +129,8 @@ export interface SearchLimits {
 
 const DEFAULTS: SearchLimits = {
   maxActiveSearches: 1,
-  sourceConcurrency: 3,
-  rankingConcurrency: 4,
+  sourceConcurrency: 2,
+  rankingConcurrency: 2,
   maxCandidates: 500,
   maxRankedCandidates: 100,
   sourceTimeoutMs: 120_000,
