@@ -81,12 +81,57 @@ function buildPagePayload(args: {
 }
 
 export async function trackServerProductEvent(
-  _event: string,
-  _data?: Record<string, unknown>,
-  _options?: {
+  event: string,
+  data?: Record<string, unknown>,
+  options?: {
     requestOrigin?: string | null;
     urlPath?: string;
   },
 ): Promise<void> {
-  // Server analytics tracking disabled
+  if (process.env.ENABLE_PRODUCT_ANALYTICS !== "true") return;
+  if (process.env.NODE_ENV === "test") return;
+  if (typeof fetch !== "function") return;
+
+  const sanitized = sanitizeAnalyticsPayload(data);
+  const page = buildPagePayload({
+    requestOrigin: options?.requestOrigin,
+    urlPath: options?.urlPath,
+  });
+
+  try {
+    const response = await fetch(UMAMI_EVENT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "user-agent": UMAMI_USER_AGENT,
+      },
+      body: JSON.stringify({
+        type: "event",
+        payload: {
+          website: UMAMI_WEBSITE_ID,
+          hostname: page.hostname,
+          url: page.url,
+          name: event,
+          ...(sanitized ? { data: sanitized } : {}),
+        },
+      }),
+      signal: AbortSignal.timeout(ANALYTICS_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      logger.warn("Server product analytics request failed", {
+        event,
+        status: response.status,
+        requestOrigin: options?.requestOrigin ?? null,
+        urlPath: options?.urlPath ?? "/",
+      });
+    }
+  } catch (error) {
+    logger.warn("Server product analytics request errored", {
+      event,
+      requestOrigin: options?.requestOrigin ?? null,
+      urlPath: options?.urlPath ?? "/",
+      error: sanitizeUnknown(error),
+    });
+  }
 }

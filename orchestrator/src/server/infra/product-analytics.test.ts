@@ -3,9 +3,11 @@ import { trackServerProductEvent } from "./product-analytics";
 describe("server product analytics", () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalBaseUrl = process.env.JOBOPS_PUBLIC_BASE_URL;
+  const originalAnalyticsEnv = process.env.ENABLE_PRODUCT_ANALYTICS;
 
   beforeEach(() => {
     process.env.NODE_ENV = "development";
+    process.env.ENABLE_PRODUCT_ANALYTICS = "true";
     process.env.JOBOPS_PUBLIC_BASE_URL = "https://jobops.example";
     vi.stubGlobal(
       "fetch",
@@ -15,6 +17,11 @@ describe("server product analytics", () => {
 
   afterEach(() => {
     process.env.NODE_ENV = originalNodeEnv;
+    if (originalAnalyticsEnv === undefined) {
+      delete process.env.ENABLE_PRODUCT_ANALYTICS;
+    } else {
+      process.env.ENABLE_PRODUCT_ANALYTICS = originalAnalyticsEnv;
+    }
     if (originalBaseUrl === undefined) {
       delete process.env.JOBOPS_PUBLIC_BASE_URL;
     } else {
