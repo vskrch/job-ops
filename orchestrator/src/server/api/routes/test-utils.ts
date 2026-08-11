@@ -34,7 +34,12 @@ vi.mock("@server/pipeline/index", () => {
     processJob: vi.fn().mockResolvedValue({ success: true }),
     summarizeJob: vi.fn().mockResolvedValue({ success: true }),
     generateFinalPdf: vi.fn().mockResolvedValue({ success: true }),
-    getPipelineStatus: vi.fn(() => ({ isRunning: false })),
+    getPipelineStatus: vi.fn(() => ({
+      isRunning: false,
+      activeRunCount: 0,
+      maxConcurrentRuns: 3,
+    })),
+    setMaxConcurrentPipelines: vi.fn(),
     getProgress: vi.fn(() => progress),
     requestPipelineCancel: vi.fn(() => ({
       accepted: false,
@@ -140,7 +145,11 @@ export async function startServer(options?: {
   const { createApp } = await import("../../app");
   const { closeDb } = await import("@server/db/index");
   const { getPipelineStatus } = await import("@server/pipeline/index");
-  vi.mocked(getPipelineStatus).mockReturnValue({ isRunning: false });
+  vi.mocked(getPipelineStatus).mockReturnValue({
+    isRunning: false,
+    activeRunCount: 0,
+    maxConcurrentRuns: 3,
+  });
 
   await applyStoredEnvOverrides();
 

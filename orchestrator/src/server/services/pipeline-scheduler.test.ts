@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@server/repositories/settings", () => ({
-  getSetting: vi.fn(),
+vi.mock("@server/repositories/pipeline-schedules", () => ({
+  listPipelineSchedules: vi.fn(),
+  getEnabledSchedules: vi.fn(),
+  createPipelineSchedule: vi.fn(),
+  updatePipelineSchedule: vi.fn(),
+  deletePipelineSchedule: vi.fn(),
+  getPipelineScheduleById: vi.fn(),
 }));
 
 vi.mock("@server/pipeline/index", () => ({
@@ -24,72 +29,88 @@ vi.mock("@infra/request-context", async (importOriginal) => {
 });
 
 import { runPipeline } from "@server/pipeline/index";
-import { getSetting } from "@server/repositories/settings";
-import {
-  getPipelineSchedule,
-  refreshPipelineScheduler,
-} from "./pipeline-scheduler";
+import * as scheduleRepo from "@server/repositories/pipeline-schedules";
+import { getPipelineSchedules, refreshPipelineScheduler } from "./pipeline-scheduler";
 
-const mockGetSetting = vi.mocked(getSetting);
+const mockGetEnabledSchedules = vi.mocked(scheduleRepo.getEnabledSchedules);
+const mockListPipelineSchedules = vi.mocked(scheduleRepo.listPipelineSchedules);
 const mockRunPipeline = vi.mocked(runPipeline);
 
 describe("pipeline-scheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-15T10:00:00Z"));
-    mockGetSetting.mockReset();
+    mockGetEnabledSchedules.mockReset();
+    mockListPipelineSchedules.mockReset();
     mockRunPipeline.mockReset();
-    // mockReset() wipes the factory default; restore a resolved result so
-    // scheduler callback logging never sees an undefined pipeline result.
     mockRunPipeline.mockResolvedValue({
       success: true,
       jobsDiscovered: 5,
       jobsProcessed: 3,
     });
-    mockGetSetting.mockImplementation(async (key) => {
-      if (key === "pipelineScheduleEnabled") return "0";
-      return null;
-    });
+    mockGetEnabledSchedules.mockResolvedValue([]);
+    mockListPipelineSchedules.mockResolvedValue([]);
   });
 
   afterEach(async () => {
-    // Stop the module-level scheduler so it doesn't leak timers into other
+    // Stop all module-level schedulers so they don't leak timers into other
     // tests.
     await refreshPipelineScheduler();
     vi.useRealTimers();
   });
 
-  it("stays disabled when the schedule setting is off", async () => {
-    mockGetSetting.mockImplementation(async (key) => {
-      if (key === "pipelineScheduleEnabled") return "0";
-      if (key === "pipelineScheduleHour") return "2";
-      return null;
-    });
+  it("stays disabled when no schedules are enabled", async () => {
+    mockGetEnabledSchedules.mockResolvedValue([]);
+    mockListPipelineSchedules.mockResolvedValue([]);
 
     await refreshPipelineScheduler();
-    const schedule = getPipelineSchedule();
+    const schedules = await getPipelineSchedules();
 
-    expect(schedule.enabled).toBe(false);
-    expect(schedule.nextRun).toBeNull();
+    expect(schedules).toEqual([]);
     expect(mockRunPipeline).not.toHaveBeenCalled();
   });
 
-  it("arms the scheduler when enabled and runs the pipeline at the set hour", async () => {
-    mockGetSetting.mockImplementation(async (key) => {
-      if (key === "pipelineScheduleEnabled") return "1";
-      if (key === "pipelineScheduleHour") return "2";
-      if (key === "pipelineScheduleSources")
-        return JSON.stringify(["linkedin", "indeed"]);
-      return null;
-    });
+  it("arms one scheduler per enabled schedule and runs the pipeline at the set hour", async () => {
+    mockGetEnabledSchedules.mockResolvedValue([
+      {
+        id: "sched-1",
+        label: "Morning scan",
+        enabled: true,
+        hour: 2,
+        sources: ["linkedin", "indeed"],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+    ]);
+    mockListPipelineSchedules.mockResolvedValue([
+      {
+        id: "sched-1",
+        label: "Morning scan",
+        enabled: true,
+        hour: 2,
+        sources: ["linkedin", "indeed"],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+    ]);
 
     await refreshPipelineScheduler();
-    const schedule = getPipelineSchedule();
+    const schedules = await getPipelineSchedules();
 
-    expect(schedule.enabled).toBe(true);
-    expect(schedule.hour).toBe(2);
-    expect(schedule.sources).toEqual(["linkedin", "indeed"]);
-    expect(schedule.nextRun).not.toBeNull();
+    expect(schedules).toHaveLength(1);
+    expect(schedules[0].hour).toBe(2);
+    expect(schedules[0].sources).toEqual(["linkedin", "indeed"]);
+    expect(schedules[0].nextRun).not.toBeNull();
 
     // Now is 10:00 UTC; hour 2 already passed, so the missed run catches up
     // immediately (dyno-sleep recovery) with the configured sources.
@@ -99,7 +120,7 @@ describe("pipeline-scheduler", () => {
     });
 
     // The next scheduled run is tomorrow 02:00 UTC.
-    const nextRun = new Date(schedule.nextRun as string);
+    const nextRun = new Date(schedules[0].nextRun as string);
     expect(nextRun.getUTCHours()).toBe(2);
     expect(nextRun > new Date("2026-01-15T10:00:00Z")).toBe(true);
 
@@ -114,11 +135,38 @@ describe("pipeline-scheduler", () => {
   });
 
   it("passes no sources when none are configured", async () => {
-    mockGetSetting.mockImplementation(async (key) => {
-      if (key === "pipelineScheduleEnabled") return "1";
-      if (key === "pipelineScheduleHour") return "3";
-      return null;
-    });
+    mockGetEnabledSchedules.mockResolvedValue([
+      {
+        id: "sched-2",
+        label: "Default scan",
+        enabled: true,
+        hour: 3,
+        sources: [],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+    ]);
+    mockListPipelineSchedules.mockResolvedValue([
+      {
+        id: "sched-2",
+        label: "Default scan",
+        enabled: true,
+        hour: 3,
+        sources: [],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+    ]);
 
     await refreshPipelineScheduler();
 
@@ -130,5 +178,128 @@ describe("pipeline-scheduler", () => {
 
     expect(mockRunPipeline).toHaveBeenCalledTimes(2);
     expect(mockRunPipeline).toHaveBeenLastCalledWith({});
+  });
+
+  it("passes advanced config (topN, minSuitabilityScore, country) to runPipeline", async () => {
+    mockGetEnabledSchedules.mockResolvedValue([
+      {
+        id: "sched-3",
+        label: "Detailed scan",
+        enabled: true,
+        hour: 5,
+        sources: ["linkedin"],
+        searchTerms: ["react developer"],
+        country: "united kingdom",
+        cityLocations: ["London"],
+        workplaceTypes: ["remote"],
+        topN: 5,
+        minSuitabilityScore: 60,
+        nextRun: null,
+      },
+    ]);
+    mockListPipelineSchedules.mockResolvedValue([
+      {
+        id: "sched-3",
+        label: "Detailed scan",
+        enabled: true,
+        hour: 5,
+        sources: ["linkedin"],
+        searchTerms: ["react developer"],
+        country: "united kingdom",
+        cityLocations: ["London"],
+        workplaceTypes: ["remote"],
+        topN: 5,
+        minSuitabilityScore: 60,
+        nextRun: null,
+      },
+    ]);
+
+    await refreshPipelineScheduler();
+
+    // Hour 5 already passed: catch-up runs now with full config.
+    expect(mockRunPipeline).toHaveBeenCalledTimes(1);
+    expect(mockRunPipeline).toHaveBeenCalledWith({
+      sources: ["linkedin"],
+      topN: 5,
+      minSuitabilityScore: 60,
+      searchTerms: ["react developer"],
+      country: "united kingdom",
+      cityLocations: ["London"],
+      workplaceTypes: ["remote"],
+    });
+  });
+
+  it("manages multiple independent schedules simultaneously", async () => {
+    mockGetEnabledSchedules.mockResolvedValue([
+      {
+        id: "sched-a",
+        label: "A",
+        enabled: true,
+        hour: 1,
+        sources: ["linkedin"],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+      {
+        id: "sched-b",
+        label: "B",
+        enabled: true,
+        hour: 2,
+        sources: ["indeed"],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+    ]);
+    mockListPipelineSchedules.mockResolvedValue([
+      {
+        id: "sched-a",
+        label: "A",
+        enabled: true,
+        hour: 1,
+        sources: ["linkedin"],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+      {
+        id: "sched-b",
+        label: "B",
+        enabled: true,
+        hour: 2,
+        sources: ["indeed"],
+        searchTerms: null,
+        country: null,
+        cityLocations: null,
+        workplaceTypes: null,
+        topN: null,
+        minSuitabilityScore: null,
+        nextRun: null,
+      },
+    ]);
+
+    await refreshPipelineScheduler();
+
+    // Both hours have passed, so both catch up immediately.
+    expect(mockRunPipeline).toHaveBeenCalledTimes(2);
+    expect(mockRunPipeline).toHaveBeenNthCalledWith(1, {
+      sources: ["linkedin"],
+    });
+    expect(mockRunPipeline).toHaveBeenNthCalledWith(2, {
+      sources: ["indeed"],
+    });
   });
 });

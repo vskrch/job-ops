@@ -24,6 +24,7 @@ vi.mock("../repositories/pipeline", () => ({
     jobsDiscovered: 0,
     jobsProcessed: 0,
     errorMessage: null,
+    config: null,
   })),
   updatePipelineRun: vi.fn(async () => undefined),
 }));
@@ -80,5 +81,32 @@ describe.sequential("pipeline cancellation", () => {
     );
     expect(pipeline.getPipelineStatus().isRunning).toBe(false);
     expect(pipeline.isPipelineCancelRequested()).toBe(false);
+  });
+
+  it("cancels a specific run by pipelineRunId", async () => {
+    const pipeline = await import("./orchestrator");
+
+    const runPromise = pipeline.runPipeline({ sources: [] });
+    await Promise.resolve();
+
+    // Cancel by explicit run id
+    const cancelRequest = pipeline.requestPipelineCancel("run-cancel-1");
+    expect(cancelRequest.accepted).toBe(true);
+    expect(cancelRequest.pipelineRunId).toBe("run-cancel-1");
+    expect(cancelRequest.alreadyRequested).toBe(false);
+
+    // A second cancel for the same run is already requested
+    const dup = pipeline.requestPipelineCancel("run-cancel-1");
+    expect(dup.accepted).toBe(true);
+    expect(dup.alreadyRequested).toBe(true);
+
+    // Cancelling a non-existent run id is rejected
+    const badCancel = pipeline.requestPipelineCancel("non-existent");
+    expect(badCancel.accepted).toBe(false);
+
+    stepState.resolveDiscover();
+    await runPromise;
+
+    expect(pipeline.getPipelineStatus().isRunning).toBe(false);
   });
 });

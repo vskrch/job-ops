@@ -14,6 +14,7 @@ import type {
   BranchInfo,
   CreateJobSearchRequest,
   CreateJobSearchResponse,
+  CreatePipelineScheduleInput,
   DemoInfoResponse,
   DesignResumeDocument,
   DesignResumeExportResponse,
@@ -41,7 +42,7 @@ import type {
   ManualJobFetchResponse,
   ManualJobInferenceResponse,
   PipelineRun,
-  PipelineScheduleResponse,
+  PipelineSchedule,
   PipelineStatusResponse,
   PostApplicationAction,
   PostApplicationActionResponse,
@@ -1028,16 +1029,34 @@ export async function getPipelineRuns(): Promise<PipelineRun[]> {
   return fetchApi<PipelineRun[]>("/pipeline/runs");
 }
 
-export async function getPipelineSchedule(): Promise<PipelineScheduleResponse> {
-  return fetchApi<PipelineScheduleResponse>("/pipeline/schedule");
+export async function getPipelineSchedules(): Promise<PipelineSchedule[]> {
+  return fetchApi<PipelineSchedule[]>("/pipeline/schedules");
+}
+
+export async function createPipelineSchedule(
+  input: CreatePipelineScheduleInput,
+): Promise<PipelineSchedule[]> {
+  return fetchApi<PipelineSchedule[]>("/pipeline/schedules", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function updatePipelineSchedule(
+  id: string,
   input: UpdatePipelineScheduleInput,
-): Promise<PipelineScheduleResponse> {
-  return fetchApi<PipelineScheduleResponse>("/pipeline/schedule", {
+): Promise<PipelineSchedule[]> {
+  return fetchApi<PipelineSchedule[]>(`/pipeline/schedules/${id}`, {
     method: "PUT",
     body: JSON.stringify(input),
+  });
+}
+
+export async function deletePipelineSchedule(
+  id: string,
+): Promise<PipelineSchedule[]> {
+  return fetchApi<PipelineSchedule[]>(`/pipeline/schedules/${id}`, {
+    method: "DELETE",
   });
 }
 
@@ -1052,7 +1071,9 @@ export async function runPipeline(config?: {
   });
 }
 
-export async function cancelPipeline(): Promise<{
+export async function cancelPipeline(input?: {
+  pipelineRunId?: string;
+}): Promise<{
   message: string;
   pipelineRunId: string | null;
   alreadyRequested: boolean;
@@ -1063,6 +1084,7 @@ export async function cancelPipeline(): Promise<{
     alreadyRequested: boolean;
   }>("/pipeline/cancel", {
     method: "POST",
+    body: JSON.stringify(input ?? {}),
   });
 }
 

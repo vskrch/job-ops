@@ -176,6 +176,28 @@ export const interviews = sqliteTable("interviews", {
   outcome: text("outcome", { enum: INTERVIEW_OUTCOMES }),
 });
 
+export const pipelineSchedules = sqliteTable(
+  "pipeline_schedules",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    enabled: integer("enabled").notNull().default(0),
+    hour: integer("hour").notNull().default(2),
+    sources: text("sources").notNull().default("[]"),
+    searchTerms: text("search_terms"),
+    country: text("country"),
+    cityLocations: text("city_locations"),
+    workplaceTypes: text("workplace_types"),
+    topN: integer("top_n"),
+    minSuitabilityScore: integer("min_suitability_score"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    enabledIndex: index("idx_pipeline_schedules_enabled").on(table.enabled),
+  }),
+);
+
 export const pipelineRuns = sqliteTable("pipeline_runs", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().default("default-user"),
@@ -523,6 +545,8 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type NewTaskRow = typeof tasks.$inferInsert;
 export type InterviewRow = typeof interviews.$inferSelect;
 export type NewInterviewRow = typeof interviews.$inferInsert;
+export type PipelineScheduleRow = typeof pipelineSchedules.$inferSelect;
+export type NewPipelineScheduleRow = typeof pipelineSchedules.$inferInsert;
 export type PipelineRunRow = typeof pipelineRuns.$inferSelect;
 export type NewPipelineRunRow = typeof pipelineRuns.$inferInsert;
 export type JobChatThreadRow = typeof jobChatThreads.$inferSelect;

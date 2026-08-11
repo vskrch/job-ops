@@ -50,6 +50,8 @@ export function pipelineRunShortId(id: string): string {
 
 export interface PipelineStatusResponse {
   isRunning: boolean;
+  activeRunCount: number;
+  maxConcurrentRuns: number;
   lastRun: PipelineRun | null;
   nextScheduledRun: string | null;
   /** Live progress snapshot when a run is active; absent when idle. */
@@ -70,14 +72,52 @@ export interface PipelineProgressSnapshot {
   totalToProcess: number;
 }
 
-export interface PipelineScheduleResponse {
+export interface PipelineSchedule {
+  id: string;
+  label: string;
+  enabled: boolean;
+  hour: number;
+  sources: ExtractorSourceId[];
+  searchTerms?: string[] | null;
+  country?: string | null;
+  cityLocations?: string[] | null;
+  workplaceTypes?: string[] | null;
+  topN?: number | null;
+  minSuitabilityScore?: number | null;
+  nextRun: string | null;
+}
+
+export interface CreatePipelineScheduleInput {
+  label: string;
+  enabled?: boolean;
+  hour: number;
+  sources: ExtractorSourceId[];
+  searchTerms?: string[] | null;
+  country?: string | null;
+  cityLocations?: string[] | null;
+  workplaceTypes?: string[] | null;
+  topN?: number | null;
+  minSuitabilityScore?: number | null;
+}
+
+export type UpdatePipelineScheduleInput = Partial<CreatePipelineScheduleInput>;
+
+/**
+ * @deprecated Use {@link PipelineSchedule} instead. Kept for backward-compat
+ * with the old single-schedule API.
+ */
+export interface LegacyPipelineScheduleResponse {
   enabled: boolean;
   hour: number;
   sources: ExtractorSourceId[];
   nextRun: string | null;
 }
 
-export interface UpdatePipelineScheduleInput {
+/**
+ * @deprecated Use {@link UpdatePipelineScheduleInput} instead. Kept for
+ * backward-compat with the old single-schedule API.
+ */
+export interface LegacyUpdatePipelineScheduleInput {
   enabled?: boolean;
   hour?: number;
   sources?: ExtractorSourceId[];

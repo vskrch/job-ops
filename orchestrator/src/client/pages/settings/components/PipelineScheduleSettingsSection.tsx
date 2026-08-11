@@ -1,36 +1,17 @@
 import * as api from "@client/api";
 import { SettingsSectionFrame } from "@client/pages/settings/components/SettingsSectionFrame";
-import {
-  EXTRACTOR_SOURCE_METADATA,
-  PIPELINE_EXTRACTOR_SOURCE_IDS,
-} from "@shared/extractors";
-import type { PipelineScheduleResponse } from "@shared/types";
+import type { PipelineSchedule } from "@shared/types";
 import { CalendarClock, Play } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SchedulePipelineCard } from "@/client/pages/orchestrator/SchedulePipelineCard";
 
-const PIPELINE_SOURCES: readonly string[] = [...PIPELINE_EXTRACTOR_SOURCE_IDS];
-
-function sourceLabel(source: string): string {
-  return (
-    EXTRACTOR_SOURCE_METADATA[source as keyof typeof EXTRACTOR_SOURCE_METADATA]
-      ?.label ?? source
-  );
-}
-
-const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+type PipelineScheduleSettingsSectionProps = {
+  layoutMode?: "accordion" | "panel";
+};
 
 function formatNextRun(nextRun: string | null): string {
   if (!nextRun) return "Not scheduled";
@@ -47,40 +28,27 @@ function formatNextRun(nextRun: string | null): string {
   });
 }
 
-type PipelineScheduleSettingsSectionProps = {
-  layoutMode?: "accordion" | "panel";
-};
-
 export const PipelineScheduleSettingsSection: React.FC<
   PipelineScheduleSettingsSectionProps
 > = ({ layoutMode }) => {
-  const [schedule, setSchedule] = useState<PipelineScheduleResponse | null>(
-    null,
-  );
-  const [enabled, setEnabled] = useState(false);
-  const [hour, setHour] = useState(2);
-  const [sources, setSources] = useState<string[]>([]);
+  const [schedules, setSchedules] = useState<PipelineSchedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     api
-      .getPipelineSchedule()
+      .getPipelineSchedules()
       .then((data) => {
         if (cancelled) return;
-        setSchedule(data);
-        setEnabled(data.enabled);
-        setHour(data.hour);
-        setSources(data.sources as string[]);
+        setSchedules(data);
       })
       .catch((error) => {
         if (cancelled) return;
         const message =
           error instanceof Error
             ? error.message
-            : "Failed to load pipeline schedule";
+            : "Failed to load pipeline schedules";
         toast.error(message);
       })
       .finally(() => {
@@ -90,29 +58,6 @@ export const PipelineScheduleSettingsSection: React.FC<
       cancelled = true;
     };
   }, []);
-
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      const updated = await api.updatePipelineSchedule({
-        enabled,
-        hour,
-        sources: sources as unknown as Parameters<
-          typeof api.updatePipelineSchedule
-        >[0]["sources"],
-      });
-      setSchedule(updated);
-      toast.success("Pipeline schedule saved");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to save pipeline schedule";
-      toast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [enabled, hour, sources]);
 
   const handleRunNow = useCallback(async () => {
     setIsRunning(true);
@@ -128,113 +73,20 @@ export const PipelineScheduleSettingsSection: React.FC<
     }
   }, []);
 
-  const toggleSource = (source: string, checked: boolean) => {
-    setSources((current) =>
-      checked
-        ? [...current, source]
-        : current.filter((item) => item !== source),
-    );
-  };
+  const enabledCount = schedules.filter((s) => s.enabled).length;
+  const nextRun = schedules
+    .filter((s) => s.enabled && s.nextRun)
+    .map((s) => s.nextRun as string)
+    .sort()[0];
 
   return (
     <SettingsSectionFrame
       mode={layoutMode}
-      title="Pipeline Schedule"
+      title="Pipeline Schedules"
       value="pipeline-schedule"
     >
       <div className="space-y-6">
-        <div className="flex items-start space-x-3">
-          <Checkbox
-            id="pipelineScheduleEnabled"
-            checked={enabled}
-            onCheckedChange={(checked) => setEnabled(checked === true)}
-            disabled={isLoading || isSaving}
-          />
-          <div className="flex flex-col gap-1.5">
-            <Label
-              htmlFor="pipelineScheduleEnabled"
-              className="cursor-pointer text-sm font-medium leading-none"
-            >
-              Enable scheduled pipeline runs
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Runs the full job discovery pipeline daily at the configured hour
-              (UTC). If the server was asleep or offline at the scheduled time,
-              the missed run catches up on the next startup.
-            </p>
-          </div>
-        </div>
-
-        {enabled && (
-          <div className="space-y-6 pl-7">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="pipelineScheduleHour" className="text-sm">
-                  Run hour (UTC)
-                </Label>
-                <Select
-                  value={String(hour)}
-                  onValueChange={(value) => setHour(Number.parseInt(value, 10))}
-                  disabled={isLoading || isSaving}
-                >
-                  <SelectTrigger id="pipelineScheduleHour" className="w-full">
-                    <SelectValue placeholder="Select hour" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOURS.map((h) => (
-                      <SelectItem key={h} value={String(h)}>
-                        {h.toString().padStart(2, "0")}:00 UTC
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Sources</div>
-              <p className="text-xs text-muted-foreground">
-                Leave all unchecked to run every available source.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {PIPELINE_SOURCES.map((source) => (
-                  <div key={source} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`pipeline-source-${source}`}
-                      checked={sources.includes(source)}
-                      onCheckedChange={(checked) =>
-                        toggleSource(source, checked === true)
-                      }
-                      disabled={isLoading || isSaving}
-                    />
-                    <Label
-                      htmlFor={`pipeline-source-${source}`}
-                      className="cursor-pointer text-sm"
-                    >
-                      {sourceLabel(source)}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {enabled && schedule?.nextRun && (
-          <div className="flex items-center gap-2 pl-7 text-sm text-muted-foreground">
-            <CalendarClock className="h-4 w-4" />
-            <span>Next scheduled run: {formatNextRun(schedule.nextRun)}</span>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3 pl-7">
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={isLoading || isSaving}
-          >
-            {isSaving ? "Saving..." : "Save schedule"}
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             size="sm"
             variant="outline"
@@ -244,21 +96,23 @@ export const PipelineScheduleSettingsSection: React.FC<
             <Play className="mr-1 h-3.5 w-3.5" />
             {isRunning ? "Starting..." : "Run now"}
           </Button>
-          <Badge
-            variant={enabled ? "default" : "secondary"}
-            className="text-xs"
-          >
-            {enabled ? "Scheduled" : "Disabled"}
+          <Badge variant={enabledCount > 0 ? "default" : "secondary"} className="text-xs">
+            {enabledCount} active {enabledCount === 1 ? "schedule" : "schedules"}
           </Badge>
+          {nextRun && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CalendarClock className="h-4 w-4" />
+              <span>Next: {formatNextRun(nextRun)}</span>
+            </div>
+          )}
         </div>
 
+        <SchedulePipelineCard pipelineSources={[]} />
+
         <p className="text-xs text-muted-foreground">
-          Note: on sleeping hobby dynos, timers only fire while the server is
-          awake. A periodic ping (e.g. an uptime monitor hitting{" "}
-          <code className="rounded bg-muted px-1">/health</code>) wakes the dyno
-          so the missed-run catch-up can fire, or use the Heroku Scheduler
-          add-on with{" "}
-          <code className="rounded bg-muted px-1">pipeline:run</code>.
+          Each schedule runs the full job discovery pipeline daily at its
+          configured UTC hour. If the server was asleep or offline at the
+          scheduled time, the missed run catches up on the next startup.
         </p>
       </div>
     </SettingsSectionFrame>

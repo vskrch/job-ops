@@ -561,46 +561,16 @@ export const settingsRegistry = {
     },
     serialize: serializeNullableNumber,
   },
-  pipelineScheduleEnabled: {
+  pipelineMaxConcurrentRuns: {
     kind: "typed" as const,
-    schema: z.boolean(),
-    default: (): boolean => false,
-    parse: parseBitBoolOrNull,
-    serialize: serializeBitBool,
-  },
-  pipelineScheduleHour: {
-    kind: "typed" as const,
-    schema: z.number().int().min(0).max(23),
-    default: (): number => 2,
+    schema: z.number().int().min(1).max(5),
+    default: (): number => 3,
     parse: (raw: string | undefined): number | null => {
       const parsed = raw ? parseInt(raw, 10) : NaN;
       if (Number.isNaN(parsed)) return null;
-      return Math.min(23, Math.max(0, parsed));
+      return Math.min(5, Math.max(1, parsed));
     },
     serialize: serializeNullableNumber,
-  },
-  pipelineScheduleSources: {
-    kind: "typed" as const,
-    schema: z.array(z.string()).min(1).max(PIPELINE_SOURCE_LIMIT),
-    default: (): string[] => [],
-    parse: (raw: string | undefined): string[] | null => {
-      if (!raw) return null;
-      try {
-        const parsed = JSON.parse(raw) as unknown;
-        if (
-          !Array.isArray(parsed) ||
-          parsed.length === 0 ||
-          parsed.length > PIPELINE_SOURCE_LIMIT ||
-          parsed.some((s) => typeof s !== "string")
-        ) {
-          return null;
-        }
-        return parsed;
-      } catch {
-        return null;
-      }
-    },
-    serialize: serializeNullableJsonArray,
   },
   penalizeMissingSalary: {
     kind: "typed" as const,

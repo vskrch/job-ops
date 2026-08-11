@@ -161,9 +161,6 @@ for (const [key, def] of Object.entries(settingsRegistry)) {
     if (isBackup) {
       deferred.push("refreshBackupScheduler");
     }
-    if (key.startsWith("pipelineSchedule")) {
-      deferred.push("refreshPipelineScheduler");
-    }
     if (
       RXRESUME_CACHE_INVALIDATION_KEYS.has(key as keyof UpdateSettingsInput)
     ) {

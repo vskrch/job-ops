@@ -93,12 +93,15 @@ function safeParseSkills(
   }
 }
 
-// ponytail: module-level lock — single-process only.
-// SQLite + better-sqlite3 is single-connection; this is fine until horizontal scaling.
-// Upgrade path: move to a DB-backed advisory lock (pipeline_runs row) if multi-instance.
-let isPipelineRunning = false;
-let activePipelineRunId: string | null = null;
-let cancelRequestedAt: string | null = null;
+// ponytail: module-level counting semaphore — single-process only.
+// SQLite + better-sqlite3 is single-connection; this is fine until horizontal
+// scaling. Up to `maxConcurrentPipelines` runs can execute simultaneously.
+// Upgrade path: move to a DB-backed advisory lock (pipeline_runs row) if
+// multi-instance.
+let activePipelineRuns = 0;
+let maxConcurrentPipelines = 3;
+const activeRunIds = new Set<string>();
+const cancelRequestedByRunId = new Set<string>();
 
 class PipelineCancelledError extends Error {
   constructor(message = "Pipeline cancellation requested") {
@@ -107,8 +110,8 @@ class PipelineCancelledError extends Error {
   }
 }
 
-function ensureNotCancelled(): void {
-  if (cancelRequestedAt) {
+function ensureNotCancelled(runId: string): void {
+  if (cancelRequestedByRunId.has(runId)) {
     throw new PipelineCancelledError();
   }
 }
@@ -179,18 +182,18 @@ export async function runPipeline(
   jobsProcessed: number;
   error?: string;
 }> {
-  if (isPipelineRunning) {
+  if (activePipelineRuns >= maxConcurrentPipelines) {
     return {
       success: false,
       jobsDiscovered: 0,
       jobsProcessed: 0,
-      error: "Pipeline is already running",
+      error: `Pipeline concurrency limit reached (${activePipelineRuns} running). Try again shortly.`,
     };
   }
 
-  isPipelineRunning = true;
-  activePipelineRunId = "pending";
-  cancelRequestedAt = null;
+  activePipelineRuns++;
+  let pipelineRunId = "pending";
+  activeRunIds.add(pipelineRunId);
   resetProgress();
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -205,7 +208,9 @@ export async function runPipeline(
   const configSnapshot = await buildRunConfigSnapshot(effectiveConfig);
 
   const pipelineRun = await pipelineRepo.createPipelineRun(configSnapshot);
-  activePipelineRunId = pipelineRun.id;
+  pipelineRunId = pipelineRun.id;
+  activeRunIds.delete("pending");
+  activeRunIds.add(pipelineRun.id);
 
   return runWithRequestContext({ pipelineRunId: pipelineRun.id }, async () => {
     const pipelineLogger = logger.child({ pipelineRunId: pipelineRun.id });
@@ -216,6 +221,7 @@ export async function runPipeline(
       minSuitabilityScore: effectiveConfig.minSuitabilityScore,
       sources: effectiveConfig.sources,
       excludeRunIds,
+      activeRunCount: activePipelineRuns,
     });
 
     const stepStartTimes = new Map<string, number>();
@@ -235,20 +241,20 @@ export async function runPipeline(
     };
 
     try {
-      ensureNotCancelled();
+      ensureNotCancelled(pipelineRun.id);
       startStep("load-profile");
       const profile = await loadProfileStep();
       finishStep("load-profile");
 
-      ensureNotCancelled();
+      ensureNotCancelled(pipelineRun.id);
       startStep("discover-jobs");
       const { discoveredJobs } = await discoverJobsStep({
         mergedConfig: effectiveConfig,
-        shouldCancel: () => cancelRequestedAt !== null,
+        shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
       });
       finishStep("discover-jobs", { discovered: discoveredJobs.length });
 
-      ensureNotCancelled();
+      ensureNotCancelled(pipelineRun.id);
       startStep("import-jobs");
       const { created } = await importJobsStep({
         discoveredJobs,
@@ -261,19 +267,19 @@ export async function runPipeline(
         jobsDiscovered: created,
       });
 
-      ensureNotCancelled();
+      ensureNotCancelled(pipelineRun.id);
       startStep("score-jobs");
       const { unprocessedJobs, scoredJobs } = await scoreJobsStep({
         profile,
         excludeRunIds,
-        shouldCancel: () => cancelRequestedAt !== null,
+        shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
       });
       finishStep("score-jobs", {
         scored: scoredJobs.length,
         unprocessed: unprocessedJobs.length,
       });
 
-      ensureNotCancelled();
+      ensureNotCancelled(pipelineRun.id);
       startStep("select-jobs");
       const jobsToProcess = selectJobsStep({
         scoredJobs,
@@ -289,7 +295,7 @@ export async function runPipeline(
       const { processedCount } = await processJobsStep({
         jobsToProcess,
         processJob,
-        shouldCancel: () => cancelRequestedAt !== null,
+        shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
       });
       jobsProcessed = processedCount;
       finishStep("process-jobs", { processed: processedCount });
@@ -364,9 +370,9 @@ export async function runPipeline(
         error: message,
       };
     } finally {
-      isPipelineRunning = false;
-      activePipelineRunId = null;
-      cancelRequestedAt = null;
+      activePipelineRuns--;
+      activeRunIds.delete(pipelineRun.id);
+      cancelRequestedByRunId.delete(pipelineRun.id);
     }
   });
 }
@@ -589,40 +595,68 @@ export async function processJob(
 /**
  * Check if pipeline is currently running.
  */
-export function getPipelineStatus(): { isRunning: boolean } {
-  return { isRunning: isPipelineRunning };
+export function getPipelineStatus(): {
+  isRunning: boolean;
+  activeRunCount: number;
+  maxConcurrentRuns: number;
+} {
+  return {
+    isRunning: activePipelineRuns > 0,
+    activeRunCount: activePipelineRuns,
+    maxConcurrentRuns: maxConcurrentPipelines,
+  };
 }
 
-export function requestPipelineCancel(): {
+/** Set the max concurrent pipeline runs (called from the settings service). */
+export function setMaxConcurrentPipelines(max: number): void {
+  maxConcurrentPipelines = Math.min(5, Math.max(1, max));
+}
+
+export function requestPipelineCancel(pipelineRunId?: string): {
   accepted: boolean;
   pipelineRunId: string | null;
   alreadyRequested: boolean;
 } {
-  if (!isPipelineRunning) {
+  if (activePipelineRuns === 0) {
     return { accepted: false, pipelineRunId: null, alreadyRequested: false };
   }
 
-  const pipelineRunId =
-    activePipelineRunId && activePipelineRunId !== "pending"
-      ? activePipelineRunId
-      : null;
+  // If a specific run id is provided, cancel that run.
+  let runId: string | null = null;
+  if (pipelineRunId) {
+    if (!activeRunIds.has(pipelineRunId)) {
+      return { accepted: false, pipelineRunId: null, alreadyRequested: false };
+    }
+    runId = pipelineRunId;
+  } else {
+    // Cancel the most recent active run (any non-"pending" id).
+    runId = null;
+    for (const id of activeRunIds) {
+      if (id !== "pending") {
+        runId = id;
+      }
+    }
+    if (!runId) {
+      return { accepted: false, pipelineRunId: null, alreadyRequested: false };
+    }
+  }
 
-  if (cancelRequestedAt) {
+  if (cancelRequestedByRunId.has(runId)) {
     return {
       accepted: true,
-      pipelineRunId,
+      pipelineRunId: runId,
       alreadyRequested: true,
     };
   }
 
-  cancelRequestedAt = new Date().toISOString();
+  cancelRequestedByRunId.add(runId);
   return {
     accepted: true,
-    pipelineRunId,
+    pipelineRunId: runId,
     alreadyRequested: false,
   };
 }
 
 export function isPipelineCancelRequested(): boolean {
-  return cancelRequestedAt !== null;
+  return cancelRequestedByRunId.size > 0;
 }

@@ -203,9 +203,7 @@ export interface AppSettings {
   backupEnabled: Resolved<boolean>;
   backupHour: Resolved<number>;
   backupMaxCount: Resolved<number>;
-  pipelineScheduleEnabled: Resolved<boolean>;
-  pipelineScheduleHour: Resolved<number>;
-  pipelineScheduleSources: Resolved<string[]>;
+  pipelineMaxConcurrentRuns: Resolved<number>;
   penalizeMissingSalary: Resolved<boolean>;
   missingSalaryPenalty: Resolved<number>;
   autoSkipScoreThreshold: Resolved<number | null>;

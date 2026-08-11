@@ -2,6 +2,7 @@ import {
   AppError,
   badRequest,
   conflict,
+  notFound,
   requestTimeout,
   serviceUnavailable,
 } from "@infra/errors";
@@ -22,18 +23,14 @@ import {
   subscribeToProgress,
 } from "@server/pipeline/index";
 import * as pipelineRepo from "@server/repositories/pipeline";
-import * as settingsRepo from "@server/repositories/settings";
+import * as scheduleRepo from "@server/repositories/pipeline-schedules";
 import { simulatePipelineRun } from "@server/services/demo-simulator";
 import {
-  getPipelineSchedule,
+  getPipelineSchedules,
   refreshPipelineScheduler,
 } from "@server/services/pipeline-scheduler";
 import { PIPELINE_EXTRACTOR_SOURCE_IDS } from "@shared/extractors";
-import type {
-  PipelineScheduleResponse,
-  PipelineStatusResponse,
-  UpdatePipelineScheduleInput,
-} from "@shared/types";
+import type { PipelineStatusResponse } from "@shared/types";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 
@@ -44,14 +41,22 @@ export const pipelineRouter = Router();
  */
 pipelineRouter.get("/status", async (_req: Request, res: Response) => {
   try {
-    const { isRunning } = getPipelineStatus();
+    const { isRunning, activeRunCount, maxConcurrentRuns } =
+      getPipelineStatus();
     const lastRun = await pipelineRepo.getLatestPipelineRun();
-    const schedule = getPipelineSchedule();
+    const schedules = await getPipelineSchedules();
+    const nextScheduledRun =
+      schedules
+        .filter((s) => s.enabled && s.nextRun)
+        .map((s) => s.nextRun as string)
+        .sort()[0] ?? null;
     const progress = getProgress();
     const data: PipelineStatusResponse = {
       isRunning,
+      activeRunCount,
+      maxConcurrentRuns,
       lastRun,
-      nextScheduledRun: schedule.nextRun,
+      nextScheduledRun,
       progress: isRunning ? progress : undefined,
     };
     ok(res, data);
@@ -68,13 +73,12 @@ pipelineRouter.get("/status", async (_req: Request, res: Response) => {
 });
 
 /**
- * GET /api/pipeline/schedule - Read the scheduled pipeline configuration.
+ * GET /api/pipeline/schedules - List all pipeline schedules.
  */
-pipelineRouter.get("/schedule", async (_req: Request, res: Response) => {
+pipelineRouter.get("/schedules", async (_req: Request, res: Response) => {
   try {
-    const schedule = getPipelineSchedule();
-    const data: PipelineScheduleResponse = schedule;
-    ok(res, data);
+    const schedules = await getPipelineSchedules();
+    ok(res, schedules);
   } catch (error) {
     fail(
       res,
@@ -87,56 +91,56 @@ pipelineRouter.get("/schedule", async (_req: Request, res: Response) => {
   }
 });
 
-/**
- * PUT /api/pipeline/schedule - Update the scheduled pipeline configuration.
- */
-const updateScheduleSchema = z.object({
+const scheduleSourcesSchema = z
+  .array(
+    z.enum(
+      PIPELINE_EXTRACTOR_SOURCE_IDS as [
+        (typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number],
+        ...(typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number][],
+      ],
+    ),
+  );
+
+const createScheduleSchema = z.object({
+  label: z.string().trim().min(1).max(200),
   enabled: z.boolean().optional(),
-  hour: z.number().int().min(0).max(23).optional(),
-  sources: z
-    .array(
-      z.enum(
-        PIPELINE_EXTRACTOR_SOURCE_IDS as [
-          (typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number],
-          ...(typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number][],
-        ],
-      ),
-    )
-    .optional(),
+  hour: z.number().int().min(0).max(23),
+  sources: scheduleSourcesSchema,
+  searchTerms: z.array(z.string().trim().min(1).max(200)).max(100).nullable().optional(),
+  country: z.string().trim().max(100).nullable().optional(),
+  cityLocations: z.array(z.string().trim().min(1).max(200)).nullable().optional(),
+  workplaceTypes: z.array(z.string().trim().min(1).max(50)).nullable().optional(),
+  topN: z.number().int().min(1).max(50).nullable().optional(),
+  minSuitabilityScore: z.number().int().min(0).max(100).nullable().optional(),
 });
 
-pipelineRouter.put("/schedule", async (req: Request, res: Response) => {
+/**
+ * POST /api/pipeline/schedules - Create a new pipeline schedule.
+ */
+pipelineRouter.post("/schedules", async (req: Request, res: Response) => {
   try {
-    const input: UpdatePipelineScheduleInput = updateScheduleSchema.parse(
-      req.body,
-    );
+    const input = createScheduleSchema.parse(req.body);
 
     if (isDemoMode()) {
       return fail(res, badRequest("Scheduling is not available in demo mode."));
     }
 
-    if (input.enabled !== undefined) {
-      await settingsRepo.setSetting(
-        "pipelineScheduleEnabled",
-        input.enabled ? "1" : "0",
-      );
-    }
-    if (input.hour !== undefined) {
-      await settingsRepo.setSetting("pipelineScheduleHour", String(input.hour));
-    }
-    if (input.sources !== undefined) {
-      await settingsRepo.setSetting(
-        "pipelineScheduleSources",
-        JSON.stringify(input.sources),
-      );
-    }
+    await scheduleRepo.createPipelineSchedule({
+      label: input.label,
+      enabled: input.enabled ?? false,
+      hour: input.hour,
+      sources: input.sources,
+      searchTerms: input.searchTerms ?? null,
+      country: input.country ?? null,
+      cityLocations: input.cityLocations ?? null,
+      workplaceTypes: input.workplaceTypes ?? null,
+      topN: input.topN ?? null,
+      minSuitabilityScore: input.minSuitabilityScore ?? null,
+    });
 
-    // Restart the scheduler with the new configuration.
     await refreshPipelineScheduler();
-
-    const schedule = getPipelineSchedule();
-    const data: PipelineScheduleResponse = schedule;
-    ok(res, data);
+    const schedules = await getPipelineSchedules();
+    ok(res, schedules);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
@@ -151,6 +155,104 @@ pipelineRouter.put("/schedule", async (req: Request, res: Response) => {
     );
   }
 });
+
+const updateScheduleSchema = z.object({
+  label: z.string().trim().min(1).max(200).optional(),
+  enabled: z.boolean().optional(),
+  hour: z.number().int().min(0).max(23).optional(),
+  sources: scheduleSourcesSchema.optional(),
+  searchTerms: z.array(z.string().trim().min(1).max(200)).max(100).nullable().optional(),
+  country: z.string().trim().max(100).nullable().optional(),
+  cityLocations: z.array(z.string().trim().min(1).max(200)).nullable().optional(),
+  workplaceTypes: z.array(z.string().trim().min(1).max(50)).nullable().optional(),
+  topN: z.number().int().min(1).max(50).nullable().optional(),
+  minSuitabilityScore: z.number().int().min(0).max(100).nullable().optional(),
+});
+
+/**
+ * PUT /api/pipeline/schedules/:id - Update a pipeline schedule.
+ */
+pipelineRouter.put(
+  "/schedules/:id",
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+      const input = updateScheduleSchema.parse(req.body);
+
+      if (isDemoMode()) {
+        return fail(res, badRequest("Scheduling is not available in demo mode."));
+      }
+
+      const existing = await scheduleRepo.getPipelineScheduleById(id);
+      if (!existing) {
+        return fail(res, notFound("Pipeline schedule not found"));
+      }
+
+      await scheduleRepo.updatePipelineSchedule(id, {
+        ...(input.label !== undefined ? { label: input.label } : {}),
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        ...(input.hour !== undefined ? { hour: input.hour } : {}),
+        ...(input.sources !== undefined ? { sources: input.sources } : {}),
+        ...(input.searchTerms !== undefined ? { searchTerms: input.searchTerms } : {}),
+        ...(input.country !== undefined ? { country: input.country } : {}),
+        ...(input.cityLocations !== undefined ? { cityLocations: input.cityLocations } : {}),
+        ...(input.workplaceTypes !== undefined ? { workplaceTypes: input.workplaceTypes } : {}),
+        ...(input.topN !== undefined ? { topN: input.topN } : {}),
+        ...(input.minSuitabilityScore !== undefined ? { minSuitabilityScore: input.minSuitabilityScore } : {}),
+      });
+
+      await refreshPipelineScheduler();
+      const schedules = await getPipelineSchedules();
+      ok(res, schedules);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return fail(res, badRequest(error.message, error.flatten()));
+      }
+      fail(
+        res,
+        new AppError({
+          status: 500,
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+    }
+  },
+);
+
+/**
+ * DELETE /api/pipeline/schedules/:id - Delete a pipeline schedule.
+ */
+pipelineRouter.delete(
+  "/schedules/:id",
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+
+      if (isDemoMode()) {
+        return fail(res, badRequest("Scheduling is not available in demo mode."));
+      }
+
+      const deleted = await scheduleRepo.deletePipelineSchedule(id);
+      if (!deleted) {
+        return fail(res, notFound("Pipeline schedule not found"));
+      }
+
+      await refreshPipelineScheduler();
+      const schedules = await getPipelineSchedules();
+      ok(res, schedules);
+    } catch (error) {
+      fail(
+        res,
+        new AppError({
+          status: 500,
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+    }
+  },
+);
 
 /**
  * GET /api/pipeline/progress - Server-Sent Events endpoint for live progress
@@ -283,12 +385,17 @@ pipelineRouter.post("/run", async (req: Request, res: Response) => {
   }
 });
 
+const cancelSchema = z.object({
+  pipelineRunId: z.string().optional(),
+});
+
 /**
  * POST /api/pipeline/cancel - Request cancellation of active pipeline run
  */
-pipelineRouter.post("/cancel", async (_req: Request, res: Response) => {
+pipelineRouter.post("/cancel", async (req: Request, res: Response) => {
   try {
-    const cancelResult = requestPipelineCancel();
+    const input = cancelSchema.parse(req.body ?? {});
+    const cancelResult = requestPipelineCancel(input.pipelineRunId);
     if (!cancelResult.accepted) {
       return fail(res, conflict("No running pipeline to cancel"));
     }
@@ -309,6 +416,9 @@ pipelineRouter.post("/cancel", async (_req: Request, res: Response) => {
       alreadyRequested: cancelResult.alreadyRequested,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail(res, badRequest(error.message, error.flatten()));
+    }
     fail(
       res,
       new AppError({

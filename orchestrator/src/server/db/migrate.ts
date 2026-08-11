@@ -814,6 +814,38 @@ const migrations = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id)`,
+
+  // Multi-schedule pipeline: create the pipeline_schedules table.
+  `CREATE TABLE IF NOT EXISTS pipeline_schedules (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    hour INTEGER NOT NULL DEFAULT 2,
+    sources TEXT NOT NULL DEFAULT '[]',
+    search_terms TEXT,
+    country TEXT,
+    city_locations TEXT,
+    workplace_types TEXT,
+    top_n INTEGER,
+    min_suitability_score INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_pipeline_schedules_enabled ON pipeline_schedules(enabled)`,
+  // Backward-compat seeding: if old single-schedule settings exist and the new
+  // table is empty, seed one row from the old settings so existing users don't
+  // lose their schedule. Runs once; the IF NOT EXISTS guard makes it safe to
+  // re-run.
+  `INSERT INTO pipeline_schedules (id, label, enabled, hour, sources, created_at, updated_at)
+   SELECT
+     'migrated-schedule',
+     'Migrated schedule',
+     CASE WHEN EXISTS (SELECT 1 FROM settings WHERE key = 'pipelineScheduleEnabled' AND value IN ('1', 'true')) THEN 1 ELSE 0 END,
+     COALESCE(CAST((SELECT value FROM settings WHERE key = 'pipelineScheduleHour') AS INTEGER), 2),
+     COALESCE((SELECT value FROM settings WHERE key = 'pipelineScheduleSources'), '[]'),
+     datetime('now'),
+     datetime('now')
+   WHERE NOT EXISTS (SELECT 1 FROM pipeline_schedules)`,
 ];
 
 console.log("🔧 Running database migrations...");
