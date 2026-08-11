@@ -53,9 +53,11 @@ COPY shared/package*.json ./shared/
 COPY orchestrator/package*.json ./orchestrator/
 COPY extractors/adzuna/package*.json ./extractors/adzuna/
 COPY extractors/hiringcafe/package*.json ./extractors/hiringcafe/
+COPY extractors/gradcracker/package*.json ./extractors/gradcracker/
 COPY extractors/startupjobs/package*.json ./extractors/startupjobs/
 COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
+COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 COPY extractors/jobboards/package*.json ./extractors/jobboards/
 COPY extractors/remotive/package*.json ./extractors/remotive/
 COPY extractors/remoteok/package*.json ./extractors/remoteok/
@@ -124,9 +126,11 @@ COPY shared/package*.json ./shared/
 COPY orchestrator/package*.json ./orchestrator/
 COPY extractors/adzuna/package*.json ./extractors/adzuna/
 COPY extractors/hiringcafe/package*.json ./extractors/hiringcafe/
+COPY extractors/gradcracker/package*.json ./extractors/gradcracker/
 COPY extractors/startupjobs/package*.json ./extractors/startupjobs/
 COPY extractors/workingnomads/package*.json ./extractors/workingnomads/
 COPY extractors/golangjobs/package*.json ./extractors/golangjobs/
+COPY extractors/ukvisajobs/package*.json ./extractors/ukvisajobs/
 COPY extractors/jobboards/package*.json ./extractors/jobboards/
 COPY extractors/remotive/package*.json ./extractors/remotive/
 COPY extractors/remoteok/package*.json ./extractors/remoteok/
