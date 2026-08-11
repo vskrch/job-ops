@@ -298,7 +298,7 @@ manualJobsRouter.post("/import", async (req: Request, res: Response) => {
     // Score asynchronously so the import returns immediately.
     (async () => {
       try {
-        const rawProfile = await getProfile();
+        const rawProfile = await getProfile().catch(() => ({}));
         if (
           !rawProfile ||
           typeof rawProfile !== "object" ||

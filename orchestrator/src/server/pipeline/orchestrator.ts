@@ -11,7 +11,11 @@ import { join } from "node:path";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { runWithRequestContext } from "@infra/request-context";
-import type { PipelineConfig, PipelineRunConfigSnapshot } from "@shared/types";
+import type {
+  PipelineConfig,
+  PipelineRunConfigSnapshot,
+  ResumeProfile,
+} from "@shared/types";
 import { getDataDir } from "../config/dataDir";
 import * as jobsRepo from "../repositories/jobs";
 import * as pipelineRepo from "../repositories/pipeline";
