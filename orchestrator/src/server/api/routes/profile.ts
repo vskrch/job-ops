@@ -25,7 +25,7 @@ profileRouter.get("/projects", async (_req: Request, res: Response) => {
       ok(res, DEMO_PROJECT_CATALOG);
       return;
     }
-    const profile = await getProfile();
+    const profile = await getProfile().catch(() => ({}));
     const { catalog } = extractProjectsFromProfile(profile);
     ok(res, catalog);
   } catch (error) {
@@ -38,7 +38,7 @@ profileRouter.get("/projects", async (_req: Request, res: Response) => {
  */
 profileRouter.get("/", async (_req: Request, res: Response) => {
   try {
-    const profile = await getProfile();
+    const profile = await getProfile().catch(() => ({}));
     ok(res, profile);
   } catch (error) {
     fail(res, toAppError(error));

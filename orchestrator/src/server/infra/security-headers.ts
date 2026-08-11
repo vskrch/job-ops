@@ -23,7 +23,7 @@ const CSP_HEADER =
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
   "img-src 'self' data: https:; " +
   "font-src 'self' https: https://fonts.gstatic.com; " +
-  "connect-src 'self' https://api.github.com; " +
+  "connect-src 'self' https://api.github.com https://umami.dakheera47.com; " +
   "frame-ancestors 'none'";
 
 export function securityHeaders(): RequestHandler {
