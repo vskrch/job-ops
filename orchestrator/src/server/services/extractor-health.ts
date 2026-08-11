@@ -9,7 +9,7 @@ import type {
 
 const HEALTH_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_HEALTH_SEARCH_TERM = "software";
-const DEFAULT_HEALTH_SELECTED_COUNTRY = "united kingdom";
+const DEFAULT_HEALTH_SELECTED_COUNTRY = "united states";
 
 type HealthProbeConfig = {
   searchTerm: string;
@@ -33,18 +33,11 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
   ExtractorSourceId,
   HealthProbeConfig
 > = {
-  gradcracker: {
-    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
-    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
-    settings: {
-      gradcrackerMaxJobsPerTerm: "1",
-    },
-  },
   indeed: {
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
     settings: {
-      jobspyCountryIndeed: "UK",
+      jobspyCountryIndeed: "united states",
       jobspyResultsWanted: "1",
     },
   },
@@ -52,7 +45,7 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
     settings: {
-      jobspyCountryIndeed: "UK",
+      jobspyCountryIndeed: "united states",
       jobspyResultsWanted: "1",
     },
   },
@@ -60,15 +53,8 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
     settings: {
-      jobspyCountryIndeed: "UK",
+      jobspyCountryIndeed: "united states",
       jobspyResultsWanted: "1",
-    },
-  },
-  ukvisajobs: {
-    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
-    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
-    settings: {
-      ukvisajobsMaxJobs: "1",
     },
   },
   adzuna: {

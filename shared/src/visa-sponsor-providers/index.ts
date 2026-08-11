@@ -1,4 +1,4 @@
-export const VISA_SPONSOR_PROVIDER_IDS = ["uk", "us", "ca"] as const;
+export const VISA_SPONSOR_PROVIDER_IDS = ["us", "ca"] as const;
 
 export type VisaSponsorProviderId = (typeof VISA_SPONSOR_PROVIDER_IDS)[number];
 
@@ -11,10 +11,6 @@ export const VISA_SPONSOR_PROVIDER_METADATA: Record<
   VisaSponsorProviderId,
   VisaSponsorProviderMetadata
 > = {
-  uk: {
-    label: "United Kingdom",
-    countryKey: "united kingdom",
-  },
   us: {
     label: "United States",
     countryKey: "united states",

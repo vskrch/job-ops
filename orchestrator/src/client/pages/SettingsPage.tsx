@@ -99,8 +99,6 @@ const DEFAULT_FORM_VALUES: UpdateSettingsInput = {
   rxresumeApiKey: "",
   basicAuthUser: "",
   basicAuthPassword: "",
-  ukvisajobsEmail: "",
-  ukvisajobsPassword: "",
   adzunaAppId: "",
   adzunaAppKey: "",
   webhookSecret: "",
@@ -248,7 +246,7 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         id: "environment",
         label: "Accounts & Access",
         description: "Service credentials and basic auth protection.",
-        searchTerms: ["security", "auth", "adzuna", "ukvisajobs"],
+        searchTerms: ["security", "auth", "adzuna"],
       },
     ],
   },
@@ -343,8 +341,6 @@ const SECTION_FIELD_MAP: Record<
   webhooks: ["pipelineWebhookUrl", "jobCompleteWebhookUrl", "webhookSecret"],
   "tracer-links": [],
   environment: [
-    "ukvisajobsEmail",
-    "ukvisajobsPassword",
     "adzunaAppId",
     "adzunaAppKey",
     "enableBasicAuth",
@@ -419,8 +415,6 @@ const NULL_SETTINGS_PAYLOAD: UpdateSettingsInput = {
   rxresumeApiKey: null,
   basicAuthUser: null,
   basicAuthPassword: null,
-  ukvisajobsEmail: null,
-  ukvisajobsPassword: null,
   adzunaAppId: null,
   adzunaAppKey: null,
   adzunaMaxJobsPerTerm: null,
@@ -473,8 +467,6 @@ const mapSettingsToForm = (data: AppSettings): UpdateSettingsInput => ({
   rxresumeApiKey: "",
   basicAuthUser: data.basicAuthUser ?? "",
   basicAuthPassword: data.basicAuthPassword ?? "",
-  ukvisajobsEmail: data.ukvisajobsEmail ?? "",
-  ukvisajobsPassword: "",
   adzunaAppId: data.adzunaAppId ?? "",
   adzunaAppKey: "",
   webhookSecret: "",
@@ -621,14 +613,12 @@ const getDerivedSettings = (settings: AppSettings | null) => {
     envSettings: {
       readable: {
         rxresumeEmail: settings?.rxresumeEmail ?? "",
-        ukvisajobsEmail: settings?.ukvisajobsEmail ?? "",
         adzunaAppId: settings?.adzunaAppId ?? "",
         basicAuthUser: settings?.basicAuthUser ?? "",
         basicAuthPassword: settings?.basicAuthPassword ?? "",
       },
       private: {
         rxresumePasswordHint: settings?.rxresumePasswordHint ?? null,
-        ukvisajobsPasswordHint: settings?.ukvisajobsPasswordHint ?? null,
         adzunaAppKeyHint: settings?.adzunaAppKeyHint ?? null,
         basicAuthPasswordHint: settings?.basicAuthPasswordHint ?? null,
         webhookSecretHint: settings?.webhookSecretHint ?? null,
@@ -1077,10 +1067,6 @@ export const SettingsPage: React.FC = () => {
         envPayload.rxresumeUrl = normalizeString(data.rxresumeUrl);
       }
 
-      if (dirtyFields.ukvisajobsEmail || dirtyFields.ukvisajobsPassword) {
-        envPayload.ukvisajobsEmail = normalizeString(data.ukvisajobsEmail);
-      }
-
       if (dirtyFields.adzunaAppId || dirtyFields.adzunaAppKey) {
         envPayload.adzunaAppId = normalizeString(data.adzunaAppId);
       }
@@ -1124,11 +1110,6 @@ export const SettingsPage: React.FC = () => {
       if (dirtyFields.rxresumeApiKey) {
         const value = normalizePrivateInput(data.rxresumeApiKey);
         if (value !== undefined) envPayload.rxresumeApiKey = value;
-      }
-
-      if (dirtyFields.ukvisajobsPassword) {
-        const value = normalizePrivateInput(data.ukvisajobsPassword);
-        if (value !== undefined) envPayload.ukvisajobsPassword = value;
       }
 
       if (dirtyFields.adzunaAppKey) {
@@ -1543,8 +1524,7 @@ export const SettingsPage: React.FC = () => {
             ? { label: "Check required", variant: "secondary" as const }
             : { label: "Not configured", variant: "secondary" as const };
       case "environment":
-        return envSettings.readable.ukvisajobsEmail ||
-          envSettings.readable.adzunaAppId ||
+        return envSettings.readable.adzunaAppId ||
           envSettings.basicAuthActive
           ? { label: "Configured", variant: "outline" as const }
           : null;

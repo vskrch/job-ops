@@ -191,10 +191,10 @@ export async function runJobSpy(
     list: options.locations,
     single: options.location,
     env: process.env.JOBSPY_LOCATION,
-    fallback: "UK",
+    fallback: "",
   });
   const countryIndeed =
-    options.countryIndeed ?? process.env.JOBSPY_COUNTRY_INDEED ?? "UK";
+    options.countryIndeed ?? process.env.JOBSPY_COUNTRY_INDEED ?? "";
   if (searchTerms.length === 0) {
     return { success: true, jobs: [] };
   }

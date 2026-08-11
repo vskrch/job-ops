@@ -47,7 +47,7 @@ describe("extractor registry", () => {
 
     vi.mocked(discovery.discoverManifestPaths).mockResolvedValue([
       "/tmp/jobspy.ts",
-      "/tmp/ukvisajobs.ts",
+      "/tmp/adzuna.ts",
     ]);
     vi.mocked(discovery.loadManifestFromFile).mockImplementation(
       async (path) =>
@@ -57,14 +57,14 @@ describe("extractor registry", () => {
               ["indeed", "linkedin", "glassdoor"],
               "JobSpy",
             )
-          : makeManifest("ukvisajobs", ["ukvisajobs"], "UK Visa Jobs"),
+          : makeManifest("adzuna", ["adzuna"], "Adzuna"),
     );
 
     const registry = await registryModule.initializeExtractorRegistry();
 
     expect(registry.manifests.size).toBe(2);
     expect(registry.manifestBySource.get("linkedin")?.id).toBe("jobspy");
-    expect(registry.manifestBySource.get("ukvisajobs")?.id).toBe("ukvisajobs");
+    expect(registry.manifestBySource.get("adzuna")?.id).toBe("adzuna");
   });
 
   it("throws on duplicate manifest ids in strict mode", async () => {

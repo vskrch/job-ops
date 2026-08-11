@@ -405,10 +405,7 @@ describe("SettingsPage", () => {
 
     await openModelSection();
     expect(
-      screen.queryByRole("button", { name: /ukvisajobs extractor/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /gradcracker extractor/i }),
+      screen.queryByRole("button", { name: /adzuna extractor/i }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /search terms/i }),

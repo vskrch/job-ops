@@ -176,8 +176,6 @@ export function usePipelineControls(
         searchTerms: values.searchTerms,
         workplaceTypes: values.workplaceTypes,
         jobspyResultsWanted: limits.jobspyResultsWanted,
-        gradcrackerMaxJobsPerTerm: limits.gradcrackerMaxJobsPerTerm,
-        ukvisajobsMaxJobs: limits.ukvisajobsMaxJobs,
         adzunaMaxJobsPerTerm: limits.adzunaMaxJobsPerTerm,
         startupjobsMaxJobsPerTerm: limits.startupjobsMaxJobsPerTerm,
         jobspyCountryIndeed: values.country,

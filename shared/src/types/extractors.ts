@@ -19,7 +19,7 @@ export interface ExtractorRuntimeContext {
   selectedSources: string[];
   settings: Record<string, string | undefined>;
   searchTerms: string[];
-  selectedCountry: string;
+  selectedCountry: string | null;
   getExistingJobUrls?: () => Promise<string[]>;
   shouldCancel?: () => boolean;
   onProgress?: (event: ExtractorProgressEvent) => void;

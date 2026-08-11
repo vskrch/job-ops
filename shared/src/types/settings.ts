@@ -166,9 +166,7 @@ export interface AppSettings {
   resumeProjects: Resolved<ResumeProjectsSettings>;
   pdfRenderer: Resolved<PdfRenderer>;
   latexTemplate: Resolved<LatexTemplate>;
-  ukvisajobsMaxJobs: Resolved<number>;
   adzunaMaxJobsPerTerm: Resolved<number>;
-  gradcrackerMaxJobsPerTerm: Resolved<number>;
   startupjobsMaxJobsPerTerm: Resolved<number>;
   searchTerms: Resolved<string[]>;
   workplaceTypes: Resolved<Array<"remote" | "hybrid" | "onsite">>;
@@ -224,7 +222,6 @@ export interface AppSettings {
   rxresumeBaseResumeIdV5: string | null;
   rxresumeEmail: string | null;
   rxresumeUrl: string | null;
-  ukvisajobsEmail: string | null;
   adzunaAppId: string | null;
   basicAuthUser: string | null;
   basicAuthPassword: string | null;
@@ -233,7 +230,6 @@ export interface AppSettings {
   llmApiKeyHint: string | null;
   rxresumeApiKeyHint: string | null;
   rxresumePasswordHint: string | null;
-  ukvisajobsPasswordHint: string | null;
   adzunaAppKeyHint: string | null;
   basicAuthPasswordHint: string | null;
   webhookSecretHint: string | null;

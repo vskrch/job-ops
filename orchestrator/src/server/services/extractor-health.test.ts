@@ -71,9 +71,9 @@ describe("extractor health service", () => {
         source: "linkedin",
         selectedSources: ["linkedin"],
         searchTerms: ["software"],
-        selectedCountry: "united kingdom",
+        selectedCountry: "united states",
         settings: expect.objectContaining({
-          jobspyCountryIndeed: "UK",
+          jobspyCountryIndeed: "united states",
           jobspyResultsWanted: "1",
         }),
       }),
@@ -90,7 +90,7 @@ describe("extractor health service", () => {
         success: true,
         jobs: [
           {
-            source: "gradcracker",
+            source: "dice",
             title: "Graduate Software Engineer",
             employer: "Beta",
             jobUrl: "https://example.com/jobs/grad-1",
@@ -101,7 +101,7 @@ describe("extractor health service", () => {
         success: true,
         jobs: [
           {
-            source: "gradcracker",
+            source: "dice",
             title: "Graduate Developer",
             employer: "Gamma",
             jobUrl: "https://example.com/jobs/grad-2",
@@ -109,9 +109,9 @@ describe("extractor health service", () => {
         ],
       });
     const manifest: ExtractorManifest = {
-      id: "gradcracker",
-      displayName: "Gradcracker",
-      providesSources: ["gradcracker"],
+      id: "jobboards",
+      displayName: "Job Boards",
+      providesSources: ["dice"],
       run,
     };
     mockGetExtractorRegistry.mockResolvedValue(createRegistry([manifest]));
@@ -119,11 +119,11 @@ describe("extractor health service", () => {
     const module = await import("./extractor-health");
     const ttlMs = module.__getExtractorHealthCacheTtlMsForTests();
 
-    const first = await module.checkExtractorHealth("gradcracker");
+    const first = await module.checkExtractorHealth("dice");
     vi.setSystemTime(new Date(Date.now() + ttlMs - 1));
-    const cached = await module.checkExtractorHealth("gradcracker");
+    const cached = await module.checkExtractorHealth("dice");
     vi.setSystemTime(new Date(Date.now() + 2));
-    const refreshed = await module.checkExtractorHealth("gradcracker");
+    const refreshed = await module.checkExtractorHealth("dice");
 
     expect(first?.response.cached).toBe(false);
     expect(cached?.response.cached).toBe(true);

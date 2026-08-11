@@ -89,8 +89,6 @@ export function normalizeWorkplaceTypes(
 
 export interface ExtractorLimits {
   jobspyResultsWanted: number;
-  gradcrackerMaxJobsPerTerm: number;
-  ukvisajobsMaxJobs: number;
   adzunaMaxJobsPerTerm: number;
   startupjobsMaxJobsPerTerm: number;
   workingnomadsMaxJobsPerTerm: number;
@@ -106,8 +104,6 @@ export function deriveExtractorLimits(args: {
   const includesIndeed = args.sources.includes("indeed");
   const includesLinkedIn = args.sources.includes("linkedin");
   const includesGlassdoor = args.sources.includes("glassdoor");
-  const includesGradcracker = args.sources.includes("gradcracker");
-  const includesUkVisaJobs = args.sources.includes("ukvisajobs");
   const includesAdzuna = args.sources.includes("adzuna");
   const includesHiringCafe = args.sources.includes("hiringcafe");
   const includesStartupJobs = args.sources.includes("startupjobs");
@@ -117,8 +113,6 @@ export function deriveExtractorLimits(args: {
     (includesIndeed ? termCount : 0) +
     (includesLinkedIn ? termCount : 0) +
     (includesGlassdoor ? termCount : 0) +
-    (includesGradcracker ? termCount : 0) +
-    (includesUkVisaJobs ? 1 : 0) +
     (includesAdzuna ? termCount : 0) +
     (includesHiringCafe ? termCount : 0) +
     (includesStartupJobs ? termCount : 0) +
@@ -127,8 +121,6 @@ export function deriveExtractorLimits(args: {
   if (weightedContributors <= 0) {
     return {
       jobspyResultsWanted: budget,
-      gradcrackerMaxJobsPerTerm: budget,
-      ukvisajobsMaxJobs: budget,
       adzunaMaxJobsPerTerm: budget,
       startupjobsMaxJobsPerTerm: budget,
       workingnomadsMaxJobsPerTerm: budget,
@@ -139,9 +131,7 @@ export function deriveExtractorLimits(args: {
   const remainder = Math.max(0, budget - perUnit * weightedContributors);
 
   return {
-    jobspyResultsWanted: perUnit,
-    gradcrackerMaxJobsPerTerm: perUnit,
-    ukvisajobsMaxJobs: Math.min(budget, perUnit + remainder),
+    jobspyResultsWanted: Math.min(budget, perUnit + remainder),
     adzunaMaxJobsPerTerm: perUnit,
     startupjobsMaxJobsPerTerm: perUnit,
     workingnomadsMaxJobsPerTerm: perUnit,
@@ -202,8 +192,6 @@ export function calculateAutomaticEstimate(args: {
   }
 
   const termCount = values.searchTerms.length;
-  const hasGradcracker = sources.includes("gradcracker");
-  const hasUkVisaJobs = sources.includes("ukvisajobs");
   const hasIndeed = sources.includes("indeed");
   const hasLinkedIn = sources.includes("linkedin");
   const hasGlassdoor = sources.includes("glassdoor");
@@ -221,10 +209,6 @@ export function calculateAutomaticEstimate(args: {
     Boolean,
   ).length;
   const jobspyCap = jobspySitesCount * limits.jobspyResultsWanted * termCount;
-  const gradcrackerCap = hasGradcracker
-    ? limits.gradcrackerMaxJobsPerTerm * termCount
-    : 0;
-  const ukvisaCap = hasUkVisaJobs ? limits.ukvisajobsMaxJobs : 0;
   const adzunaCap = hasAdzuna ? limits.adzunaMaxJobsPerTerm * termCount : 0;
   const hiringCafeCap = hasHiringCafe
     ? limits.jobspyResultsWanted * termCount
@@ -238,8 +222,6 @@ export function calculateAutomaticEstimate(args: {
 
   const discoveredCap =
     jobspyCap +
-    gradcrackerCap +
-    ukvisaCap +
     adzunaCap +
     hiringCafeCap +
     startupJobsCap +

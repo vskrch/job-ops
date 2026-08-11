@@ -32,7 +32,7 @@ const renderHeader = (
     onNavOpenChange: vi.fn(),
     isPipelineRunning: false,
     isCancelling: false,
-    pipelineSources: ["gradcracker"],
+    pipelineSources: ["linkedin"],
     onOpenAutomaticRun: vi.fn(),
     onCancelPipeline: vi.fn(),
     ...overrides,

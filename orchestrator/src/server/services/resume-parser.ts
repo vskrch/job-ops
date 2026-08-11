@@ -12,6 +12,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { AppError, unprocessableEntity, upstreamError } from "@infra/errors";
 import { logger } from "@infra/logger";
 import * as userProfileRepo from "@server/repositories/user-profile";
 import type {
@@ -119,14 +120,23 @@ function cleanText(text: string): string {
 
 /** Extract plain text from a PDF buffer. */
 export async function extractResumeText(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {
     const result = await parser.getText();
     const text = cleanText(result.text);
     if (!text) {
-      throw new Error("No text could be extracted from this PDF");
+      throw unprocessableEntity(
+        "No text could be extracted from this PDF. It may be a scanned image or lack a text layer. Try exporting the resume as a text-based PDF.",
+      );
     }
     return text;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    const message =
+      error instanceof Error ? error.message : "Failed to read the PDF";
+    throw unprocessableEntity(
+      `Could not parse the PDF: ${message}. Ensure it is a valid, text-based PDF.`,
+    );
   } finally {
     await parser.destroy();
   }
@@ -241,10 +251,12 @@ export async function parseResumeProfile(
   });
 
   if (!result.success) {
-    logger.warn("Resume LLM extraction failed, returning empty profile", {
+    logger.warn("Resume LLM extraction failed", {
       error: result.error,
     });
-    return emptyProfile();
+    throw upstreamError(
+      `Could not extract a profile from the resume text: ${result.error}. Check that an LLM is configured in Settings.`,
+    );
   }
 
   return normalizeProfile(result.data);

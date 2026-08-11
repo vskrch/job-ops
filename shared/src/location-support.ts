@@ -9,97 +9,20 @@ const COUNTRY_ALIASES: Record<string, string> = {
 };
 
 const COUNTRY_LABELS: Record<string, string> = {
-  "united kingdom": "United Kingdom",
   "united states": "United States",
   "usa/ca": "USA/CA",
   turkey: "Turkey",
   czechia: "Czechia",
 };
 
-// Keep this list aligned with the JobSpy supported country inputs.
+// App-supported countries. The system operates in the US, Canada, and India
+// only; other JobSpy-supported countries are intentionally not offered.
 export const SUPPORTED_COUNTRY_INPUTS = [
-  "argentina",
-  "australia",
-  "austria",
-  "bahrain",
-  "bangladesh",
-  "belgium",
-  "bulgaria",
-  "brazil",
-  "canada",
-  "chile",
-  "china",
-  "colombia",
-  "costa rica",
-  "croatia",
-  "cyprus",
-  "czech republic",
-  "czechia",
-  "denmark",
-  "ecuador",
-  "egypt",
-  "estonia",
-  "finland",
-  "france",
-  "germany",
-  "greece",
-  "hong kong",
-  "hungary",
-  "india",
-  "indonesia",
-  "ireland",
-  "israel",
-  "italy",
-  "japan",
-  "kuwait",
-  "latvia",
-  "lithuania",
-  "luxembourg",
-  "malaysia",
-  "malta",
-  "mexico",
-  "morocco",
-  "netherlands",
-  "new zealand",
-  "nigeria",
-  "norway",
-  "oman",
-  "pakistan",
-  "panama",
-  "peru",
-  "philippines",
-  "poland",
-  "portugal",
-  "qatar",
-  "romania",
-  "saudi arabia",
-  "singapore",
-  "slovakia",
-  "slovenia",
-  "south africa",
-  "south korea",
-  "spain",
-  "sweden",
-  "switzerland",
-  "taiwan",
-  "thailand",
-  "türkiye",
-  "turkey",
-  "ukraine",
-  "united arab emirates",
-  "uk",
-  "united kingdom",
-  "usa",
-  "us",
   "united states",
-  "uruguay",
-  "venezuela",
-  "vietnam",
-  "usa/ca",
-  "worldwide",
+  "canada",
+  "india",
 ] as const;
 
-const UK_ONLY_SOURCES = new Set<JobSource>(["gradcracker", "ukvisajobs"]);
 const US_ONLY_SOURCES = new Set<JobSource>([
   "dice",
   "builtin",
@@ -147,13 +70,11 @@ const GLASSDOOR_SUPPORTED_COUNTRIES = new Set(
     "singapore",
     "spain",
     "switzerland",
-    "united kingdom",
     "united states",
     "vietnam",
   ].map((country) => normalizeCountryKey(country)),
 );
 const ADZUNA_COUNTRY_CODE_BY_KEY: Record<string, string> = {
-  "united kingdom": "gb",
   "united states": "us",
   austria: "at",
   australia: "au",
@@ -194,10 +115,6 @@ export const SUPPORTED_COUNTRY_KEYS = Array.from(
   ),
 ).filter(Boolean);
 
-export function isUkCountry(country: string | null | undefined): boolean {
-  return normalizeCountryKey(country) === "united kingdom";
-}
-
 export function isUsCountry(country: string | null | undefined): boolean {
   return normalizeCountryKey(country) === "united states";
 }
@@ -232,7 +149,6 @@ export function isSourceAllowedForCountry(
   source: JobSource,
   country: string | null | undefined,
 ): boolean {
-  if (UK_ONLY_SOURCES.has(source)) return isUkCountry(country);
   if (US_ONLY_SOURCES.has(source)) return isUsCountry(country);
   if (US_CA_SOURCES.has(source))
     return isUsCountry(country) || isCanadaCountry(country);

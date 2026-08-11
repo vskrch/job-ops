@@ -47,14 +47,8 @@ services:
           target: /app/visa-sponsor-providers
           action: sync+restart
         # Sync extractor changes
-        - path: ./extractors/gradcracker/src
-          target: /app/extractors/gradcracker/src
-          action: sync+restart
         - path: ./extractors/hiringcafe/src
           target: /app/extractors/hiringcafe/src
-          action: sync+restart
-        - path: ./extractors/ukvisajobs/src
-          target: /app/extractors/ukvisajobs/src
           action: sync+restart
         - path: ./extractors/workingnomads/src
           target: /app/extractors/workingnomads/src

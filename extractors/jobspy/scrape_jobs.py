@@ -112,12 +112,13 @@ def _scrape_for_sites(
         "search_term": search_term,
         "results_wanted": results_wanted,
         "hours_old": hours_old,
-        "country_indeed": country_indeed,
         "linkedin_fetch_description": linkedin_fetch_description,
         "is_remote": is_remote,
     }
     if location and location.strip():
         kwargs["location"] = location
+    if country_indeed and country_indeed.strip():
+        kwargs["country_indeed"] = country_indeed
     return scrape_jobs(**kwargs)
 
 
@@ -135,10 +136,10 @@ def _scrape_google(*, search_term: str, results_wanted: int, is_remote: bool) ->
 def main() -> int:
     sites = _parse_sites(_env_str("JOBSPY_SITES", "indeed,linkedin"))
     search_term = _env_str("JOBSPY_SEARCH_TERM", "web developer")
-    location = _env_str("JOBSPY_LOCATION", "UK")
+    location = _env_str("JOBSPY_LOCATION", "")
     results_wanted = _env_int("JOBSPY_RESULTS_WANTED", 200)
     hours_old = _env_int("JOBSPY_HOURS_OLD", 72)
-    country_indeed = _env_str("JOBSPY_COUNTRY_INDEED", "UK")
+    country_indeed = _env_str("JOBSPY_COUNTRY_INDEED", "")
     linkedin_fetch_description = _env_bool("JOBSPY_LINKEDIN_FETCH_DESCRIPTION", True)
     is_remote = _env_bool("JOBSPY_IS_REMOTE", False)
     term_index = _env_int("JOBSPY_TERM_INDEX", 1)

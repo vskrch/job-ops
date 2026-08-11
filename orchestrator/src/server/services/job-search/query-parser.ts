@@ -9,6 +9,10 @@
 import { randomUUID } from "node:crypto";
 import { logger } from "@infra/logger";
 import { getDefaultPromptTemplate } from "@shared/prompt-template-definitions.js";
+import {
+  normalizeCountryKey,
+  SUPPORTED_COUNTRY_KEYS,
+} from "@shared/location-support.js";
 import type { ParsedSearchSpec } from "@shared/types";
 import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
@@ -200,11 +204,20 @@ function normalizeSpec(raw: Record<string, unknown>): ParsedSearchSpec {
     | Record<string, unknown>
     | undefined;
 
+  // Restrict parsed countries to the app-supported set (US, Canada, India).
+  // Anything else is dropped so UK/other markets can never leak in.
+  const rawCountry = asString(locationRaw?.country ?? null);
+  const country = rawCountry
+    ? (SUPPORTED_COUNTRY_KEYS.find(
+        (key) => key === normalizeCountryKey(rawCountry),
+      ) ?? null)
+    : null;
+
   return {
     roles: asStringArray(raw.roles),
     skills: asStringArray(raw.skills),
     location: {
-      country: asString(locationRaw?.country ?? null),
+      country,
       cities: asStringArray(locationRaw?.cities),
     },
     workMode: (asString(raw.workMode) as ParsedSearchSpec["workMode"]) ?? "any",

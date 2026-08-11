@@ -38,7 +38,7 @@ describe("AutomaticRunTab", () => {
       <AutomaticRunTab
         open
         settings={createAppSettings()}
-        enabledSources={["linkedin", "gradcracker", "ukvisajobs"]}
+        enabledSources={["linkedin", "dice", "instahyre"]}
         pipelineSources={["linkedin"]}
         onToggleSource={vi.fn()}
         onSetPipelineSources={vi.fn()}
@@ -64,12 +64,12 @@ describe("AutomaticRunTab", () => {
           },
           jobspyCountryIndeed: {
             value: "us",
-            default: "united kingdom",
+            default: "united states",
             override: "us",
           },
           searchCities: { value: "", default: "", override: null },
         })}
-        enabledSources={["linkedin", "gradcracker", "ukvisajobs"]}
+        enabledSources={["linkedin", "dice", "instahyre"]}
         pipelineSources={["linkedin"]}
         onToggleSource={vi.fn()}
         onSetPipelineSources={vi.fn()}
@@ -95,7 +95,7 @@ describe("AutomaticRunTab", () => {
           },
           jobspyCountryIndeed: {
             value: "usa/ca",
-            default: "united kingdom",
+            default: "united states",
             override: "usa/ca",
           },
           searchCities: { value: "", default: "", override: null },
@@ -114,7 +114,7 @@ describe("AutomaticRunTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables and prunes UK-only sources for non-UK country", async () => {
+  it("disables and prunes country-restricted sources for mismatched country", async () => {
     const onSetPipelineSources = vi.fn();
 
     render(
@@ -128,13 +128,13 @@ describe("AutomaticRunTab", () => {
           },
           jobspyCountryIndeed: {
             value: "united states",
-            default: "united kingdom",
+            default: "united states",
             override: "united states",
           },
           searchCities: { value: "", default: "", override: null },
         })}
-        enabledSources={["linkedin", "gradcracker", "ukvisajobs"]}
-        pipelineSources={["linkedin", "gradcracker", "ukvisajobs"]}
+        enabledSources={["linkedin", "eluta", "instahyre"]}
+        pipelineSources={["linkedin", "eluta", "instahyre"]}
         onToggleSource={vi.fn()}
         onSetPipelineSources={onSetPipelineSources}
         isPipelineRunning={false}
@@ -146,11 +146,11 @@ describe("AutomaticRunTab", () => {
       expect(onSetPipelineSources).toHaveBeenCalledWith(["linkedin"]);
     });
 
-    expect(screen.getByRole("button", { name: "Gradcracker" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "UK Visa Jobs" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Eluta" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Instahyre" })).toBeDisabled();
   });
 
-  it("shows disabled source guidance copy for UK-only source", async () => {
+  it("shows disabled source guidance copy for country-restricted source", async () => {
     render(
       <AutomaticRunTab
         open
@@ -162,12 +162,12 @@ describe("AutomaticRunTab", () => {
           },
           jobspyCountryIndeed: {
             value: "united states",
-            default: "united kingdom",
+            default: "united states",
             override: "united states",
           },
           searchCities: { value: "", default: "", override: null },
         })}
-        enabledSources={["linkedin", "gradcracker", "ukvisajobs"]}
+        enabledSources={["linkedin", "eluta"]}
         pipelineSources={["linkedin"]}
         onToggleSource={vi.fn()}
         onSetPipelineSources={vi.fn()}
@@ -178,7 +178,7 @@ describe("AutomaticRunTab", () => {
 
     expect(
       screen.getByTitle(
-        "Gradcracker is available only when country is United Kingdom.",
+        "Eluta is not available for the selected country.",
       ),
     ).toBeInTheDocument();
   });
@@ -197,7 +197,7 @@ describe("AutomaticRunTab", () => {
           },
           jobspyCountryIndeed: {
             value: "japan",
-            default: "united kingdom",
+            default: "united states",
             override: "japan",
           },
           searchCities: { value: "", default: "", override: null },
@@ -235,14 +235,14 @@ describe("AutomaticRunTab", () => {
             override: null,
           },
           jobspyCountryIndeed: {
-            value: "united kingdom",
-            default: "united kingdom",
-            override: "united kingdom",
+            value: "canada",
+            default: "canada",
+            override: "canada",
           },
           searchCities: {
-            value: "United Kingdom",
-            default: "United Kingdom",
-            override: "United Kingdom",
+            value: "Toronto",
+            default: "Toronto",
+            override: "Toronto",
           },
         })}
         enabledSources={["linkedin", "glassdoor"]}
@@ -271,14 +271,14 @@ describe("AutomaticRunTab", () => {
         open
         settings={createAppSettings({
           jobspyCountryIndeed: {
-            value: "united kingdom",
-            default: "united kingdom",
-            override: "united kingdom",
+            value: "united states",
+            default: "united states",
+            override: "united states",
           },
           searchCities: {
-            value: "UK",
-            default: "UK",
-            override: "UK",
+            value: "USA",
+            default: "USA",
+            override: "USA",
           },
         })}
         enabledSources={["linkedin"]}
@@ -309,9 +309,9 @@ describe("AutomaticRunTab", () => {
             override: null,
           },
           jobspyCountryIndeed: {
-            value: "united kingdom",
-            default: "united kingdom",
-            override: "united kingdom",
+            value: "united states",
+            default: "united states",
+            override: "united states",
           },
           searchCities: { value: "", default: "", override: null },
         })}
@@ -347,14 +347,14 @@ describe("AutomaticRunTab", () => {
             override: null,
           },
           jobspyCountryIndeed: {
-            value: "united kingdom",
-            default: "united kingdom",
-            override: "united kingdom",
+            value: "canada",
+            default: "canada",
+            override: "canada",
           },
           searchCities: {
-            value: "London|Manchester",
-            default: "London|Manchester",
-            override: "London|Manchester",
+            value: "Toronto|Vancouver",
+            default: "Toronto|Vancouver",
+            override: "Toronto|Vancouver",
           },
         })}
         enabledSources={["linkedin", "glassdoor"]}
@@ -370,10 +370,10 @@ describe("AutomaticRunTab", () => {
     fireEvent.focus(screen.getByLabelText("Cities"));
 
     expect(
-      screen.getByRole("button", { name: "Remove city London" }),
+      screen.getByRole("button", { name: "Remove city Toronto" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Remove city Manchester" }),
+      screen.getByRole("button", { name: "Remove city Vancouver" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Glassdoor" })).toBeEnabled();
   });

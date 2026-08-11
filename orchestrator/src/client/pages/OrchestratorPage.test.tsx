@@ -56,14 +56,14 @@ let mockPipelineTerminalEvent: {
   token: number;
 } | null = null;
 let mockPipelineSources = ["linkedin"] as Array<
-  "gradcracker" | "indeed" | "linkedin" | "ukvisajobs" | "adzuna" | "hiringcafe"
+  "indeed" | "linkedin" | "adzuna" | "hiringcafe"
 >;
 let mockAutomaticRunValues: AutomaticRunValues = {
   topN: 12,
   minSuitabilityScore: 55,
   searchTerms: ["backend"],
   runBudget: 150,
-  country: "united kingdom",
+  country: "united states",
   cityLocations: [],
   workplaceTypes: ["remote", "hybrid", "onsite"],
   hoursOld: null,
@@ -156,10 +156,7 @@ vi.mock("./orchestrator/usePipelineSources", () => ({
 
 vi.mock("../hooks/useSettings", () => ({
   useSettings: () => ({
-    settings: {
-      ukvisajobsEmail: null,
-      ukvisajobsPasswordHint: null,
-    },
+    settings: {},
     refreshSettings: vi.fn(),
   }),
 }));
@@ -426,7 +423,7 @@ describe("OrchestratorPage", () => {
       minSuitabilityScore: 55,
       searchTerms: ["backend"],
       runBudget: 150,
-      country: "united kingdom",
+      country: "united states",
       cityLocations: [],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
@@ -807,7 +804,7 @@ describe("OrchestratorPage", () => {
     ) as unknown as typeof window.matchMedia;
 
     render(
-      <MemoryRouter initialEntries={["/jobs/ready?source=ukvisajobs"]}>
+      <MemoryRouter initialEntries={["/jobs/ready?source=eluta"]}>
         <LocationWatcher />
         <Routes>
           <Route path="/jobs/:tab" element={<OrchestratorPage />} />
@@ -817,7 +814,7 @@ describe("OrchestratorPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("location").textContent).not.toContain(
-        "source=ukvisajobs",
+        "source=eluta",
       );
     });
   });
@@ -846,11 +843,10 @@ describe("OrchestratorPage", () => {
         searchTerms: ["backend"],
         workplaceTypes: ["remote", "hybrid", "onsite"],
         jobspyResultsWanted: 150,
-        gradcrackerMaxJobsPerTerm: 150,
-        ukvisajobsMaxJobs: 150,
         adzunaMaxJobsPerTerm: 150,
         startupjobsMaxJobsPerTerm: 150,
-        jobspyCountryIndeed: "united kingdom",
+        workingnomadsMaxJobsPerTerm: 150,
+        jobspyCountryIndeed: "united states",
         searchCities: null,
         pipelineExcludeRunIds: [],
       });
@@ -875,7 +871,7 @@ describe("OrchestratorPage", () => {
       minSuitabilityScore: 55,
       searchTerms: ["backend"],
       runBudget: 150,
-      country: "united kingdom",
+      country: "united states",
       cityLocations: ["London", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
@@ -912,7 +908,7 @@ describe("OrchestratorPage", () => {
       minSuitabilityScore: 55,
       searchTerms: ["backend"],
       runBudget: 150,
-      country: "united kingdom",
+      country: "united states",
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
@@ -949,7 +945,7 @@ describe("OrchestratorPage", () => {
       minSuitabilityScore: 55,
       searchTerms: ["backend"],
       runBudget: 150,
-      country: "united kingdom",
+      country: "united states",
       cityLocations: ["Leeds", "Manchester"],
       workplaceTypes: ["remote", "hybrid", "onsite"],
       hoursOld: null,
@@ -1052,7 +1048,7 @@ describe("OrchestratorPage", () => {
     window.matchMedia = createMatchMedia(
       true,
     ) as unknown as typeof window.matchMedia;
-    mockPipelineSources = ["gradcracker", "ukvisajobs"];
+    mockPipelineSources = ["eluta", "instahyre"];
     mockAutomaticRunValues = {
       topN: 12,
       minSuitabilityScore: 55,

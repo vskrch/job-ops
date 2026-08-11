@@ -11,11 +11,7 @@ import { join } from "node:path";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { runWithRequestContext } from "@infra/request-context";
-import type {
-  PipelineConfig,
-  PipelineRunConfigSnapshot,
-  ResumeProfile,
-} from "@shared/types";
+import type { PipelineConfig, PipelineRunConfigSnapshot } from "@shared/types";
 import { getDataDir } from "../config/dataDir";
 import * as jobsRepo from "../repositories/jobs";
 import * as pipelineRepo from "../repositories/pipeline";
@@ -43,7 +39,7 @@ const DEFAULT_CONFIG: PipelineConfig = {
   topN: 10,
   minSuitabilityScore: 50,
   // Keep Glassdoor opt-in via source picker/settings; do not enable by default.
-  sources: ["gradcracker", "indeed", "linkedin", "ukvisajobs"],
+  sources: ["indeed", "linkedin"],
   outputDir: join(getDataDir(), "pdfs"),
   enableCrawling: true,
   enableScoring: true,

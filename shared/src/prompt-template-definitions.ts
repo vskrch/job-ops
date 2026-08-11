@@ -173,6 +173,7 @@ RULES:
 9. The interpretation field should explain in 1-2 sentences how you understood the query.
 10. explicitConstraints: list which fields were explicitly stated by the user.
 11. inferredPreferences: list any fields you inferred but the user did not explicitly state.
+12. location.country: only use one of "united states", "canada", or "india" (normalized). If the user mentions another country (e.g. UK, Germany, Australia), set country to null and note it in inferredPreferences — the system only supports the US, Canada, and India.
 
 USER QUERY:
 {{userQuery}}

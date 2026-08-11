@@ -1,11 +1,9 @@
 import { z } from "zod";
 
 export const EXTRACTOR_SOURCE_IDS = [
-  "gradcracker",
   "indeed",
   "linkedin",
   "glassdoor",
-  "ukvisajobs",
   "adzuna",
   "hiringcafe",
   "startupjobs",
@@ -63,29 +61,15 @@ export interface ExtractorSourceMetadata {
   order: number;
   category: "pipeline" | "manual";
   requiresCredentials?: boolean;
-  ukOnly?: boolean;
 }
 
 export const EXTRACTOR_SOURCE_METADATA: Record<
   ExtractorSourceId,
   ExtractorSourceMetadata
 > = {
-  gradcracker: {
-    label: "Gradcracker",
-    order: 10,
-    category: "pipeline",
-    ukOnly: true,
-  },
   indeed: { label: "Indeed", order: 20, category: "pipeline" },
   linkedin: { label: "LinkedIn", order: 30, category: "pipeline" },
   glassdoor: { label: "Glassdoor", order: 40, category: "pipeline" },
-  ukvisajobs: {
-    label: "UK Visa Jobs",
-    order: 50,
-    category: "pipeline",
-    requiresCredentials: true,
-    ukOnly: true,
-  },
   adzuna: {
     label: "Adzuna",
     order: 60,

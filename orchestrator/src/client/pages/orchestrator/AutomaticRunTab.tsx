@@ -1,5 +1,4 @@
 import * as api from "@client/api";
-import { EXTRACTOR_SOURCE_METADATA } from "@shared/extractors";
 import {
   formatCountryLabel,
   isSourceAllowedForCountry,
@@ -76,7 +75,7 @@ const DEFAULT_VALUES: AutomaticRunValues = {
   minSuitabilityScore: 50,
   searchTerms: ["web developer"],
   runBudget: 200,
-  country: "united kingdom",
+  country: "united states",
   cityLocations: [],
   workplaceTypes: ["remote", "hybrid", "onsite"],
   hoursOld: null,
@@ -119,9 +118,6 @@ function getSourceDisabledReason(
     return countryAllowed
       ? GLASSDOOR_LOCATION_REASON
       : GLASSDOOR_COUNTRY_REASON;
-  }
-  if (EXTRACTOR_SOURCE_METADATA[source]?.ukOnly) {
-    return `${sourceLabel[source]} is available only when country is United Kingdom.`;
   }
   return `${sourceLabel[source]} is not available for the selected country.`;
 }
@@ -246,8 +242,6 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       settings?.jobspyResultsWanted?.value ??
       settings?.startupjobsMaxJobsPerTerm?.value ??
       settings?.adzunaMaxJobsPerTerm?.value ??
-      settings?.gradcrackerMaxJobsPerTerm?.value ??
-      settings?.ukvisajobsMaxJobs?.value ??
       DEFAULT_VALUES.runBudget;
     const hasExplicitLocationOverride = Boolean(
       settings?.jobspyCountryIndeed?.override ||
@@ -266,7 +260,12 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
             settings?.searchCities?.value ??
             DEFAULT_VALUES.country),
     );
-    const rememberedCountryKey = rememberedCountry || DEFAULT_VALUES.country;
+    // Clamp persisted/legacy countries to the supported set (US, Canada, India).
+    const rememberedCountryKey = SUPPORTED_COUNTRY_KEYS.includes(
+      rememberedCountry,
+    )
+      ? rememberedCountry
+      : DEFAULT_VALUES.country;
     const rememberedLocations = parseCityLocationsSetting(
       settings?.searchCities?.value,
     ).filter(
@@ -282,7 +281,7 @@ export const AutomaticRunTab: React.FC<AutomaticRunTabProps> = ({
       topN: String(topN),
       minSuitabilityScore: String(minSuitabilityScore),
       runBudget: String(rememberedRunBudget),
-      country: rememberedCountry || DEFAULT_VALUES.country,
+      country: rememberedCountryKey,
       cityLocations: rememberedLocations,
       cityLocationDraft: "",
       workplaceTypes: rememberedWorkplaceTypes,

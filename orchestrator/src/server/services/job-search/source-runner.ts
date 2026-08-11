@@ -70,6 +70,22 @@ export async function runManifestTask(
       filteredSettings.jobspyIsRemote = "1";
     }
 
+    // Drive JobSpy's country/location from the parsed spec so results are
+    // scoped to the requested country instead of falling back to a default.
+    const countryKey = spec.location.country
+      ? normalizeCountryKey(spec.location.country)
+      : null;
+    if (countryKey) {
+      filteredSettings.jobspyCountryIndeed = countryKey;
+      if (!spec.location.cities.length) {
+        filteredSettings.searchCities = countryKey;
+      } else {
+        filteredSettings.searchCities = spec.location.cities.join("|");
+      }
+    } else if (spec.location.cities.length > 0) {
+      filteredSettings.searchCities = spec.location.cities.join("|");
+    }
+
     // Coerce the task's shouldCancel hook into the extractor contract.
     let cancelled = false;
     const timer = setTimeout(() => {
@@ -82,7 +98,7 @@ export async function runManifestTask(
         selectedSources: task.selectedSources,
         settings: filteredSettings,
         searchTerms,
-        selectedCountry: selectedCountry ?? "united kingdom",
+        selectedCountry: selectedCountry ?? null,
         getExistingJobUrls: () => existingJobUrls,
         shouldCancel: () => cancelled,
         onProgress: () => {},

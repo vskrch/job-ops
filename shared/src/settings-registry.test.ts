@@ -86,13 +86,13 @@ describe("settingsRegistry helpers", () => {
 
   describe("number parsing and clamping", () => {
     it("returns null for empty/invalid values", () => {
-      expect(settingsRegistry.ukvisajobsMaxJobs.parse("")).toBeNull();
-      expect(settingsRegistry.ukvisajobsMaxJobs.parse("abc")).toBeNull();
-      expect(settingsRegistry.ukvisajobsMaxJobs.parse(undefined)).toBeNull();
+      expect(settingsRegistry.adzunaMaxJobsPerTerm.parse("")).toBeNull();
+      expect(settingsRegistry.adzunaMaxJobsPerTerm.parse("abc")).toBeNull();
+      expect(settingsRegistry.adzunaMaxJobsPerTerm.parse(undefined)).toBeNull();
     });
 
     it("parses valid numbers", () => {
-      expect(settingsRegistry.ukvisajobsMaxJobs.parse("42")).toBe(42);
+      expect(settingsRegistry.adzunaMaxJobsPerTerm.parse("42")).toBe(42);
     });
 
     it("clamps backupHour to 0-23", () => {

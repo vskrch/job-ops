@@ -110,7 +110,7 @@ export async function discoverJobsStep(args: {
     settings.jobspyCountryIndeed ??
       settings.searchCities ??
       settings.jobspyLocation ??
-      "united kingdom",
+      "united states",
   );
   const compatibleSources = args.mergedConfig.sources.filter((source) =>
     isSourceAllowedForCountry(source, selectedCountry),

@@ -27,14 +27,14 @@ describe("visa sponsor provider discovery", () => {
   it("finds provider manifests in the repo-local providers directory", async () => {
     const repoRoot = await makeTempRepoRoot();
     const providersRoot = join(repoRoot, "visa-sponsor-providers");
-    await mkdir(join(providersRoot, "uk"), { recursive: true });
+    await mkdir(join(providersRoot, "ca"), { recursive: true });
     await writeFile(
-      join(providersRoot, "uk", "manifest.ts"),
+      join(providersRoot, "ca", "manifest.ts"),
       [
         "export const manifest = {",
-        "  id: 'uk',",
-        "  displayName: 'United Kingdom',",
-        "  countryKey: 'united kingdom',",
+        "  id: 'ca',",
+        "  displayName: 'Canada',",
+        "  countryKey: 'canada',",
         "  async fetchSponsors() {",
         "    return [];",
         "  },",
@@ -44,7 +44,7 @@ describe("visa sponsor provider discovery", () => {
     );
 
     await expect(discoverProviderManifestPaths(providersRoot)).resolves.toEqual(
-      [join(providersRoot, "uk", "manifest.ts")],
+      [join(providersRoot, "ca", "manifest.ts")],
     );
   });
 
@@ -55,9 +55,9 @@ describe("visa sponsor provider discovery", () => {
       manifestPath,
       [
         "export const manifest = {",
-        "  id: 'uk',",
-        "  displayName: 'United Kingdom',",
-        "  countryKey: 'united kingdom',",
+        "  id: 'ca',",
+        "  displayName: 'Canada',",
+        "  countryKey: 'canada',",
         "  async fetchSponsors() {",
         "    return [];",
         "  },",
@@ -68,8 +68,8 @@ describe("visa sponsor provider discovery", () => {
 
     const manifest = await loadProviderManifestFromFile(manifestPath);
 
-    expect(manifest.id).toBe("uk");
-    expect(manifest.countryKey).toBe("united kingdom");
+    expect(manifest.id).toBe("ca");
+    expect(manifest.countryKey).toBe("canada");
   });
 
   it("loads provider manifests from default exports", async () => {
@@ -79,9 +79,9 @@ describe("visa sponsor provider discovery", () => {
       manifestPath,
       [
         "export default {",
-        "  id: 'uk',",
-        "  displayName: 'United Kingdom',",
-        "  countryKey: 'united kingdom',",
+        "  id: 'ca',",
+        "  displayName: 'Canada',",
+        "  countryKey: 'canada',",
         "  async fetchSponsors() {",
         "    return [];",
         "  },",
@@ -92,8 +92,8 @@ describe("visa sponsor provider discovery", () => {
 
     const manifest = await loadProviderManifestFromFile(manifestPath);
 
-    expect(manifest.id).toBe("uk");
-    expect(manifest.countryKey).toBe("united kingdom");
+    expect(manifest.id).toBe("ca");
+    expect(manifest.countryKey).toBe("canada");
   });
 
   it("rejects invalid manifest export shapes", async () => {
@@ -103,8 +103,8 @@ describe("visa sponsor provider discovery", () => {
       manifestPath,
       [
         "export default {",
-        "  id: 'uk',",
-        "  displayName: 'United Kingdom',",
+        "  id: 'ca',",
+        "  displayName: 'Canada',",
         "};",
       ].join("\n"),
       "utf8",

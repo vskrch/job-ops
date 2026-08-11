@@ -219,22 +219,11 @@ export const getEnabledSources = (
   if (!settings) return [...orderedSources];
 
   const enabled: JobSource[] = [];
-  const hasUkVisaJobsAuth = Boolean(
-    settings.ukvisajobsEmail?.trim() && settings.ukvisajobsPasswordHint,
-  );
   const hasAdzunaAuth = Boolean(
     settings.adzunaAppId?.trim() && settings.adzunaAppKeyHint,
   );
 
   for (const source of orderedSources) {
-    if (source === "gradcracker") {
-      enabled.push(source);
-      continue;
-    }
-    if (source === "ukvisajobs") {
-      if (hasUkVisaJobsAuth) enabled.push(source);
-      continue;
-    }
     if (source === "adzuna") {
       if (hasAdzunaAuth) enabled.push(source);
       continue;

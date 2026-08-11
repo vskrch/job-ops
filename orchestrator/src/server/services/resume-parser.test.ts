@@ -164,12 +164,11 @@ describe.sequential("resume-parser", () => {
     expect(profile.links[0]?.url).toBe("https://linkedin.com/in/jane");
   });
 
-  it("returns an empty profile when the LLM call fails", async () => {
+  it("throws an upstream error when the LLM call fails", async () => {
     setLlmData(undefined);
-    const profile = await parseResumeProfile("Jane Doe ...");
-    expect(profile.fullName).toBeNull();
-    expect(profile.skills).toEqual([]);
-    expect(profile.experience).toEqual([]);
+    await expect(parseResumeProfile("Jane Doe ...")).rejects.toThrow(
+      /Could not extract a profile from the resume text/,
+    );
   });
 
   it("normalizes malformed LLM output instead of crashing", async () => {

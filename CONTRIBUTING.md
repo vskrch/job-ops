@@ -92,8 +92,6 @@ Run from the repository root:
 ./orchestrator/node_modules/.bin/biome ci .
 npm run check:types:shared
 npm --workspace orchestrator run check:types
-npm --workspace gradcracker-extractor run check:types
-npm --workspace ukvisajobs-extractor run check:types
 npm --workspace orchestrator run build:client
 npm --workspace orchestrator run test:run
 ```
