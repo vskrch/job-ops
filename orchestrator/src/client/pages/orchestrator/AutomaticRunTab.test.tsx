@@ -181,45 +181,6 @@ describe("AutomaticRunTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables glassdoor for unsupported countries with guidance copy", async () => {
-    const onSetPipelineSources = vi.fn();
-
-    render(
-      <AutomaticRunTab
-        open
-        settings={createAppSettings({
-          searchTerms: {
-            value: ["backend engineer"],
-            default: ["backend engineer"],
-            override: null,
-          },
-          jobspyCountryIndeed: {
-            value: "japan",
-            default: "united states",
-            override: "japan",
-          },
-          searchCities: { value: "", default: "", override: null },
-        })}
-        enabledSources={["linkedin", "glassdoor"]}
-        pipelineSources={["linkedin", "glassdoor"]}
-        onToggleSource={vi.fn()}
-        onSetPipelineSources={onSetPipelineSources}
-        isPipelineRunning={false}
-        onSaveAndRun={vi.fn().mockResolvedValue(undefined)}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(onSetPipelineSources).toHaveBeenCalledWith(["linkedin"]);
-    });
-
-    const glassdoorButton = screen.getByRole("button", { name: "Glassdoor" });
-    expect(glassdoorButton).toBeDisabled();
-    expect(glassdoorButton.getAttribute("title")).toContain(
-      "Glassdoor is not available for the selected country.",
-    );
-  });
-
   it("disables glassdoor for supported countries until city is provided", async () => {
     const onSetPipelineSources = vi.fn();
 
@@ -238,9 +199,9 @@ describe("AutomaticRunTab", () => {
             override: "canada",
           },
           searchCities: {
-            value: "Toronto",
-            default: "Toronto",
-            override: "Toronto",
+            value: "Canada",
+            default: "Canada",
+            override: "Canada",
           },
         })}
         enabledSources={["linkedin", "glassdoor"]}

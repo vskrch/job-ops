@@ -169,12 +169,12 @@ for (const [key, def] of Object.entries(settingsRegistry)) {
     if (isBackup) {
       deferred.push("refreshBackupScheduler");
     }
-    if (RXRESUME_CACHE_INVALIDATION_KEYS.has(key as keyof UpdateSettingsInput)) {
+    if (
+      RXRESUME_CACHE_INVALIDATION_KEYS.has(key as keyof UpdateSettingsInput)
+    ) {
       deferred.push("clearRxResumeCaches");
     }
-    if (
-      SEARCH_SCHEDULER_SETTINGS_KEYS.has(key as keyof UpdateSettingsInput)
-    ) {
+    if (SEARCH_SCHEDULER_SETTINGS_KEYS.has(key as keyof UpdateSettingsInput)) {
       deferred.push("refreshSearchScheduler");
     }
 

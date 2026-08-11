@@ -6,13 +6,10 @@
  * throw, so the search result itself is never affected.
  */
 
-import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
 import { logger } from "@infra/logger";
+import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
 import * as settingsRepo from "@server/repositories/settings";
-import type {
-  JobSearch,
-  JobSearchResultItem,
-} from "@shared/types";
+import type { JobSearch, JobSearchResultItem } from "@shared/types";
 
 const MAX_WEBHOOK_JOBS = 10;
 const MAX_TELEGRAM_JOBS = 5;
@@ -155,7 +152,11 @@ async function sendTelegramNotification(
       process.env.TELEGRAM_BOT_TOKEN ||
       "";
     const chatIdOverride = await settingsRepo.getSetting("telegramChatId");
-    const chatId = (chatIdOverride || process.env.TELEGRAM_CHAT_ID || "").trim();
+    const chatId = (
+      chatIdOverride ||
+      process.env.TELEGRAM_CHAT_ID ||
+      ""
+    ).trim();
 
     if (!token.trim() || !chatId) {
       logger.info("Skipping scheduled-search Telegram: not configured", {
@@ -193,7 +194,9 @@ async function sendTelegramNotification(
     }
 
     lines.push("");
-    lines.push(`View full results: ${getPublicBaseUrl()}/job-search/${ctx.searchId}`);
+    lines.push(
+      `View full results: ${getPublicBaseUrl()}/job-search/${ctx.searchId}`,
+    );
 
     const apiUrl = `https://api.telegram.org/bot${token.trim()}/sendMessage`;
     const response = await fetch(apiUrl, {
@@ -227,7 +230,7 @@ async function sendTelegramNotification(
 
 /** Escape special characters for Telegram MarkdownV2. */
 function escapeTelegramText(text: string): string {
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
+  return text.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
 }
 
 /**

@@ -16,7 +16,6 @@ import * as scheduleRepo from "@server/repositories/search-schedules";
 import {
   getSearchSchedules,
   refreshSearchScheduler,
-  runSearchScheduleNow,
 } from "@server/services/search-scheduler";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";

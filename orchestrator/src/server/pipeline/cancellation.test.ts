@@ -56,7 +56,10 @@ describe.sequential("pipeline cancellation", () => {
 
     const runPromise = pipeline.runPipeline({ sources: [] });
 
-    await Promise.resolve();
+    // Wait until the run record is created so the run id is known.
+    await vi.waitFor(() => {
+      expect(pipelineRepo.createPipelineRun).toHaveBeenCalled();
+    });
 
     const cancelRequest = pipeline.requestPipelineCancel();
     expect(cancelRequest.accepted).toBe(true);
@@ -85,9 +88,12 @@ describe.sequential("pipeline cancellation", () => {
 
   it("cancels a specific run by pipelineRunId", async () => {
     const pipeline = await import("./orchestrator");
+    const pipelineRepo = await import("../repositories/pipeline");
 
     const runPromise = pipeline.runPipeline({ sources: [] });
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(pipelineRepo.createPipelineRun).toHaveBeenCalled();
+    });
 
     // Cancel by explicit run id
     const cancelRequest = pipeline.requestPipelineCancel("run-cancel-1");

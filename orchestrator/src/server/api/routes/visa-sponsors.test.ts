@@ -23,8 +23,8 @@ describe.sequential("Visa sponsors API routes", () => {
     vi.mocked(getStatus).mockResolvedValue({
       providers: [
         {
-          providerId: "uk",
-          countryKey: "united kingdom",
+          providerId: "ca",
+          countryKey: "canada",
           lastUpdated: null,
           csvPath: null,
           totalSponsors: 0,
@@ -91,8 +91,8 @@ describe.sequential("Visa sponsors API routes", () => {
     vi.mocked(getStatus).mockResolvedValue({
       providers: [
         {
-          providerId: "uk",
-          countryKey: "united kingdom",
+          providerId: "ca",
+          countryKey: "canada",
           lastUpdated: "2026-03-09T12:00:00.000Z",
           csvPath: "/tmp/uk/visa_sponsors_2026-03-09.csv",
           totalSponsors: 123,
@@ -103,19 +103,19 @@ describe.sequential("Visa sponsors API routes", () => {
       ],
     });
 
-    const res = await fetch(`${baseUrl}/api/visa-sponsors/update/uk`, {
+    const res = await fetch(`${baseUrl}/api/visa-sponsors/update/ca`, {
       method: "POST",
-      headers: { "x-request-id": "req-visa-sponsors-uk" },
+      headers: { "x-request-id": "req-visa-sponsors-ca" },
     });
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-request-id")).toBe("req-visa-sponsors-uk");
-    expect(vi.mocked(downloadLatestCsv)).toHaveBeenCalledWith("uk");
+    expect(res.headers.get("x-request-id")).toBe("req-visa-sponsors-ca");
+    expect(vi.mocked(downloadLatestCsv)).toHaveBeenCalledWith("ca");
     expect(body.ok).toBe(true);
     expect(body.data.message).toBe("Updated 1/1 providers");
     expect(body.data.status.providers).toHaveLength(1);
-    expect(body.meta.requestId).toBe("req-visa-sponsors-uk");
+    expect(body.meta.requestId).toBe("req-visa-sponsors-ca");
   });
 
   it("returns not found when updating an unknown provider", async () => {
@@ -148,8 +148,8 @@ describe.sequential("Visa sponsors API routes", () => {
     );
     vi.mocked(searchSponsors).mockResolvedValue([
       {
-        providerId: "uk",
-        countryKey: "united kingdom",
+        providerId: "ca",
+        countryKey: "canada",
         sponsor: {
           organisationName: "Acme",
           townCity: "London",
@@ -181,7 +181,7 @@ describe.sequential("Visa sponsors API routes", () => {
     expect(body.data.total).toBe(1);
 
     const orgRes = await fetch(
-      `${baseUrl}/api/visa-sponsors/organization/Acme?providerId=uk`,
+      `${baseUrl}/api/visa-sponsors/organization/Acme?providerId=ca`,
     );
     expect(orgRes.status).toBe(404);
   });

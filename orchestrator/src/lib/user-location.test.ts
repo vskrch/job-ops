@@ -31,14 +31,14 @@ describe("user-location", () => {
     localStorage.setItem(
       "jobops.user-country-cache.v1",
       JSON.stringify({
-        country: "united kingdom",
+        country: "canada",
         detectedAt: Date.now(),
       }),
     );
 
     const result = getDetectedCountryKey();
 
-    expect(result).toBe("united kingdom");
+    expect(result).toBe("canada");
   });
 
   it("caches detected country from browser signals", () => {

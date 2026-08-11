@@ -113,9 +113,7 @@ describe("discoverJobsStep", () => {
 
     vi.mocked(registryModule.getExtractorRegistry).mockResolvedValue({
       manifests: new Map([["startupjobs", startupJobsManifest as any]]),
-      manifestBySource: new Map([
-        ["startupjobs", startupJobsManifest as any],
-      ]),
+      manifestBySource: new Map([["startupjobs", startupJobsManifest as any]]),
       availableSources: ["startupjobs"],
     } as any);
 
@@ -383,8 +381,7 @@ describe("discoverJobsStep", () => {
       }),
     );
 
-    const [{ getExistingJobUrls }] = hiringCafeManifest.run.mock
-      .calls[0] as [
+    const [{ getExistingJobUrls }] = hiringCafeManifest.run.mock.calls[0] as [
       { getExistingJobUrls: () => Promise<string[]> },
     ];
     await expect(getExistingJobUrls()).resolves.toEqual([

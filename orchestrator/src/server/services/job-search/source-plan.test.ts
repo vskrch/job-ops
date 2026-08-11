@@ -81,17 +81,17 @@ describe("buildSourcePlan", () => {
     expect(ats?.selectedSources).toEqual(["greenhouse", "lever"]);
   });
 
-  it("skips UK-only sources for a Canada search", async () => {
+  it("skips country-restricted sources for a Canada search", async () => {
     const registry = makeRegistry([
-      ["gradcracker", ["gradcracker"]],
+      ["jobboards", ["dice", "instahyre"]],
       ["remotive", ["remotive"]],
     ]);
 
     const plan = await buildSourcePlan(makeSpec(), registry, {});
 
-    const gradcracker = plan.tasks.find((t) => t.manifestId === "gradcracker");
-    const skipped = plan.skippedSources.find((s) => s.source === "gradcracker");
-    expect(gradcracker).toBeUndefined();
+    const dice = plan.tasks.find((t) => t.manifestId === "jobboards");
+    const skipped = plan.skippedSources.find((s) => s.source === "dice");
+    expect(dice).toBeUndefined();
     expect(skipped?.reason).toBe("country");
     expect(plan.tasks.some((t) => t.manifestId === "remotive")).toBe(true);
   });

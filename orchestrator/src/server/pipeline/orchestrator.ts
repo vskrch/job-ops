@@ -11,7 +11,11 @@ import { join } from "node:path";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { runWithRequestContext } from "@infra/request-context";
-import type { PipelineConfig, PipelineRunConfigSnapshot } from "@shared/types";
+import type {
+  PipelineConfig,
+  PipelineRunConfigSnapshot,
+  ResumeProfile,
+} from "@shared/types";
 import { getDataDir } from "../config/dataDir";
 import * as jobsRepo from "../repositories/jobs";
 import * as pipelineRepo from "../repositories/pipeline";
@@ -102,6 +106,7 @@ let activePipelineRuns = 0;
 let maxConcurrentPipelines = 3;
 const activeRunIds = new Set<string>();
 const cancelRequestedByRunId = new Set<string>();
+let cancelAllRequested = false;
 
 class PipelineCancelledError extends Error {
   constructor(message = "Pipeline cancellation requested") {
@@ -111,7 +116,7 @@ class PipelineCancelledError extends Error {
 }
 
 function ensureNotCancelled(runId: string): void {
-  if (cancelRequestedByRunId.has(runId)) {
+  if (cancelAllRequested || cancelRequestedByRunId.has(runId)) {
     throw new PipelineCancelledError();
   }
 }
@@ -370,9 +375,13 @@ export async function runPipeline(
         error: message,
       };
     } finally {
-      activePipelineRuns--;
+      activePipelineRuns = Math.max(0, activePipelineRuns - 1);
       activeRunIds.delete(pipelineRun.id);
       cancelRequestedByRunId.delete(pipelineRun.id);
+      // Reset the global "cancel all" flag once the last active run finishes.
+      if (activePipelineRuns === 0) {
+        cancelAllRequested = false;
+      }
     }
   });
 }
@@ -621,42 +630,49 @@ export function requestPipelineCancel(pipelineRunId?: string): {
     return { accepted: false, pipelineRunId: null, alreadyRequested: false };
   }
 
-  // If a specific run id is provided, cancel that run.
-  let runId: string | null = null;
+  // If a specific run id is provided, cancel just that run.
   if (pipelineRunId) {
     if (!activeRunIds.has(pipelineRunId)) {
       return { accepted: false, pipelineRunId: null, alreadyRequested: false };
     }
-    runId = pipelineRunId;
-  } else {
-    // Cancel the most recent active run (any non-"pending" id).
-    runId = null;
-    for (const id of activeRunIds) {
-      if (id !== "pending") {
-        runId = id;
-      }
+    if (cancelRequestedByRunId.has(pipelineRunId)) {
+      return {
+        accepted: true,
+        pipelineRunId,
+        alreadyRequested: true,
+      };
     }
-    if (!runId) {
-      return { accepted: false, pipelineRunId: null, alreadyRequested: false };
-    }
-  }
-
-  if (cancelRequestedByRunId.has(runId)) {
+    cancelRequestedByRunId.add(pipelineRunId);
     return {
       accepted: true,
-      pipelineRunId: runId,
-      alreadyRequested: true,
+      pipelineRunId,
+      alreadyRequested: false,
     };
   }
 
-  cancelRequestedByRunId.add(runId);
+  // No id: cancel every active run (restores the pre-concurrency "cancel all"
+  // behavior). The run may still be in the "pending" phase (createPipelineRun
+  // not yet resolved), so a global flag covers that window.
+  const mostRecentId =
+    [...activeRunIds].filter((id) => id !== "pending").at(-1) ?? null;
+  if (cancelAllRequested) {
+    return {
+      accepted: true,
+      pipelineRunId: mostRecentId,
+      alreadyRequested: true,
+    };
+  }
+  cancelAllRequested = true;
+  for (const id of activeRunIds) {
+    cancelRequestedByRunId.add(id);
+  }
   return {
     accepted: true,
-    pipelineRunId: runId,
+    pipelineRunId: mostRecentId,
     alreadyRequested: false,
   };
 }
 
 export function isPipelineCancelRequested(): boolean {
-  return cancelRequestedByRunId.size > 0;
+  return cancelAllRequested || cancelRequestedByRunId.size > 0;
 }

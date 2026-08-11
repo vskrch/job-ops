@@ -20,11 +20,11 @@ import {
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
 import { refreshPipelineScheduler } from "./services/pipeline-scheduler";
-import { refreshSearchScheduler } from "./services/search-scheduler";
 import {
   isRemoteBackupConfigured,
   syncBackupToRemote,
 } from "./services/remote-backup/index";
+import { refreshSearchScheduler } from "./services/search-scheduler";
 import { getEffectiveSettings } from "./services/settings";
 import { initialize as initializeVisaSponsors } from "./services/visa-sponsors/index";
 

@@ -847,7 +847,6 @@ describe("OrchestratorPage", () => {
         jobspyResultsWanted: 150,
         adzunaMaxJobsPerTerm: 150,
         startupjobsMaxJobsPerTerm: 150,
-        workingnomadsMaxJobsPerTerm: 150,
         jobspyCountryIndeed: "united states",
         searchCities: null,
         pipelineExcludeRunIds: [],

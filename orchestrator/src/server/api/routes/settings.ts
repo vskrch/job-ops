@@ -14,7 +14,6 @@ import { getSetting } from "@server/repositories/settings";
 import { setBackupSettings } from "@server/services/backup/index";
 import { LlmService } from "@server/services/llm/service";
 import { refreshPipelineScheduler } from "@server/services/pipeline-scheduler";
-import { refreshSearchScheduler } from "@server/services/search-scheduler";
 import { clearProfileCache } from "@server/services/profile";
 import {
   clearRxResumeResumeCache,
@@ -26,6 +25,7 @@ import {
   validateResumeSchema,
   validateCredentials as validateRxResumeCredentials,
 } from "@server/services/rxresume";
+import { refreshSearchScheduler } from "@server/services/search-scheduler";
 import { getEffectiveSettings } from "@server/services/settings";
 import { applySettingsUpdates } from "@server/services/settings-update";
 import {

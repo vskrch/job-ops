@@ -80,9 +80,9 @@ describe.sequential("Extractor health API routes", () => {
 
   it("returns service unavailable when the extractor run fails", async () => {
     const manifest: ExtractorManifest = {
-      id: "gradcracker",
-      displayName: "Gradcracker",
-      providesSources: ["gradcracker"],
+      id: "hiringcafe",
+      displayName: "Hiring Cafe",
+      providesSources: ["hiringcafe"],
       run: vi.fn().mockResolvedValue({
         success: false,
         jobs: [],
@@ -91,7 +91,7 @@ describe.sequential("Extractor health API routes", () => {
     };
     mockGetExtractorRegistry.mockResolvedValue(createRegistry([manifest]));
 
-    const res = await fetch(`${baseUrl}/api/gradcracker/health`);
+    const res = await fetch(`${baseUrl}/api/hiringcafe/health`);
     const body = await res.json();
 
     expect(res.status).toBe(503);

@@ -13,9 +13,8 @@ import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import * as jobSearchRepo from "@server/repositories/job-search";
 import * as scheduleRepo from "@server/repositories/search-schedules";
-import * as settingsRepo from "@server/repositories/settings";
-import type { SearchSchedule } from "@shared/types";
 import { createScheduler, type Scheduler } from "@server/utils/scheduler";
+import type { SearchSchedule } from "@shared/types";
 
 import { executeJobSearch } from "./job-search";
 import { sendScheduledSearchNotifications } from "./search-notifications";
@@ -41,13 +40,19 @@ async function createScheduledSearch(
   query: string,
 ): Promise<string | null> {
   // Import here to avoid circular dependency at module load time.
-  const { computeAdmissionHash, JOB_SEARCH_PARSER_VERSION, SOURCE_PLAN_VERSION } =
-    await import("./job-search");
+  const {
+    computeAdmissionHash,
+    JOB_SEARCH_PARSER_VERSION,
+    SOURCE_PLAN_VERSION,
+  } = await import("./job-search");
 
-  const admissionHash = computeAdmissionHash(`${scheduleId}:${Date.now()}:${query}`, {
-    fresh: true,
-    sourcePlanVersion: SOURCE_PLAN_VERSION,
-  });
+  const admissionHash = computeAdmissionHash(
+    `${scheduleId}:${Date.now()}:${query}`,
+    {
+      fresh: true,
+      sourcePlanVersion: SOURCE_PLAN_VERSION,
+    },
+  );
 
   const search = await jobSearchRepo.createJobSearch({
     admissionHash,
@@ -80,9 +85,12 @@ async function runScheduledSearch(
   try {
     const searchId = await createScheduledSearch(schedule.id, schedule.query);
     if (!searchId) {
-      logger.warn("Scheduled search: could not create search record (duplicate?)", {
-        ...runLog,
-      });
+      logger.warn(
+        "Scheduled search: could not create search record (duplicate?)",
+        {
+          ...runLog,
+        },
+      );
       await scheduleRepo.updateScheduleRunResult(
         schedule.id,
         null,
@@ -184,10 +192,13 @@ export async function refreshSearchScheduler(): Promise<void> {
 
       const intervalId = setInterval(async () => {
         if (running) {
-          logger.debug("Search schedule already running, skipping hourly tick", {
-            scheduler: `search-${schedule.id}`,
-            scheduleId: schedule.id,
-          });
+          logger.debug(
+            "Search schedule already running, skipping hourly tick",
+            {
+              scheduler: `search-${schedule.id}`,
+              scheduleId: schedule.id,
+            },
+          );
           return;
         }
         running = true;

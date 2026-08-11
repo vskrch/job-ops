@@ -45,7 +45,7 @@ const now = new Date().toISOString();
 const createJob = (overrides: Partial<Job> = {}): Job =>
   createBaseJob({
     id: "test-job-1",
-    source: "gradcracker",
+    source: "linkedin",
     title: "Software Engineer",
     employer: "Acme Corporation Ltd",
     location: "London",

@@ -64,7 +64,9 @@ export async function listSearchSchedules(): Promise<SearchSchedule[]> {
     .from(searchSchedules)
     .orderBy(desc(searchSchedules.createdAt));
 
-  return rows.map((row) => mapRowToSchedule(row as unknown as SearchScheduleRow));
+  return rows.map((row) =>
+    mapRowToSchedule(row as unknown as SearchScheduleRow),
+  );
 }
 
 /**
@@ -182,7 +184,9 @@ export async function getEnabledSearchSchedules(): Promise<SearchSchedule[]> {
     .where(eq(searchSchedules.enabled, 1))
     .orderBy(desc(searchSchedules.createdAt));
 
-  return rows.map((row) => mapRowToSchedule(row as unknown as SearchScheduleRow));
+  return rows.map((row) =>
+    mapRowToSchedule(row as unknown as SearchScheduleRow),
+  );
 }
 
 /**
