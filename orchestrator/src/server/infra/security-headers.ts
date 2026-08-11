@@ -19,11 +19,11 @@ import type { RequestHandler } from "express";
 
 const CSP_HEADER =
   "default-src 'self'; " +
-  "script-src 'self' https://umami.dakheera47.com 'sha256-8bkRvcaLNNeLyGHEmrhXzsb7x5nmpThfnk8I57a/Q+s='; " +
+  "script-src 'self' 'sha256-8bkRvcaLNNeLyGHEmrhXzsb7x5nmpThfnk8I57a/Q+s='; " +
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
   "img-src 'self' data: https:; " +
   "font-src 'self' https: https://fonts.gstatic.com; " +
-  "connect-src 'self' https://api.github.com https://umami.dakheera47.com; " +
+  "connect-src 'self' https://api.github.com; " +
   "frame-ancestors 'none'";
 
 export function securityHeaders(): RequestHandler {
