@@ -177,9 +177,7 @@ describe("AutomaticRunTab", () => {
     );
 
     expect(
-      screen.getByTitle(
-        "Eluta is not available for the selected country.",
-      ),
+      screen.getByTitle("Eluta is not available for the selected country."),
     ).toBeInTheDocument();
   });
 

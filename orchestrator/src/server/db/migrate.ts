@@ -845,7 +845,27 @@ const migrations = [
      COALESCE((SELECT value FROM settings WHERE key = 'pipelineScheduleSources'), '[]'),
      datetime('now'),
      datetime('now')
-   WHERE NOT EXISTS (SELECT 1 FROM pipeline_schedules)`,
+   WHERE NOT EXISTS (SELECT 1 FROM pipeline_schedules)
+     AND EXISTS (SELECT 1 FROM settings WHERE key IN ('pipelineScheduleEnabled', 'pipelineScheduleHour', 'pipelineScheduleSources'))`,
+
+  // Periodic search scanning: create the search_schedules table.
+  `CREATE TABLE IF NOT EXISTS search_schedules (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    frequency TEXT NOT NULL DEFAULT 'daily' CHECK(frequency IN ('hourly', 'daily')),
+    hour INTEGER,
+    minute INTEGER NOT NULL DEFAULT 0,
+    query TEXT NOT NULL,
+    notify_email INTEGER NOT NULL DEFAULT 1,
+    notify_webhook INTEGER NOT NULL DEFAULT 1,
+    last_run_at TEXT,
+    last_search_id TEXT,
+    last_results_count INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_search_schedules_enabled ON search_schedules(enabled)`,
 ];
 
 console.log("🔧 Running database migrations...");

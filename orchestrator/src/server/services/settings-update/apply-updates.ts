@@ -45,6 +45,9 @@ export async function applySettingsUpdates(
     shouldRefreshPipelineScheduler: deferredSideEffects.has(
       "refreshPipelineScheduler",
     ),
+    shouldRefreshSearchScheduler: deferredSideEffects.has(
+      "refreshSearchScheduler",
+    ),
     shouldClearRxResumeCaches: deferredSideEffects.has("clearRxResumeCaches"),
   };
 }

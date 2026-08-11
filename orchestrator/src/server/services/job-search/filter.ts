@@ -20,12 +20,49 @@ function normalize(str: string | null | undefined): string {
   return (str ?? "").toLowerCase().trim();
 }
 
+const ROLE_TOKEN_BLACKLIST = new Set([
+  "senior",
+  "junior",
+  "lead",
+  "staff",
+  "principal",
+  "engineer",
+  "engineers",
+  "developer",
+  "developers",
+  "manager",
+  "architect",
+  "specialist",
+  "analyst",
+  "consultant",
+  "intern",
+  "associate",
+  "the",
+  "a",
+  "an",
+]);
+
+function tokenizeRole(value: string): string[] {
+  return normalize(value)
+    .split(/[^a-z0-9+#.]+/)
+    .filter((t) => t.length > 1 && !ROLE_TOKEN_BLACKLIST.has(t));
+}
+
 function titleMatches(jobTitle: string, requestedRoles: string[]): boolean {
   const normalizedTitle = normalize(jobTitle);
   return requestedRoles.some((role) => {
     const normalizedRole = normalize(role);
     if (!normalizedRole) return false;
-    return normalizedTitle.includes(normalizedRole);
+    // Exact substring match (fast path).
+    if (normalizedTitle.includes(normalizedRole)) return true;
+    // Token-overlap match: "software engineer" matches "Senior Software Developer"
+    // because both share the meaningful token "software".
+    const roleTokens = tokenizeRole(normalizedRole);
+    if (roleTokens.length === 0) return false;
+    const titleTokens = new Set(
+      normalizedTitle.split(/[^a-z0-9+#.]+/).filter((t) => t.length > 1),
+    );
+    return roleTokens.every((t) => titleTokens.has(t));
   });
 }
 
@@ -140,23 +177,25 @@ function matchesLocation(
 
   if (!country && cities.length === 0) return { matches: true, verified: true };
 
+  // Remote-friendly locations ("Remote", "Anywhere", "Remote (US)") are
+  // accepted for any country/city — they are explicitly location-agnostic.
+  if (jobLocation && /\b(remote|anywhere|worldwide|global)\b/.test(jobLocation))
+    return { matches: true, verified: false };
+
   if (jobLocation) {
     if (country) {
       const countryLower = country.toLowerCase();
-      if (!jobLocation.includes(countryLower)) {
-        // Check common country aliases.
-        const aliases: Record<string, string[]> = {
-          canada: ["ca"],
-          "united kingdom": ["uk", "britain", "england"],
-          "united states": ["usa", "us", "america"],
-        };
-        const aliasList = aliases[countryLower] ?? [];
-        const countryMatch =
-          jobLocation.includes(countryLower) ||
-          aliasList.some((a) => jobLocation.includes(a));
-        if (!countryMatch && cities.length === 0)
-          return { matches: false, verified: true };
-      }
+      const aliases: Record<string, string[]> = {
+        canada: ["ca", "toronto", "vancouver", "montreal", "calgary", "ottawa"],
+        "united states": ["usa", "us", "america", "remote (us)"],
+        india: ["in", "bengaluru", "bangalore", "mumbai", "delhi", "pune"],
+      };
+      const aliasList = aliases[countryLower] ?? [];
+      const countryMatch =
+        jobLocation.includes(countryLower) ||
+        aliasList.some((a) => jobLocation.includes(a));
+      if (!countryMatch && cities.length === 0)
+        return { matches: false, verified: true };
     }
     if (cities.length > 0) {
       const cityMatch = cities.some((city) =>

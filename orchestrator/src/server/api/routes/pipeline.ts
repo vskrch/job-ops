@@ -91,25 +91,34 @@ pipelineRouter.get("/schedules", async (_req: Request, res: Response) => {
   }
 });
 
-const scheduleSourcesSchema = z
-  .array(
-    z.enum(
-      PIPELINE_EXTRACTOR_SOURCE_IDS as [
-        (typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number],
-        ...(typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number][],
-      ],
-    ),
-  );
+const scheduleSourcesSchema = z.array(
+  z.enum(
+    PIPELINE_EXTRACTOR_SOURCE_IDS as [
+      (typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number],
+      ...(typeof PIPELINE_EXTRACTOR_SOURCE_IDS)[number][],
+    ],
+  ),
+);
 
 const createScheduleSchema = z.object({
   label: z.string().trim().min(1).max(200),
   enabled: z.boolean().optional(),
   hour: z.number().int().min(0).max(23),
   sources: scheduleSourcesSchema,
-  searchTerms: z.array(z.string().trim().min(1).max(200)).max(100).nullable().optional(),
+  searchTerms: z
+    .array(z.string().trim().min(1).max(200))
+    .max(100)
+    .nullable()
+    .optional(),
   country: z.string().trim().max(100).nullable().optional(),
-  cityLocations: z.array(z.string().trim().min(1).max(200)).nullable().optional(),
-  workplaceTypes: z.array(z.string().trim().min(1).max(50)).nullable().optional(),
+  cityLocations: z
+    .array(z.string().trim().min(1).max(200))
+    .nullable()
+    .optional(),
+  workplaceTypes: z
+    .array(z.string().trim().min(1).max(50))
+    .nullable()
+    .optional(),
   topN: z.number().int().min(1).max(50).nullable().optional(),
   minSuitabilityScore: z.number().int().min(0).max(100).nullable().optional(),
 });
@@ -161,10 +170,20 @@ const updateScheduleSchema = z.object({
   enabled: z.boolean().optional(),
   hour: z.number().int().min(0).max(23).optional(),
   sources: scheduleSourcesSchema.optional(),
-  searchTerms: z.array(z.string().trim().min(1).max(200)).max(100).nullable().optional(),
+  searchTerms: z
+    .array(z.string().trim().min(1).max(200))
+    .max(100)
+    .nullable()
+    .optional(),
   country: z.string().trim().max(100).nullable().optional(),
-  cityLocations: z.array(z.string().trim().min(1).max(200)).nullable().optional(),
-  workplaceTypes: z.array(z.string().trim().min(1).max(50)).nullable().optional(),
+  cityLocations: z
+    .array(z.string().trim().min(1).max(200))
+    .nullable()
+    .optional(),
+  workplaceTypes: z
+    .array(z.string().trim().min(1).max(50))
+    .nullable()
+    .optional(),
   topN: z.number().int().min(1).max(50).nullable().optional(),
   minSuitabilityScore: z.number().int().min(0).max(100).nullable().optional(),
 });
@@ -172,87 +191,89 @@ const updateScheduleSchema = z.object({
 /**
  * PUT /api/pipeline/schedules/:id - Update a pipeline schedule.
  */
-pipelineRouter.put(
-  "/schedules/:id",
-  async (req: Request, res: Response) => {
-    try {
-      const id = req.params.id;
-      const input = updateScheduleSchema.parse(req.body);
+pipelineRouter.put("/schedules/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const input = updateScheduleSchema.parse(req.body);
 
-      if (isDemoMode()) {
-        return fail(res, badRequest("Scheduling is not available in demo mode."));
-      }
-
-      const existing = await scheduleRepo.getPipelineScheduleById(id);
-      if (!existing) {
-        return fail(res, notFound("Pipeline schedule not found"));
-      }
-
-      await scheduleRepo.updatePipelineSchedule(id, {
-        ...(input.label !== undefined ? { label: input.label } : {}),
-        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
-        ...(input.hour !== undefined ? { hour: input.hour } : {}),
-        ...(input.sources !== undefined ? { sources: input.sources } : {}),
-        ...(input.searchTerms !== undefined ? { searchTerms: input.searchTerms } : {}),
-        ...(input.country !== undefined ? { country: input.country } : {}),
-        ...(input.cityLocations !== undefined ? { cityLocations: input.cityLocations } : {}),
-        ...(input.workplaceTypes !== undefined ? { workplaceTypes: input.workplaceTypes } : {}),
-        ...(input.topN !== undefined ? { topN: input.topN } : {}),
-        ...(input.minSuitabilityScore !== undefined ? { minSuitabilityScore: input.minSuitabilityScore } : {}),
-      });
-
-      await refreshPipelineScheduler();
-      const schedules = await getPipelineSchedules();
-      ok(res, schedules);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return fail(res, badRequest(error.message, error.flatten()));
-      }
-      fail(
-        res,
-        new AppError({
-          status: 500,
-          code: "INTERNAL_ERROR",
-          message: error instanceof Error ? error.message : "Unknown error",
-        }),
-      );
+    if (isDemoMode()) {
+      return fail(res, badRequest("Scheduling is not available in demo mode."));
     }
-  },
-);
+
+    const existing = await scheduleRepo.getPipelineScheduleById(id);
+    if (!existing) {
+      return fail(res, notFound("Pipeline schedule not found"));
+    }
+
+    await scheduleRepo.updatePipelineSchedule(id, {
+      ...(input.label !== undefined ? { label: input.label } : {}),
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.hour !== undefined ? { hour: input.hour } : {}),
+      ...(input.sources !== undefined ? { sources: input.sources } : {}),
+      ...(input.searchTerms !== undefined
+        ? { searchTerms: input.searchTerms }
+        : {}),
+      ...(input.country !== undefined ? { country: input.country } : {}),
+      ...(input.cityLocations !== undefined
+        ? { cityLocations: input.cityLocations }
+        : {}),
+      ...(input.workplaceTypes !== undefined
+        ? { workplaceTypes: input.workplaceTypes }
+        : {}),
+      ...(input.topN !== undefined ? { topN: input.topN } : {}),
+      ...(input.minSuitabilityScore !== undefined
+        ? { minSuitabilityScore: input.minSuitabilityScore }
+        : {}),
+    });
+
+    await refreshPipelineScheduler();
+    const schedules = await getPipelineSchedules();
+    ok(res, schedules);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail(res, badRequest(error.message, error.flatten()));
+    }
+    fail(
+      res,
+      new AppError({
+        status: 500,
+        code: "INTERNAL_ERROR",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+  }
+});
 
 /**
  * DELETE /api/pipeline/schedules/:id - Delete a pipeline schedule.
  */
-pipelineRouter.delete(
-  "/schedules/:id",
-  async (req: Request, res: Response) => {
-    try {
-      const id = req.params.id;
+pipelineRouter.delete("/schedules/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
 
-      if (isDemoMode()) {
-        return fail(res, badRequest("Scheduling is not available in demo mode."));
-      }
-
-      const deleted = await scheduleRepo.deletePipelineSchedule(id);
-      if (!deleted) {
-        return fail(res, notFound("Pipeline schedule not found"));
-      }
-
-      await refreshPipelineScheduler();
-      const schedules = await getPipelineSchedules();
-      ok(res, schedules);
-    } catch (error) {
-      fail(
-        res,
-        new AppError({
-          status: 500,
-          code: "INTERNAL_ERROR",
-          message: error instanceof Error ? error.message : "Unknown error",
-        }),
-      );
+    if (isDemoMode()) {
+      return fail(res, badRequest("Scheduling is not available in demo mode."));
     }
-  },
-);
+
+    const deleted = await scheduleRepo.deletePipelineSchedule(id);
+    if (!deleted) {
+      return fail(res, notFound("Pipeline schedule not found"));
+    }
+
+    await refreshPipelineScheduler();
+    const schedules = await getPipelineSchedules();
+    ok(res, schedules);
+  } catch (error) {
+    fail(
+      res,
+      new AppError({
+        status: 500,
+        code: "INTERNAL_ERROR",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+  }
+});
 
 /**
  * GET /api/pipeline/progress - Server-Sent Events endpoint for live progress

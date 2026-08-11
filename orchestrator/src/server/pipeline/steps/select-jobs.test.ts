@@ -5,7 +5,7 @@ import { selectJobsStep } from "./select-jobs";
 const baseConfig: PipelineConfig = {
   topN: 2,
   minSuitabilityScore: 50,
-  sources: ["gradcracker"],
+  sources: ["hiringcafe"],
   outputDir: "./tmp",
   enableCrawling: true,
   enableScoring: true,

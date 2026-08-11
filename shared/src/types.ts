@@ -15,6 +15,7 @@ export * from "./types/job-search";
 export * from "./types/jobs";
 export * from "./types/pipeline";
 export * from "./types/post-application";
+export * from "./types/search-schedules";
 export * from "./types/settings";
 export * from "./types/user-profile";
 export * from "./types/visa-sponsors";

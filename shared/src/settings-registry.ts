@@ -38,7 +38,7 @@ function parseBitBoolOrNull(raw: string | undefined): boolean | null {
 }
 
 /** Max extractor sources that can be selected for a scheduled pipeline run. */
-const PIPELINE_SOURCE_LIMIT = 25;
+const _PIPELINE_SOURCE_LIMIT = 25;
 
 function normalizeLlmProviderOrNull(raw: string | undefined): string | null {
   if (raw === undefined) return null;
@@ -217,6 +217,28 @@ export const settingsRegistry = {
       typeof process !== "undefined"
         ? process.env.JOB_COMPLETE_WEBHOOK_URL || ""
         : "",
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
+  },
+  searchWebhookUrl: {
+    kind: "typed" as const,
+    envKey: "SEARCH_WEBHOOK_URL",
+    schema: z.string().trim().max(2000),
+    default: (): string =>
+      typeof process !== "undefined"
+        ? process.env.SEARCH_WEBHOOK_URL || ""
+        : "",
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
+  },
+  telegramChatId: {
+    kind: "typed" as const,
+    envKey: "TELEGRAM_CHAT_ID",
+    schema: z.string().trim().max(200),
+    default: (): string =>
+      typeof process !== "undefined" ? process.env.TELEGRAM_CHAT_ID || "" : "",
     parse: parseNonEmptyStringOrNull,
     serialize: (value: string | null | undefined): string | null =>
       value ?? null,
@@ -693,6 +715,11 @@ export const settingsRegistry = {
   webhookSecret: {
     kind: "secret" as const,
     envKey: "WEBHOOK_SECRET",
+    schema: z.string().trim().max(2000),
+  },
+  telegramBotToken: {
+    kind: "secret" as const,
+    envKey: "TELEGRAM_BOT_TOKEN",
     schema: z.string().trim().max(2000),
   },
 

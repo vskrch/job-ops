@@ -96,6 +96,38 @@ def _glassdoor_city_for_country(country_indeed: str, location: str) -> str | Non
     return GLASSDOOR_COUNTRY_TO_CITY.get(country_key)
 
 
+def _scrape_one_site(
+    *,
+    site: str,
+    search_term: str,
+    location: str | None,
+    results_wanted: int,
+    hours_old: int,
+    country_indeed: str,
+    linkedin_fetch_description: bool,
+    is_remote: bool,
+) -> pd.DataFrame:
+    """Scrape a single site, isolating failures so one 403/406 doesn't
+    abort the entire batch. Returns an empty DataFrame on failure."""
+    kwargs: dict[str, object] = {
+        "site_name": [site],
+        "search_term": search_term,
+        "results_wanted": results_wanted,
+        "hours_old": hours_old,
+        "linkedin_fetch_description": linkedin_fetch_description,
+        "is_remote": is_remote,
+    }
+    if location and location.strip():
+        kwargs["location"] = location
+    if country_indeed and country_indeed.strip():
+        kwargs["country_indeed"] = country_indeed
+    try:
+        return scrape_jobs(**kwargs)
+    except Exception as exc:
+        print(f"jobspy: {site} failed ({exc}), continuing without it")
+        return pd.DataFrame()
+
+
 def _scrape_for_sites(
     *,
     sites: list[str],
@@ -107,19 +139,23 @@ def _scrape_for_sites(
     linkedin_fetch_description: bool,
     is_remote: bool,
 ) -> pd.DataFrame:
-    kwargs: dict[str, object] = {
-        "site_name": sites,
-        "search_term": search_term,
-        "results_wanted": results_wanted,
-        "hours_old": hours_old,
-        "linkedin_fetch_description": linkedin_fetch_description,
-        "is_remote": is_remote,
-    }
-    if location and location.strip():
-        kwargs["location"] = location
-    if country_indeed and country_indeed.strip():
-        kwargs["country_indeed"] = country_indeed
-    return scrape_jobs(**kwargs)
+    frames: list[pd.DataFrame] = []
+    for site in sites:
+        df = _scrape_one_site(
+            site=site,
+            search_term=search_term,
+            location=location,
+            results_wanted=results_wanted,
+            hours_old=hours_old,
+            country_indeed=country_indeed,
+            linkedin_fetch_description=linkedin_fetch_description,
+            is_remote=is_remote,
+        )
+        if not df.empty:
+            frames.append(df)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 def _scrape_google(*, search_term: str, results_wanted: int, is_remote: bool) -> pd.DataFrame:

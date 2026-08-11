@@ -40,7 +40,7 @@ const globalFetch = global.fetch;
 
 const mockJob = createJob({
   id: "test-job",
-  source: "gradcracker",
+  source: "linkedin",
   title: "Senior Engineer",
   employer: "Test Corp",
   jobDescription: "Looking for a TypeScript and React expert.",

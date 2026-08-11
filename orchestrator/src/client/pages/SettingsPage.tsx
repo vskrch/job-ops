@@ -1524,8 +1524,7 @@ export const SettingsPage: React.FC = () => {
             ? { label: "Check required", variant: "secondary" as const }
             : { label: "Not configured", variant: "secondary" as const };
       case "environment":
-        return envSettings.readable.adzunaAppId ||
-          envSettings.basicAuthActive
+        return envSettings.readable.adzunaAppId || envSettings.basicAuthActive
           ? { label: "Configured", variant: "outline" as const }
           : null;
       case "display":

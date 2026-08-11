@@ -30,6 +30,8 @@ vi.mock("../api", () => ({
   }),
   getPipelineStatus: vi.fn().mockResolvedValue({
     isRunning: false,
+    activeRunCount: 0,
+    maxConcurrentRuns: 3,
     lastRun: null,
     nextScheduledRun: null,
   }),
@@ -56,7 +58,7 @@ let mockPipelineTerminalEvent: {
   token: number;
 } | null = null;
 let mockPipelineSources = ["linkedin"] as Array<
-  "indeed" | "linkedin" | "adzuna" | "hiringcafe"
+  "indeed" | "linkedin" | "adzuna" | "hiringcafe" | "eluta" | "instahyre"
 >;
 let mockAutomaticRunValues: AutomaticRunValues = {
   topN: 12,

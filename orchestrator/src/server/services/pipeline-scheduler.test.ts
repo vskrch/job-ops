@@ -30,7 +30,10 @@ vi.mock("@infra/request-context", async (importOriginal) => {
 
 import { runPipeline } from "@server/pipeline/index";
 import * as scheduleRepo from "@server/repositories/pipeline-schedules";
-import { getPipelineSchedules, refreshPipelineScheduler } from "./pipeline-scheduler";
+import {
+  getPipelineSchedules,
+  refreshPipelineScheduler,
+} from "./pipeline-scheduler";
 
 const mockGetEnabledSchedules = vi.mocked(scheduleRepo.getEnabledSchedules);
 const mockListPipelineSchedules = vi.mocked(scheduleRepo.listPipelineSchedules);

@@ -221,11 +221,7 @@ export function calculateAutomaticEstimate(args: {
     : 0;
 
   const discoveredCap =
-    jobspyCap +
-    adzunaCap +
-    hiringCafeCap +
-    startupJobsCap +
-    workingNomadsCap;
+    jobspyCap + adzunaCap + hiringCafeCap + startupJobsCap + workingNomadsCap;
   const discoveredMin = Math.round(discoveredCap * 0.35);
   const discoveredMax = Math.round(discoveredCap * 0.75);
   const processedMin = Math.min(values.topN, discoveredMin);

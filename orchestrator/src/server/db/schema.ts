@@ -789,5 +789,35 @@ export type NewJobVerificationRow = typeof jobVerifications.$inferInsert;
 export type UserProfileRow = typeof userProfiles.$inferSelect;
 export type NewUserProfileRow = typeof userProfiles.$inferInsert;
 
+export const searchSchedules = sqliteTable(
+  "search_schedules",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    enabled: integer("enabled").notNull().default(1),
+    frequency: text("frequency", {
+      enum: ["hourly", "daily"],
+    })
+      .notNull()
+      .default("daily"),
+    hour: integer("hour"),
+    minute: integer("minute").notNull().default(0),
+    query: text("query").notNull(),
+    notifyEmail: integer("notify_email").notNull().default(1),
+    notifyWebhook: integer("notify_webhook").notNull().default(1),
+    lastRunAt: text("last_run_at"),
+    lastSearchId: text("last_search_id"),
+    lastResultsCount: integer("last_results_count"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    enabledIndex: index("idx_search_schedules_enabled").on(table.enabled),
+  }),
+);
+
+export type SearchScheduleRow = typeof searchSchedules.$inferSelect;
+export type NewSearchScheduleRow = typeof searchSchedules.$inferInsert;
+
 export type JobSearchRow = typeof jobSearches.$inferSelect;
 export type NewJobSearchRow = typeof jobSearches.$inferInsert;

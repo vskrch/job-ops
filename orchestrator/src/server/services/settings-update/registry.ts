@@ -16,6 +16,7 @@ import type { UpdateSettingsInput } from "@shared/settings-schema";
 export type DeferredSideEffect =
   | "refreshBackupScheduler"
   | "refreshPipelineScheduler"
+  | "refreshSearchScheduler"
   | "clearRxResumeCaches";
 
 export type SettingsUpdateAction = {
@@ -42,6 +43,7 @@ export type SettingUpdateHandler<K extends keyof UpdateSettingsInput> = (args: {
 export type SettingsUpdatePlan = {
   shouldRefreshBackupScheduler: boolean;
   shouldRefreshPipelineScheduler: boolean;
+  shouldRefreshSearchScheduler: boolean;
   shouldClearRxResumeCaches: boolean;
 };
 
@@ -81,6 +83,12 @@ const RXRESUME_CACHE_INVALIDATION_KEYS = new Set<keyof UpdateSettingsInput>([
   "rxresumeEmail",
   "rxresumePassword",
   "rxresumeBaseResumeId",
+]);
+
+const SEARCH_SCHEDULER_SETTINGS_KEYS = new Set<keyof UpdateSettingsInput>([
+  "searchWebhookUrl",
+  "telegramBotToken",
+  "telegramChatId",
 ]);
 
 for (const [key, def] of Object.entries(settingsRegistry)) {
@@ -161,10 +169,13 @@ for (const [key, def] of Object.entries(settingsRegistry)) {
     if (isBackup) {
       deferred.push("refreshBackupScheduler");
     }
-    if (
-      RXRESUME_CACHE_INVALIDATION_KEYS.has(key as keyof UpdateSettingsInput)
-    ) {
+    if (RXRESUME_CACHE_INVALIDATION_KEYS.has(key as keyof UpdateSettingsInput)) {
       deferred.push("clearRxResumeCaches");
+    }
+    if (
+      SEARCH_SCHEDULER_SETTINGS_KEYS.has(key as keyof UpdateSettingsInput)
+    ) {
+      deferred.push("refreshSearchScheduler");
     }
 
     return result({

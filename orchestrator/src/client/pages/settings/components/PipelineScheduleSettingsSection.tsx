@@ -1,4 +1,5 @@
 import * as api from "@client/api";
+import { SchedulePipelineCard } from "@client/pages/orchestrator/SchedulePipelineCard";
 import { SettingsSectionFrame } from "@client/pages/settings/components/SettingsSectionFrame";
 import type { PipelineSchedule } from "@shared/types";
 import { CalendarClock, Play } from "lucide-react";
@@ -7,7 +8,6 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SchedulePipelineCard } from "@/client/pages/orchestrator/SchedulePipelineCard";
 
 type PipelineScheduleSettingsSectionProps = {
   layoutMode?: "accordion" | "panel";
@@ -96,8 +96,12 @@ export const PipelineScheduleSettingsSection: React.FC<
             <Play className="mr-1 h-3.5 w-3.5" />
             {isRunning ? "Starting..." : "Run now"}
           </Button>
-          <Badge variant={enabledCount > 0 ? "default" : "secondary"} className="text-xs">
-            {enabledCount} active {enabledCount === 1 ? "schedule" : "schedules"}
+          <Badge
+            variant={enabledCount > 0 ? "default" : "secondary"}
+            className="text-xs"
+          >
+            {enabledCount} active{" "}
+            {enabledCount === 1 ? "schedule" : "schedules"}
           </Badge>
           {nextRun && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

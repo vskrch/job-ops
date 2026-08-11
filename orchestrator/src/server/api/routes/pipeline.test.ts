@@ -116,13 +116,13 @@ describe.sequential("Pipeline API routes", () => {
     const runRes = await fetch(`${baseUrl}/api/pipeline/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topN: 5, sources: ["gradcracker"] }),
+      body: JSON.stringify({ topN: 5, sources: ["linkedin"] }),
     });
     const runBody = await runRes.json();
     expect(runBody.ok).toBe(true);
     expect(runPipeline).toHaveBeenCalledWith({
       topN: 5,
-      sources: ["gradcracker"],
+      sources: ["linkedin"],
     });
 
     const glassdoorRunRes = await fetch(`${baseUrl}/api/pipeline/run`, {

@@ -15,6 +15,7 @@ import type {
   CreateJobSearchRequest,
   CreateJobSearchResponse,
   CreatePipelineScheduleInput,
+  CreateSearchScheduleInput,
   DemoInfoResponse,
   DesignResumeDocument,
   DesignResumeExportResponse,
@@ -54,13 +55,16 @@ import type {
   ProfileStatusResponse,
   ResumeProfile,
   ResumeProjectCatalogItem,
+  RunSearchScheduleResponse,
   RxResumeMode,
+  SearchSchedule,
   StageEvent,
   StageEventMetadata,
   StageTransitionTarget,
   TracerAnalyticsResponse,
   TracerReadinessResponse,
   UpdatePipelineScheduleInput,
+  UpdateSearchScheduleInput,
   UserProfile,
   ValidationResult,
   VisaSponsor,
@@ -1057,6 +1061,45 @@ export async function deletePipelineSchedule(
 ): Promise<PipelineSchedule[]> {
   return fetchApi<PipelineSchedule[]>(`/pipeline/schedules/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function getSearchSchedules(): Promise<SearchSchedule[]> {
+  return fetchApi<SearchSchedule[]>("/search-schedules");
+}
+
+export async function createSearchSchedule(
+  input: CreateSearchScheduleInput,
+): Promise<SearchSchedule[]> {
+  return fetchApi<SearchSchedule[]>("/search-schedules", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateSearchSchedule(
+  id: string,
+  input: UpdateSearchScheduleInput,
+): Promise<SearchSchedule[]> {
+  return fetchApi<SearchSchedule[]>(`/search-schedules/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSearchSchedule(
+  id: string,
+): Promise<SearchSchedule[]> {
+  return fetchApi<SearchSchedule[]>(`/search-schedules/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function runSearchScheduleNow(
+  id: string,
+): Promise<RunSearchScheduleResponse> {
+  return fetchApi<RunSearchScheduleResponse>(`/search-schedules/${id}/run`, {
+    method: "POST",
   });
 }
 

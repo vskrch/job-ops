@@ -7,8 +7,8 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { PipelineSchedule } from "@shared/types";
 import type { ExtractorSourceId } from "@shared/extractors";
+import type { PipelineSchedule } from "@shared/types";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
@@ -33,7 +33,9 @@ function serializeJsonArray(value: string[] | null | undefined): string | null {
 }
 
 /** Serialize an optional string (or null/undefined) for a TEXT column. */
-function serializeOptionalString(value: string | null | undefined): string | null {
+function serializeOptionalString(
+  value: string | null | undefined,
+): string | null {
   if (value === null || value === undefined) return null;
   const trimmed = value.trim();
   return trimmed || null;
@@ -61,7 +63,7 @@ function mapRowToSchedule(row: ScheduleRow): PipelineSchedule {
     label: row.label,
     enabled: row.enabled === 1,
     hour: row.hour,
-    sources: parseJsonArray(row.sources) ?? [],
+    sources: (parseJsonArray(row.sources) ?? []) as ExtractorSourceId[],
     searchTerms: parseJsonArray(row.searchTerms),
     country: row.country,
     cityLocations: parseJsonArray(row.cityLocations),
@@ -167,7 +169,8 @@ export async function updatePipelineSchedule(
   if (input.label !== undefined) update.label = input.label;
   if (input.enabled !== undefined) update.enabled = input.enabled ? 1 : 0;
   if (input.hour !== undefined) update.hour = input.hour;
-  if (input.sources !== undefined) update.sources = JSON.stringify(input.sources);
+  if (input.sources !== undefined)
+    update.sources = JSON.stringify(input.sources);
   if (input.searchTerms !== undefined)
     update.searchTerms = serializeJsonArray(input.searchTerms);
   if (input.country !== undefined)
@@ -193,9 +196,7 @@ export async function updatePipelineSchedule(
 /**
  * Delete a pipeline schedule by id.
  */
-export async function deletePipelineSchedule(
-  id: string,
-): Promise<boolean> {
+export async function deletePipelineSchedule(id: string): Promise<boolean> {
   const result = await db
     .delete(pipelineSchedules)
     .where(eq(pipelineSchedules.id, id))

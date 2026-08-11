@@ -14,6 +14,7 @@ import { runWithRequestContext } from "@infra/request-context";
 import { runPipeline } from "@server/pipeline/index";
 import * as scheduleRepo from "@server/repositories/pipeline-schedules";
 import { createScheduler, type Scheduler } from "@server/utils/scheduler";
+import type { PipelineSchedule } from "@shared/types";
 
 // Map of schedule id → scheduler instance + the schedule's hour (so we can
 // compute nextRun). Only enabled schedules have entries.
@@ -117,22 +118,7 @@ export async function refreshPipelineScheduler(): Promise<void> {
  * Get all schedules with their computed `nextRun` timestamps (for the status
  * endpoint and the UI).
  */
-export async function getPipelineSchedules(): Promise<
-  Array<{
-    id: string;
-    label: string;
-    enabled: boolean;
-    hour: number;
-    sources: string[];
-    searchTerms: string[] | null;
-    country: string | null;
-    cityLocations: string[] | null;
-    workplaceTypes: string[] | null;
-    topN: number | null;
-    minSuitabilityScore: number | null;
-    nextRun: string | null;
-  }>
-> {
+export async function getPipelineSchedules(): Promise<PipelineSchedule[]> {
   const schedules = await scheduleRepo.listPipelineSchedules();
   return schedules.map((s) => {
     const entry = activeSchedulers.get(s.id);

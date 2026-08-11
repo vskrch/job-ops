@@ -20,10 +20,12 @@ import {
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
 import { refreshPipelineScheduler } from "./services/pipeline-scheduler";
+import { refreshSearchScheduler } from "./services/search-scheduler";
 import {
   isRemoteBackupConfigured,
   syncBackupToRemote,
 } from "./services/remote-backup/index";
+import { getEffectiveSettings } from "./services/settings";
 import { initialize as initializeVisaSponsors } from "./services/visa-sponsors/index";
 
 async function startServer() {
@@ -192,9 +194,27 @@ async function startServer() {
     // Initialize the scheduled pipeline runner (overnight scan at a
     // configurable UTC hour instead of only ad-hoc manual runs).
     try {
+      // Apply the configured max concurrent pipeline runs setting before
+      // starting the scheduler so the semaphore is correctly sized.
+      const { setMaxConcurrentPipelines } = await import(
+        "./pipeline/orchestrator"
+      );
+      const effectiveSettings = await getEffectiveSettings();
+      setMaxConcurrentPipelines(
+        effectiveSettings.pipelineMaxConcurrentRuns?.value ?? 3,
+      );
       await refreshPipelineScheduler();
     } catch (error) {
       logger.warn("Failed to initialize scheduled pipeline runner", {
+        error: sanitizeUnknown(error),
+      });
+    }
+
+    // Initialize the scheduled search runner (periodic NL searches).
+    try {
+      await refreshSearchScheduler();
+    } catch (error) {
+      logger.warn("Failed to initialize scheduled search runner", {
         error: sanitizeUnknown(error),
       });
     }

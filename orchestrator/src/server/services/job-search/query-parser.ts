@@ -8,11 +8,11 @@
 
 import { randomUUID } from "node:crypto";
 import { logger } from "@infra/logger";
-import { getDefaultPromptTemplate } from "@shared/prompt-template-definitions.js";
 import {
   normalizeCountryKey,
   SUPPORTED_COUNTRY_KEYS,
 } from "@shared/location-support.js";
+import { getDefaultPromptTemplate } from "@shared/prompt-template-definitions.js";
 import type { ParsedSearchSpec } from "@shared/types";
 import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";

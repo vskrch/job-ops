@@ -56,14 +56,7 @@ describe("location-support", () => {
   it("filters incompatible sources while preserving compatible order", () => {
     expect(
       getCompatibleSourcesForCountry(
-        [
-          "indeed",
-          "glassdoor",
-          "adzuna",
-          "startupjobs",
-          "linkedin",
-          "eluta",
-        ],
+        ["indeed", "glassdoor", "adzuna", "startupjobs", "linkedin", "eluta"],
         "united states",
       ),
     ).toEqual(["indeed", "glassdoor", "adzuna", "startupjobs", "linkedin"]);

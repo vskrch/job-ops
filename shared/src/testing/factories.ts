@@ -144,6 +144,8 @@ export const createAppSettings = (
   },
   pipelineWebhookUrl: { value: "", default: "", override: null },
   jobCompleteWebhookUrl: { value: "", default: "", override: null },
+  searchWebhookUrl: { value: "", default: "", override: null },
+  telegramChatId: { value: "", default: "", override: null },
   profileProjects: [],
   resumeProjects: {
     value: { maxProjects: 3, lockedProjectIds: [], aiSelectableProjectIds: [] },
@@ -276,6 +278,7 @@ export const createAppSettings = (
   adzunaAppId: null,
   adzunaAppKeyHint: null,
   webhookSecretHint: null,
+  telegramBotTokenHint: null,
   basicAuthActive: false,
   backupEnabled: { value: false, default: false, override: null },
   backupHour: { value: 3, default: 3, override: null },

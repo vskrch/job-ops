@@ -14,6 +14,7 @@ import { getSetting } from "@server/repositories/settings";
 import { setBackupSettings } from "@server/services/backup/index";
 import { LlmService } from "@server/services/llm/service";
 import { refreshPipelineScheduler } from "@server/services/pipeline-scheduler";
+import { refreshSearchScheduler } from "@server/services/search-scheduler";
 import { clearProfileCache } from "@server/services/profile";
 import {
   clearRxResumeResumeCache,
@@ -246,6 +247,20 @@ settingsRouter.patch(
     if (plan.shouldRefreshPipelineScheduler) {
       await refreshPipelineScheduler();
     }
+
+    if (plan.shouldRefreshSearchScheduler) {
+      await refreshSearchScheduler();
+    }
+
+    // Apply the latest max concurrent pipeline runs setting to the
+    // in-process semaphore so runtime capacity reflects the new value.
+    if ("pipelineMaxConcurrentRuns" in input) {
+      const { setMaxConcurrentPipelines } = await import(
+        "@server/pipeline/orchestrator"
+      );
+      setMaxConcurrentPipelines(data.pipelineMaxConcurrentRuns.value);
+    }
+
     ok(res, data);
   }),
 );

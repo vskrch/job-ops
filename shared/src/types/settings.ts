@@ -163,6 +163,8 @@ export interface AppSettings {
   llmBaseUrl: Resolved<string>;
   pipelineWebhookUrl: Resolved<string>;
   jobCompleteWebhookUrl: Resolved<string>;
+  searchWebhookUrl: Resolved<string>;
+  telegramChatId: Resolved<string>;
   resumeProjects: Resolved<ResumeProjectsSettings>;
   pdfRenderer: Resolved<PdfRenderer>;
   latexTemplate: Resolved<LatexTemplate>;
@@ -231,6 +233,7 @@ export interface AppSettings {
   adzunaAppKeyHint: string | null;
   basicAuthPasswordHint: string | null;
   webhookSecretHint: string | null;
+  telegramBotTokenHint: string | null;
 
   // Computed:
   basicAuthActive: boolean;

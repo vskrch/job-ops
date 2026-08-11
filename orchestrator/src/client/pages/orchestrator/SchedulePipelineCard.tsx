@@ -65,10 +65,7 @@ function formatNextRun(iso: string | null): string {
 interface ScheduleEditorProps {
   schedule: PipelineSchedule | null;
   onSave: (
-    input: Omit<
-      Parameters<typeof api.createPipelineSchedule>[0],
-      never
-    >,
+    input: Omit<Parameters<typeof api.createPipelineSchedule>[0], never>,
   ) => Promise<void>;
   onCancel: () => void;
   isSaving: boolean;
@@ -85,9 +82,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
   const [hour, setHour] = useState(schedule?.hour ?? 2);
   const [sources, setSources] = useState<string[]>(schedule?.sources ?? []);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [searchTerms, setSearchTerms] = useState(
-    schedule?.searchTerms ?? [],
-  );
+  const [searchTerms, setSearchTerms] = useState(schedule?.searchTerms ?? []);
   const [country, setCountry] = useState(schedule?.country ?? "");
   const [cityLocations, setCityLocations] = useState(
     schedule?.cityLocations ?? [],
@@ -119,7 +114,9 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
       ...(country.trim() ? { country: country.trim() } : {}),
       ...(cityLocations && cityLocations.length > 0 ? { cityLocations } : {}),
       ...(topN ? { topN: Number(topN) } : {}),
-      ...(minSuitabilityScore ? { minSuitabilityScore: Number(minSuitabilityScore) } : {}),
+      ...(minSuitabilityScore
+        ? { minSuitabilityScore: Number(minSuitabilityScore) }
+        : {}),
     });
   };
 
@@ -222,7 +219,9 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="schedule-minscore">Min suitability (optional)</Label>
+            <Label htmlFor="schedule-minscore">
+              Min suitability (optional)
+            </Label>
             <Input
               id="schedule-minscore"
               type="number"
@@ -280,7 +279,12 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
       )}
 
       <div className="flex items-center gap-2">
-        <Button type="button" size="sm" onClick={() => void handleSave()} disabled={isSaving}>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void handleSave()}
+          disabled={isSaving}
+        >
           {isSaving ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
           ) : (
@@ -331,7 +335,9 @@ export const SchedulePipelineCard: React.FC<SchedulePipelineCardProps> = () => {
         setSchedules(updated);
         setShowNewEditor(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to create schedule");
+        toast.error(
+          err instanceof Error ? err.message : "Failed to create schedule",
+        );
       } finally {
         setIsSaving(false);
       }
@@ -340,14 +346,19 @@ export const SchedulePipelineCard: React.FC<SchedulePipelineCardProps> = () => {
   );
 
   const handleUpdate = useCallback(
-    async (id: string, input: Parameters<typeof api.updatePipelineSchedule>[1]) => {
+    async (
+      id: string,
+      input: Parameters<typeof api.updatePipelineSchedule>[1],
+    ) => {
       setIsSaving(true);
       try {
         const updated = await api.updatePipelineSchedule(id, input);
         setSchedules(updated);
         setEditingId(null);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to update schedule");
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update schedule",
+        );
       } finally {
         setIsSaving(false);
       }
@@ -360,7 +371,9 @@ export const SchedulePipelineCard: React.FC<SchedulePipelineCardProps> = () => {
       const updated = await api.deletePipelineSchedule(id);
       setSchedules(updated);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete schedule");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete schedule",
+      );
     }
   }, []);
 
