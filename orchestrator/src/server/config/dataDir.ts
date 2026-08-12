@@ -19,7 +19,7 @@ export function getDataDir(): string {
   ].some((marker) => existsSync(marker));
   const candidates =
     cwdBase === "orchestrator" && parentLooksLikeRoot
-      ? [join(parentDir, "data"), join(cwd, "data")]
+      ? [join(cwd, "data"), join(parentDir, "data")]
       : [join(cwd, "data"), join(parentDir, "data")];
 
   for (const candidate of candidates) {

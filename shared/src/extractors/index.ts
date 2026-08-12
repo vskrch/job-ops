@@ -51,6 +51,8 @@ export const EXTRACTOR_SOURCE_IDS = [
   "jobboom",
   "apna",
   "internshala",
+  "gradcracker",
+  "ukvisajobs",
   "manual",
 ] as const;
 
@@ -251,6 +253,17 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
     label: "Internshala",
     order: 530,
     category: "pipeline",
+  },
+  gradcracker: {
+    label: "Gradcracker",
+    order: 540,
+    category: "pipeline",
+  },
+  ukvisajobs: {
+    label: "UK Visa Jobs",
+    order: 550,
+    category: "pipeline",
+    requiresCredentials: true,
   },
 };
 

@@ -8,6 +8,7 @@ import { isDebugLoggingEnabled, logger } from "@infra/logger";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { getDataDir } from "../config/dataDir";
+import { runMigrations } from "./migrate";
 import * as schema from "./schema";
 
 // Database path - can be overridden via env for Docker
@@ -22,6 +23,17 @@ if (!existsSync(dataDir)) {
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
 let isClosed = false;
+
+// Run migrations automatically on startup so the server never boots
+// against a schema-less database (fresh installs, new environments).
+try {
+  runMigrations(sqlite);
+} catch (error) {
+  logger.error("Database migration failed on startup", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  throw error;
+}
 
 export const db = drizzle(sqlite, {
   schema,

@@ -298,6 +298,8 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   jobboom: "https://www.jobboom.com",
   apna: "https://apna.co",
   internshala: "https://internshala.com",
+  gradcracker: "https://www.gradcracker.com",
+  ukvisajobs: "https://www.ukvisajobs.com",
   manual: "https://example.com",
 };
 
