@@ -34,7 +34,6 @@ const CHALLENGE_PATTERNS: readonly string[] = [
   "datadome",
   "verify you are human",
   "checking your browser",
-  "akamai",
   "_abck",
   "bm_sz",
   "incap_ses",

@@ -256,7 +256,13 @@ export async function runJobBoards(
             for (const llmJob of llmJobs) {
               const existing = byUrl.get(llmJob.jobUrl);
               if (existing) {
-                byUrl.set(llmJob.jobUrl, { ...existing, ...llmJob });
+                const merged = { ...existing };
+                for (const [key, value] of Object.entries(llmJob)) {
+                  if (value !== undefined && value !== null && value !== "") {
+                    (merged as Record<string, unknown>)[key] = value;
+                  }
+                }
+                byUrl.set(llmJob.jobUrl, merged);
               } else {
                 byUrl.set(llmJob.jobUrl, llmJob);
               }

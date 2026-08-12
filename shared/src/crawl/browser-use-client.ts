@@ -45,7 +45,9 @@ export function createBrowserUseClient(
           body: JSON.stringify({
             task: request.task,
             ...(request.url ? { url: request.url } : {}),
-            ...(request.maxSteps ? { maxSteps: request.maxSteps } : {}),
+            ...(request.maxSteps !== undefined
+              ? { maxSteps: request.maxSteps }
+              : {}),
             ...(request.schema ? { schema: request.schema } : {}),
           }),
           signal,
@@ -62,7 +64,22 @@ export function createBrowserUseClient(
           };
         }
 
-        const data = (await response.json()) as BrowserTaskResult;
+        const raw = (await response.json()) as Record<string, unknown>;
+        const data: BrowserTaskResult = {
+          success: raw.success === true,
+          result:
+            raw.result && typeof raw.result === "object"
+              ? (raw.result as Record<string, unknown>)
+              : null,
+          screenshots: Array.isArray(raw.screenshots)
+            ? (raw.screenshots as string[])
+            : [],
+          steps:
+            typeof raw.steps === "number" && Number.isFinite(raw.steps)
+              ? raw.steps
+              : 0,
+          ...(typeof raw.error === "string" ? { error: raw.error } : {}),
+        };
         return data;
       } catch (error) {
         return {

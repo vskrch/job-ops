@@ -180,7 +180,7 @@ export interface CrawlEngineOptions {
   timeoutMs?: number;
   /** Max cached responses (oldest evicted first). */
   cacheSize?: number;
-  /** Cache entry TTL in ms; 0 disables caching (default 5 min). */
+  /** Cache entry TTL in ms; 0 means no TTL (entries live until LRU eviction). */
   cacheTtlMs?: number;
   /** Default behavioral pacing profile for all requests. */
   behaviorProfile?: BehaviorProfile;
@@ -319,6 +319,8 @@ export class CrawlEngine {
       backend,
       options.jinaReturnFormat ?? "markdown",
       options.url,
+      JSON.stringify(options.headers ?? null),
+      options.body ?? "",
     ].join("\u0000");
   }
 
@@ -426,7 +428,9 @@ export class CrawlEngine {
       blockSignal: undefined,
     };
 
-    this.cooldown.probe(sourceKey, result.ok);
+    if (!result.cached) {
+      this.cooldown.probe(sourceKey, result.ok);
+    }
     return result;
   }
 
@@ -443,7 +447,7 @@ export class CrawlEngine {
 
     const url =
       backend === "jina"
-        ? `https://r.jina.ai/${encodeURI(options.url)}`
+        ? `https://r.jina.ai/${options.url.replace(/ /g, "%20")}`
         : options.url;
 
     const jinaHeaders: Record<string, string> = {};
@@ -527,10 +531,7 @@ export class CrawlEngine {
             ...jinaHeaders,
             ...options.headers,
           },
-          body:
-            options.method && options.body !== undefined
-              ? options.body
-              : undefined,
+          body: options.body !== undefined ? options.body : undefined,
           signal: attemptSignal,
         });
         status = response.status;
@@ -638,7 +639,7 @@ export class CrawlEngine {
         MAX_BACKOFF_MS,
       );
       const jittered = Math.floor(backoff * Math.random());
-      await sleep(retryAfterMs ?? jittered);
+      await sleep(retryAfterMs ?? jittered, options.signal);
     }
 
     return {
@@ -702,10 +703,15 @@ export class CrawlEngine {
       this.lastRequestAt = Date.now();
       const started = Date.now();
 
+      const timeoutMs = options.timeoutMs ?? this.timeoutMs;
+      const attemptSignal =
+        options.signal ??
+        (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined);
+
       const result: Crawl4AIResult = await crawl4aiFetch(
         options.url,
         this.crawl4ai,
-        options.signal,
+        attemptSignal,
       );
 
       const elapsedMs = Date.now() - started;
@@ -715,15 +721,27 @@ export class CrawlEngine {
       if (result.ok) {
         let blockSignal: BlockSignal | undefined;
         let blockDetected = false;
-        if (contentType.includes("html") || contentType.includes("markdown")) {
-          blockSignal = detectBlock({
-            status: result.statusCode,
-            contentType: contentType.includes("markdown")
-              ? "text/html"
-              : contentType,
-            text,
-          });
-          if (isBlockSignal(blockSignal)) blockDetected = true;
+        const isMarkdown = contentType.includes("markdown");
+        if (isMarkdown || contentType.includes("html")) {
+          const isChallengePage =
+            isMarkdown &&
+            (text.length < 2000 || /^(#|\s*\|)/.test(text.trim()) === false) &&
+            /(just a moment|checking your browser|verify you are human|cf-challenge|datadome|incap_ses|reese84)/i.test(
+              text.slice(0, 4000),
+            );
+          const blockStatus = isMarkdown
+            ? result.statusCode >= 400
+              ? "blocked"
+              : isChallengePage
+                ? "blocked"
+                : "ok"
+            : detectBlock({
+                status: result.statusCode,
+                contentType,
+                text,
+              });
+          if (isBlockSignal(blockStatus)) blockDetected = true;
+          blockSignal = blockStatus;
         }
 
         return {
@@ -749,7 +767,7 @@ export class CrawlEngine {
           baseBackoffMs * 2 ** (attempt - 1),
           MAX_BACKOFF_MS,
         );
-        await sleep(Math.floor(backoff * Math.random()));
+        await sleep(Math.floor(backoff * Math.random()), options.signal);
       }
     }
 
@@ -883,12 +901,7 @@ export class AdaptiveCooldown {
 }
 
 function parseBody(text: string, contentType: string): unknown {
-  if (
-    !contentType.includes("json") &&
-    !contentType.startsWith("application/json")
-  ) {
-    return undefined;
-  }
+  if (!contentType.includes("json")) return undefined;
   try {
     return JSON.parse(text);
   } catch {
@@ -912,9 +925,20 @@ function parseRetryAfter(value: string | null): number | undefined {
   return undefined;
 }
 
-function sleep(ms: number): Promise<void> {
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
 }
 
 function domainFromUrl(url: string): string {

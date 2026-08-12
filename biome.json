@@ -10,7 +10,8 @@
       "**",
       "!!**/dist",
       "!!docs-site/.docusaurus",
-      "!!docs-site/build"
+      "!!docs-site/build",
+      "!!**/data/visa-sponsors/**/metadata.json"
     ]
   },
   "css": {
