@@ -2,9 +2,30 @@ import { describe, expect, it } from "vitest";
 import { BROWSER_FINGERPRINTS } from "./fingerprints";
 
 describe("BROWSER_FINGERPRINTS", () => {
-  it("contains ~20 fingerprints", () => {
-    expect(BROWSER_FINGERPRINTS.length).toBeGreaterThanOrEqual(18);
-    expect(BROWSER_FINGERPRINTS.length).toBeLessThanOrEqual(24);
+  it("contains 28-32 fingerprints", () => {
+    expect(BROWSER_FINGERPRINTS.length).toBeGreaterThanOrEqual(28);
+    expect(BROWSER_FINGERPRINTS.length).toBeLessThanOrEqual(32);
+  });
+
+  it("includes mobile fingerprints", () => {
+    const mobile = BROWSER_FINGERPRINTS.filter((f) =>
+      /Mobile|Android|iPhone/.test(f.userAgent),
+    );
+    expect(mobile.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("has at least 3 different accept-language values", () => {
+    const locales = new Set(BROWSER_FINGERPRINTS.map((f) => f.acceptLanguage));
+    expect(locales.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Chrome versions are >= 140", () => {
+    for (const fingerprint of BROWSER_FINGERPRINTS) {
+      const match = /Chrome\/(\d+)/.exec(fingerprint.userAgent);
+      if (match) {
+        expect(Number(match[1])).toBeGreaterThanOrEqual(140);
+      }
+    }
   });
 
   it("every fingerprint has a unique user agent", () => {

@@ -18,7 +18,8 @@ const CHALLENGE_PATTERNS: readonly string[] = [
   "cf-chl-bypass",
   "cf-mitigated",
   "cf-ray",
-  "cloudflare",
+  "cf-turnstile",
+  "challenges.cloudflare.com",
   "hcaptcha",
   "recaptcha",
   "g-recaptcha",
@@ -27,12 +28,26 @@ const CHALLENGE_PATTERNS: readonly string[] = [
   "bot detected",
   "enable javascript and cookies",
   "just a moment",
-  "attention required",
   "captcha-bypass",
   "px-captcha",
   "_pxhd",
   "datadome",
   "verify you are human",
+  "checking your browser",
+  "akamai",
+  "_abck",
+  "bm_sz",
+  "incap_ses",
+  "visid_incap",
+  "reese84",
+  "awswaf",
+  "kdjio",
+];
+
+const CLOUDFLARE_CONTEXT_INDICATORS: readonly string[] = [
+  "cf-ray",
+  "cf-mitigated",
+  "just a moment",
   "checking your browser",
 ];
 
@@ -68,6 +83,12 @@ export function detectBlock(args: {
         return pattern.includes("captcha") || lower.includes("captcha")
           ? "captcha"
           : "blocked";
+      }
+    }
+    if (lower.includes("cloudflare")) {
+      const fullLower = text.toLowerCase();
+      if (CLOUDFLARE_CONTEXT_INDICATORS.some((p) => fullLower.includes(p))) {
+        return "blocked";
       }
     }
     // A 2xx HTML body that is suspiciously tiny with no real content is a

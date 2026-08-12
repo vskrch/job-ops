@@ -15,6 +15,7 @@
 import type { BrowserFingerprint } from "./fingerprints.js";
 import { DEFAULT_ACCEPT_LANGUAGE } from "./fingerprints.js";
 
+const MAX_VISITED_DOMAINS = 1000;
 const visitedDomains = new Set<string>();
 
 function domainFromUrl(url: string): string {
@@ -31,7 +32,13 @@ export function buildOrganicHeaders(
 ): Record<string, string> {
   const domain = domainFromUrl(url);
   const isSubsequent = domain !== "" && visitedDomains.has(domain);
-  if (domain !== "") visitedDomains.add(domain);
+  if (domain !== "") {
+    if (visitedDomains.size >= MAX_VISITED_DOMAINS) {
+      const first = visitedDomains.values().next().value;
+      if (first !== undefined) visitedDomains.delete(first);
+    }
+    visitedDomains.add(domain);
+  }
 
   const headers: Record<string, string> = {
     "accept-language": fingerprint.acceptLanguage || DEFAULT_ACCEPT_LANGUAGE,

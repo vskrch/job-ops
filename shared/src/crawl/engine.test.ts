@@ -156,7 +156,7 @@ describe("CrawlEngine", () => {
     expect(result.text).toBe("# jobs here");
     expect(urls).toEqual([
       "https://blocked.example/jobs?q=dev",
-      "https://r.jina.ai/https%3A%2F%2Fblocked.example%2Fjobs%3Fq%3Ddev",
+      "https://r.jina.ai/https://blocked.example/jobs?q=dev",
     ]);
   });
 

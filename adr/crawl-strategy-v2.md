@@ -68,7 +68,7 @@ This re-audit evaluates Firecrawl, Browser Use, and Scrapy against a **different
 **What it enables that the project cannot currently do:**
 - **Auth-gated job extraction:** Log into company portals to extract application statuses and saved jobs
 - **Interactive scraping:** Extract jobs from boards requiring login or multi-step navigation
-- **Assisted job applications:** Fill ATS forms with human review before submission (not fully autonomous in V1)
+- **Autonomous job applications:** Fill ATS forms with multimodal self-verification and audit trails before submission.
 - **The `search_company_jobs` tool:** ADR-001's agentic integration plan lists this as "Phase 3 — not implemented"
 
 **Important caveats (verified):**
@@ -143,16 +143,18 @@ Execute the 4-phase hardening plan from ADR-003. Crawl4AI remains the transport-
 Add Browser Use as an **optional, feature-flagged** capability for interactive agentic workflows. Adoption is staged to manage risk:
 
 **Stage B1 — Interactive Scraping (lower risk, higher confidence):**
-- Build the Browser Use Docker image + FastAPI wrapper
+- Build the Browser Use Docker image + FastAPI wrapper (must use `dumb-init` or `tini` to prevent zombie processes).
+- Wrapper MUST accept and forward `x-request-id` to its internal logs for distributed tracing.
 - Add `run_browser_task` tool to the agentic orchestrator (gated behind `browserAgentEnabled`)
 - Use for auth-gated job extraction and interactive scraping only
 - No form submission; read-only operations
 - Budget: 5 LLM calls, 30s timeout, ~$0.05 estimated cost per task
 
-**Stage B2 — Assisted Applications (higher risk, requires B1 success):**
-- Add form-filling capability with human review before submission
-- Target simpler ATS platforms first (Greenhouse, Lever)
-- Screenshot capture for user review; user must explicitly approve before submit
+**Stage B2 — Autonomous Applications (higher risk, requires B1 success):**
+- Add form-filling capability using strict context injection (passing `ghostwriter.ts` tailored resumes directly to the agent context).
+- Target simpler ATS platforms first (Greenhouse, Lever).
+- No human-in-the-loop: the multimodal agent performs vision-based verification of the form before submitting.
+- Final post-submission screenshot is captured and saved to the database/S3 for retroactive user audit trails.
 - Budget: 10 LLM calls, 60s timeout, ~$0.10 estimated cost per application
 - Gated behind `browserAutoApplyEnabled` (separate from `browserAgentEnabled`)
 
@@ -165,7 +167,7 @@ Add Browser Use as an **optional, feature-flagged** capability for interactive a
 - **NOT replacing Crawl4AI.** It remains the transport-layer browser backend.
 - **NOT adding Firecrawl.** AGPL license is a blocker; Crawl4AI + LLM job-parser covers structured extraction.
 - **NOT adding Scrapy.** Redundant with `shared/src/crawl`; Python-only; no agentic capability.
-- **NOT enabling fully autonomous applications.** Human review required before any form submission.
+- **NOT deploying without audit trails.** Autonomous submissions require a vision-verified pre-submit step and a post-submit screenshot saved to the database for retroactive review.
 - **NOT changing the lights-on contract.** All existing extractors continue to work. Browser Use is additive and optional.
 - **NOT assuming Browser Use can bypass all anti-bot systems.** It is for interactive workflows on cooperative sites, not for anti-bot escalation (that's Crawl4AI's job).
 
@@ -182,9 +184,9 @@ Add Browser Use as an **optional, feature-flagged** capability for interactive a
 | 5 | ADR-003 Phase 3 (extractor consolidation) | A | 5-8 days | 1, 2 |
 | 6 | Interactive scraping prototype (auth-gated boards) | B1 | 3-5 days | 4, 5 |
 | 7 | ADR-003 Phase 4 (orchestrator resilience) | A | 2-4 days | 5 |
-| 8 | Assisted application prototype (Greenhouse/Lever) | B2 | 5-8 days | 6 |
+| 8 | Autonomous application prototype (Greenhouse/Lever) | B2 | 5-8 days | 6 |
 | 9 | Credential storage solution | B2 | 2-3 days | 8 |
-| 10 | Human review UI for application approval | B2 | 3-5 days | 8 |
+| 10 | S3/DB storage for screenshot audit trails | B2 | 3-5 days | 8 |
 
 Tracks A and B1 are independent and can start in parallel. B2 depends on B1 success. B3 is deferred until B2 is proven.
 
@@ -230,7 +232,8 @@ The wrapper exposes:
 
 The wrapper manages:
 - A task queue (max 1 concurrent by default)
-- Browser session lifecycle (create, reuse, close)
+- Browser session lifecycle (create, reuse, close). Must be run under an init system (`dumb-init`) to reap zombie Chromium processes.
+- Context injection (passing `x-request-id` from TS into Python logs for tracing).
 - LLM provider configuration from environment variables
 - Timeout enforcement (configurable per task)
 - Error handling and structured error responses
@@ -354,9 +357,9 @@ npm --workspace orchestrator run test:run
 
 **Track B (Stage B2):**
 - Set up a Greenhouse demo board (publicly available at `https://boards.greenhouse.io/` — use a test company's public board)
-- Run an assisted application task: navigate to a job listing, click "Apply", fill the form with test data, capture a screenshot
-- Verify the human review step: screenshot is displayed, user can approve or reject
-- Verify the form is NOT submitted without explicit user approval
+- Run an autonomous application task: navigate to a job listing, click "Apply", fill the form using context injected from `ghostwriter.ts`.
+- Verify the self-audit step: the multimodal LLM verifies its own work against the DOM.
+- Verify the audit trail: a final screenshot is taken and logged after submission without halting the task for manual approval.
 
 ---
 

@@ -878,6 +878,51 @@ export const settingsRegistry = {
     serialize: (value: boolean | null | undefined): string | null =>
       value === null || value === undefined ? null : value ? "1" : "0",
   },
+
+  browserAgentEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  browserAutoApplyEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  browserAgentMaxSteps: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(50),
+    default: (): string => "10",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  browserAgentTimeoutMs: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(5000).max(300000),
+    default: (): string => "60000",
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  browserAgentMaxCost: {
+    kind: "typed" as const,
+    schema: z.coerce.number().min(0).max(5),
+    default: (): string => "0.10",
+    parse: (raw: string | undefined): number | null => {
+      if (!raw) return null;
+      const parsed = parseFloat(raw);
+      return Number.isNaN(parsed) ? null : Math.min(5, Math.max(0, parsed));
+    },
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
 } as const;
 
 export type SettingsRegistry = typeof settingsRegistry;

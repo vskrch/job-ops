@@ -231,6 +231,7 @@ export async function runJobBoards(
             backends: crawl4aiConfig ? ["crawl4ai", "jina"] : ["jina"],
             maxAttempts: 2,
             thinkTimeMs: { min: 1200, max: 2600 },
+            cache: false,
           });
           if (rendered.ok) {
             parsed = parseFetched(source, site, rendered);
@@ -250,7 +251,18 @@ export async function runJobBoards(
             maxJobs: maxJobsPerTerm,
             llm: options.llm,
           });
-          if (llmJobs && llmJobs.length > 0) parsed = llmJobs;
+          if (llmJobs && llmJobs.length > 0) {
+            const byUrl = new Map(parsed.map((j) => [j.jobUrl, j]));
+            for (const llmJob of llmJobs) {
+              const existing = byUrl.get(llmJob.jobUrl);
+              if (existing) {
+                byUrl.set(llmJob.jobUrl, { ...existing, ...llmJob });
+              } else {
+                byUrl.set(llmJob.jobUrl, llmJob);
+              }
+            }
+            parsed = [...byUrl.values()];
+          }
         }
 
         // Description pass: fetch detail pages for jobs missing a

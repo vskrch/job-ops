@@ -100,23 +100,25 @@ Adopt a **phased hardening plan** across four workstreams. Each phase is indepen
 
 ### Phase 3 — Extractor Consolidation
 
-1. **Migrate raw-fetch extractors to CrawlEngine.** `talent`, `aijobs`, `hasjob`, `careerbuilder`, `workopolis`, `remoteok`, `himalayas`, `remotive`, `weworkremotely`, `hnhiring`, `usajobs` — replace `fetchImpl` with `CrawlEngine.request()` using the full backend chain. This gives them retry, block detection, pacing, and backend fallback for free.
+1. **Canary Rollout for Raw-Fetch Extractors.** To mitigate big-bang integration risk with the new circuit breaker, canary the migration by moving a single low-risk extractor (e.g., `remoteok`) to `CrawlEngine.request()` first. Let it run for 48 hours to validate circuit breaker telemetry.
 
-2. **Add fetch timeouts everywhere.** Every `fetchImpl` call gets `AbortSignal.timeout(25_000)` (or the engine's default timeout when migrated).
+2. **Migrate Remaining raw-fetch extractors to CrawlEngine.** After canary validation, migrate `talent`, `aijobs`, `hasjob`, `careerbuilder`, `workopolis`, `himalayas`, `remotive`, `weworkremotely`, `hnhiring`, `usajobs` — replace `fetchImpl` with `CrawlEngine.request()` using the full backend chain. This gives them retry, block detection, pacing, and backend fallback for free.
 
-3. **Add subprocess timeouts.** `jobspy`, `adzuna`, `hiringcafe`, `gradcracker`, `ukvisajobs` — wrap `spawn` with a timeout (default 120s, configurable) that kills the child and rejects.
+3. **Add fetch timeouts everywhere.** Every `fetchImpl` call gets `AbortSignal.timeout(25_000)` (or the engine's default timeout when migrated).
 
-4. **Fix `sites.ts` brittleness:**
+4. **Add subprocess timeouts.** `jobspy`, `adzuna`, `hiringcafe`, `gradcracker`, `ukvisajobs` — wrap `spawn` with a timeout (default 120s, configurable) that kills the child and rejects.
+
+5. **Fix `sites.ts` brittleness:**
    - Add a **parse-rate monitor**: track jobs-per-page per site; if a site returns zero jobs for N consecutive runs, log a warning and mark the source degraded (visible in extractor-health).
    - Fix `instahyre` index-merge corruption: parse URLs and text in a single pass or verify counts before merging.
    - Remove `monster` from the active list (or gate it behind an env flag) until it actually works.
    - Add JSON-LD-first parsing for all sites (already exists in `run.ts` — extend to detail pages).
 
-5. **Fix LLM replace-not-merge.** When LLM returns jobs, merge with regex results (dedupe by URL) instead of replacing. LLM fills gaps; regex provides the baseline.
+6. **Fix LLM replace-not-merge.** When LLM returns jobs, merge with regex results (dedupe by URL) instead of replacing. LLM fills gaps; regex provides the baseline.
 
-6. **Fix SPA retry cache.** Pass `cache: false` on the SPA retry request.
+7. **Fix SPA retry cache.** Pass `cache: false` on the SPA retry request.
 
-7. **Fix description fetch backend chain.** Use `["direct", "crawl4ai", "jina"]` for detail pages when Crawl4AI is configured.
+8. **Fix description fetch backend chain.** Use `["direct", "crawl4ai", "jina"]` for detail pages when Crawl4AI is configured.
 
 ### Phase 4 — Orchestrator Resilience
 

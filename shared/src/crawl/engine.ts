@@ -180,6 +180,8 @@ export interface CrawlEngineOptions {
   timeoutMs?: number;
   /** Max cached responses (oldest evicted first). */
   cacheSize?: number;
+  /** Cache entry TTL in ms; 0 disables caching (default 5 min). */
+  cacheTtlMs?: number;
   /** Default behavioral pacing profile for all requests. */
   behaviorProfile?: BehaviorProfile;
   /** Crawl4AI server config; enables the `crawl4ai` browser backend. */
@@ -196,6 +198,7 @@ const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_BACKOFF_MS = 15_000;
 const MAX_RETRY_AFTER_MS = 30_000;
 const DEFAULT_CACHE_SIZE = 256;
+const DEFAULT_CACHE_TTL_MS = 300_000;
 
 function isTransientError(
   status: number,
@@ -212,9 +215,14 @@ export class CrawlEngine {
   private readonly maxBodyBytes: number;
   private readonly timeoutMs: number;
   private readonly cacheSize: number;
+  private readonly cacheTtlMs: number;
   private readonly behaviorProfile: BehaviorProfile | undefined;
   private readonly crawl4ai: Crawl4AIConfig | undefined;
-  private readonly cache = new Map<string, CrawlRequestResult>();
+  private readonly cache = new Map<
+    string,
+    { result: CrawlRequestResult; cachedAt: number }
+  >();
+  private readonly cooldown: AdaptiveCooldown;
   private lastRequestAt = 0;
   private rotateIndex = 0;
 
@@ -234,8 +242,13 @@ export class CrawlEngine {
     this.maxBodyBytes = options.maxBodyBytes ?? DEFAULT_BODY_LIMIT;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.cacheSize = Math.max(0, options.cacheSize ?? DEFAULT_CACHE_SIZE);
+    this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS);
     this.behaviorProfile = options.behaviorProfile;
     this.crawl4ai = options.crawl4ai;
+    this.cooldown = new AdaptiveCooldown(
+      { failureThreshold: 5, openMs: 30_000, successThreshold: 2 },
+      undefined,
+    );
   }
 
   /** Rotate to the next full browser fingerprint. */
@@ -314,8 +327,14 @@ export class CrawlEngine {
     options: CrawlRequestOptions,
   ): CrawlRequestResult | null {
     if (options.cache === false || this.cacheSize === 0) return null;
-    const hit = this.cache.get(this.cacheKey(backend, options));
-    return hit ? { ...hit, cached: true, elapsedMs: 0 } : null;
+    const key = this.cacheKey(backend, options);
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (this.cacheTtlMs > 0 && Date.now() - entry.cachedAt > this.cacheTtlMs) {
+      this.cache.delete(key);
+      return null;
+    }
+    return { ...entry.result, cached: true, elapsedMs: 0 };
   }
 
   private setCached(
@@ -330,7 +349,10 @@ export class CrawlEngine {
       const oldest = this.cache.keys().next().value as string | undefined;
       if (oldest !== undefined) this.cache.delete(oldest);
     }
-    this.cache.set(key, { ...result, cached: false });
+    this.cache.set(key, {
+      result: { ...result, cached: false },
+      cachedAt: Date.now(),
+    });
   }
 
   /**
@@ -356,6 +378,23 @@ export class CrawlEngine {
       };
     }
 
+    const sourceKey = domainFromUrl(options.url) || options.url;
+    if (!this.cooldown.isAvailable(sourceKey)) {
+      return {
+        ok: false,
+        status: 0,
+        data: undefined,
+        text: "Circuit breaker open for source",
+        attempt: 0,
+        elapsedMs: 0,
+        backend: "direct",
+        contentType: "",
+        cached: false,
+        blockDetected: true,
+        blockSignal: "blocked",
+      };
+    }
+
     const backends =
       options.backends && options.backends.length > 0
         ? options.backends
@@ -373,21 +412,22 @@ export class CrawlEngine {
       if (lastResult.ok || options.signal?.aborted) break;
     }
 
-    return (
-      lastResult ?? {
-        ok: false,
-        status: 0,
-        data: undefined,
-        text: "No backends available",
-        attempt: 0,
-        elapsedMs: 0,
-        backend: backends[0],
-        contentType: "",
-        cached: false,
-        blockDetected: false,
-        blockSignal: undefined,
-      }
-    );
+    const result = lastResult ?? {
+      ok: false,
+      status: 0,
+      data: undefined,
+      text: "No backends available",
+      attempt: 0,
+      elapsedMs: 0,
+      backend: backends[0],
+      contentType: "",
+      cached: false,
+      blockDetected: false,
+      blockSignal: undefined,
+    };
+
+    this.cooldown.probe(sourceKey, result.ok);
+    return result;
   }
 
   private async requestOnBackend(
@@ -403,7 +443,7 @@ export class CrawlEngine {
 
     const url =
       backend === "jina"
-        ? `https://r.jina.ai/${encodeURIComponent(options.url)}`
+        ? `https://r.jina.ai/${encodeURI(options.url)}`
         : options.url;
 
     const jinaHeaders: Record<string, string> = {};
@@ -651,61 +691,80 @@ export class CrawlEngine {
       };
     }
 
-    await this.paceWithProfile(options);
-    this.lastRequestAt = Date.now();
-    const started = Date.now();
+    const maxAttempts = Math.max(1, options.maxAttempts ?? 2);
+    const baseBackoffMs = options.baseBackoffMs ?? 2000;
+    let lastError = "";
+    let lastStatus = 0;
 
-    const result: Crawl4AIResult = await crawl4aiFetch(
-      options.url,
-      this.crawl4ai,
-      options.signal,
-    );
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      if (options.signal?.aborted) break;
+      await this.paceWithProfile(options);
+      this.lastRequestAt = Date.now();
+      const started = Date.now();
 
-    const elapsedMs = Date.now() - started;
-    const text = result.markdown || result.html;
-    const contentType = result.markdown ? "text/markdown" : "text/html";
+      const result: Crawl4AIResult = await crawl4aiFetch(
+        options.url,
+        this.crawl4ai,
+        options.signal,
+      );
 
-    if (!result.ok) {
-      return {
-        ok: false,
-        status: result.statusCode,
-        data: undefined,
-        text: result.error ?? "Crawl4AI request failed",
-        attempt: 1,
-        elapsedMs,
-        backend: "crawl4ai",
-        contentType: "",
-        cached: false,
-        blockDetected: false,
-        blockSignal: undefined,
-      };
-    }
+      const elapsedMs = Date.now() - started;
+      const text = result.markdown || result.html;
+      const contentType = result.markdown ? "text/markdown" : "text/html";
 
-    // Run the same heuristic block detection on the browser-rendered body so
-    // a challenge page surfaced by Crawl4AI escalates to Jina.
-    let blockSignal: BlockSignal | undefined;
-    let blockDetected = false;
-    if (contentType.includes("html")) {
-      blockSignal = detectBlock({
-        status: result.statusCode,
-        contentType,
-        text,
-      });
-      if (isBlockSignal(blockSignal)) blockDetected = true;
+      if (result.ok) {
+        let blockSignal: BlockSignal | undefined;
+        let blockDetected = false;
+        if (contentType.includes("html") || contentType.includes("markdown")) {
+          blockSignal = detectBlock({
+            status: result.statusCode,
+            contentType: contentType.includes("markdown")
+              ? "text/html"
+              : contentType,
+            text,
+          });
+          if (isBlockSignal(blockSignal)) blockDetected = true;
+        }
+
+        return {
+          ok: !blockDetected,
+          status: result.statusCode,
+          data: undefined,
+          text,
+          attempt,
+          elapsedMs,
+          backend: "crawl4ai",
+          contentType,
+          cached: false,
+          blockDetected,
+          blockSignal,
+        };
+      }
+
+      lastError = result.error ?? "Crawl4AI request failed";
+      lastStatus = result.statusCode;
+
+      if (attempt < maxAttempts) {
+        const backoff = Math.min(
+          baseBackoffMs * 2 ** (attempt - 1),
+          MAX_BACKOFF_MS,
+        );
+        await sleep(Math.floor(backoff * Math.random()));
+      }
     }
 
     return {
-      ok: !blockDetected,
-      status: result.statusCode,
+      ok: false,
+      status: lastStatus,
       data: undefined,
-      text,
-      attempt: 1,
-      elapsedMs,
+      text: lastError,
+      attempt: maxAttempts,
+      elapsedMs: 0,
       backend: "crawl4ai",
-      contentType,
+      contentType: "",
       cached: false,
-      blockDetected,
-      blockSignal,
+      blockDetected: false,
+      blockSignal: undefined,
     };
   }
 
@@ -837,17 +896,33 @@ function parseBody(text: string, contentType: string): unknown {
   }
 }
 
-/** Parse a Retry-After header (delta-seconds; HTTP dates are ignored). */
+/** Parse a Retry-After header (delta-seconds or HTTP-date; RFC 7231). */
 function parseRetryAfter(value: string | null): number | undefined {
-  if (value === null) return undefined;
-  const seconds = Number.parseInt(value.trim(), 10);
-  if (Number.isNaN(seconds) || seconds < 0) return undefined;
-  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  if (value === null || value === undefined) return undefined;
+  const trimmed = value.trim();
+  const seconds = Number.parseInt(trimmed, 10);
+  if (!Number.isNaN(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+  const parsed = Date.parse(trimmed);
+  if (!Number.isNaN(parsed)) {
+    const delta = parsed - Date.now();
+    if (delta > 0) return Math.min(delta, MAX_RETRY_AFTER_MS);
+  }
+  return undefined;
 }
 
 function sleep(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function domainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 function fetchImplFallback(
