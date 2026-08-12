@@ -898,7 +898,7 @@ export const settingsRegistry = {
   browserAgentMaxSteps: {
     kind: "typed" as const,
     schema: z.coerce.number().int().min(1).max(50),
-    default: (): string => "10",
+    default: (): number => 10,
     parse: parseIntOrNull,
     serialize: (value: number | null | undefined): string | null =>
       value === null || value === undefined ? null : String(value),
@@ -906,7 +906,7 @@ export const settingsRegistry = {
   browserAgentTimeoutMs: {
     kind: "typed" as const,
     schema: z.coerce.number().int().min(5000).max(300000),
-    default: (): string => "60000",
+    default: (): number => 60_000,
     parse: parseIntOrNull,
     serialize: (value: number | null | undefined): string | null =>
       value === null || value === undefined ? null : String(value),
@@ -914,7 +914,7 @@ export const settingsRegistry = {
   browserAgentMaxCost: {
     kind: "typed" as const,
     schema: z.coerce.number().min(0).max(5),
-    default: (): string => "0.10",
+    default: (): number => 0.1,
     parse: (raw: string | undefined): number | null => {
       if (!raw) return null;
       const parsed = parseFloat(raw);

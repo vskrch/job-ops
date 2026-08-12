@@ -38,9 +38,9 @@ export function browserTaskBudget(settings: AppSettings): {
   maxCost: number;
 } {
   return {
-    maxSteps: settings.browserAgentMaxSteps?.value ?? 10,
-    timeoutMs: settings.browserAgentTimeoutMs?.value ?? 60_000,
-    maxCost: settings.browserAgentMaxCost?.value ?? 0.1,
+    maxSteps: Number(settings.browserAgentMaxSteps?.value ?? 10),
+    timeoutMs: Number(settings.browserAgentTimeoutMs?.value ?? 60_000),
+    maxCost: Number(settings.browserAgentMaxCost?.value ?? 0.1),
   };
 }
 
