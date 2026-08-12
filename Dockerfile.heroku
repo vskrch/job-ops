@@ -57,6 +57,12 @@ RUN pip3 install --break-system-packages playwright python-jobspy
 # Install Firefox for Python Playwright.
 RUN python3 -m playwright install firefox
 
+# Browser Use sidecar (ADR-004): FastAPI wrapper + interactive browser agent.
+RUN pip3 install --break-system-packages fastapi uvicorn pydantic "browser-use" "langchain-openai"
+
+# Install Chromium for Browser Use (runs inside the web dyno on localhost:8000).
+RUN python3 -m playwright install chromium
+
 FROM build-base AS node-deps
 
 # Copy package files for dependency installation.
@@ -190,6 +196,7 @@ COPY shared ./shared
 COPY orchestrator ./orchestrator
 COPY visa-sponsor-providers ./visa-sponsor-providers
 COPY extractors ./extractors
+COPY browser-use ./browser-use
 
 # Create data directory (writable at runtime by Heroku's non-root user).
 RUN mkdir -p /app/data/pdfs
@@ -197,4 +204,6 @@ RUN mkdir -p /app/data/pdfs
 EXPOSE 3001
 
 WORKDIR /app/orchestrator
-CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && exec npm run start"]
+# Start the Browser Use sidecar (localhost:8000) alongside the web server so
+# the browser agent tool can reach it without an externally routable URL.
+CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && (uvicorn main:app --host 127.0.0.1 --port 8000 --app-dir /app/browser-use > /tmp/browser-use.log 2>&1 &) && exec npm run start"]

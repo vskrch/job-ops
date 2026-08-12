@@ -56,7 +56,9 @@ export const basicsSchema = z.object({
   headline: z.string(),
   email: z.string(),
   phone: z.string(),
-  location: z.string(),
+  location: z
+    .union([z.string(), z.object({ address: z.string().optional() })])
+    .catch(""),
   website: urlSchema,
   customFields: z.array(customFieldSchema),
 });

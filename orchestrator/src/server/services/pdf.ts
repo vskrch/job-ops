@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { notFound } from "@infra/errors";
 import { logger } from "@infra/logger";
 import { getSetting } from "@server/repositories/settings";
+import * as userProfileRepo from "@server/repositories/user-profile";
 import { settingsRegistry } from "@shared/settings-registry";
 import type {
   DesignResumePdfResponse,
@@ -17,6 +18,7 @@ import type {
 } from "@shared/types";
 import { getDataDir } from "../config/dataDir";
 import { getCurrentDesignResume } from "./design-resume";
+import { profileToResumeProfile } from "./resume-parser";
 import { renderResumePdf } from "./resume-renderer";
 import {
   deleteResume as deleteRxResume,
@@ -271,12 +273,26 @@ async function loadBaseResumeSource(args: {
     };
   }
 
+  try {
+    const uploadedProfile = await userProfileRepo.getCurrentUserProfile();
+    if (uploadedProfile) {
+      const converted = profileToResumeProfile(uploadedProfile);
+      return {
+        data: converted as unknown as Record<string, unknown>,
+        mode: "v5",
+      };
+    }
+  } catch (error) {
+    logger.warn(
+      "Failed to load uploaded resume profile fallback for PDF generator",
+      { error },
+    );
+  }
+
   const { resumeId: baseResumeId } = await getConfiguredRxResumeBaseResumeId();
   if (!baseResumeId) {
     throw new Error(
-      args.renderer === "latex"
-        ? "No Design Resume found. Import a Design Resume in Settings to use the built-in LaTeX PDF exporter."
-        : "No Design Resume found, and no Reactive Resume base resume is configured. Import a Design Resume or select a base resume in Settings.",
+      "No base resume found. Upload a PDF resume (or create a Design Resume) in Settings.",
     );
   }
 

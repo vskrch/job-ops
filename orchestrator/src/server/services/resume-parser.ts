@@ -24,6 +24,7 @@ import { PDFParse } from "pdf-parse";
 import { LlmService } from "./llm/service";
 import type { JsonSchemaDefinition } from "./llm/types";
 import { resolveLlmRuntimeSettings } from "./modelSelection";
+import { defaultV5ResumeData } from "./rxresume/schema/v5";
 
 const MAX_LLM_INPUT_CHARS = 15_000;
 
@@ -274,14 +275,21 @@ function sectionItemId(): string {
 export function profileToResumeProfile(
   profile: ParsedResumeProfile,
 ): ResumeProfile {
+  const base = structuredClone(defaultV5ResumeData);
+
   return {
+    ...base,
     basics: {
-      name: profile.fullName ?? undefined,
+      ...base.basics,
+      name: profile.fullName ?? "",
+      headline: profile.headline ?? "",
       label: profile.headline ?? undefined,
-      email: profile.email ?? undefined,
-      phone: profile.phone ?? undefined,
-      summary: profile.summary ?? undefined,
+      email: profile.email ?? "",
+      phone: profile.phone ?? "",
       location: profile.location ? { address: profile.location } : undefined,
+      website: { url: "", label: "" },
+      customFields: [],
+      summary: profile.summary ?? undefined,
       profiles:
         profile.links.length > 0
           ? profile.links.map((link) => ({
@@ -291,29 +299,20 @@ export function profileToResumeProfile(
           : undefined,
     },
     sections: {
-      ...(profile.summary
-        ? {
-            summary: {
-              id: "summary",
-              name: "Summary",
-              visible: true,
-              content: profile.summary,
-            },
-          }
-        : {}),
+      ...base.sections,
       ...(profile.skills.length > 0
         ? {
             skills: {
-              id: "skills",
-              name: "Skills",
-              visible: true,
+              ...base.sections.skills,
+              title: "Skills",
               items: profile.skills.map((name) => ({
                 id: sectionItemId(),
+                hidden: false,
+                icon: "",
                 name,
-                description: "",
+                proficiency: "",
                 level: 3,
                 keywords: [],
-                visible: true,
               })),
             },
           }
@@ -321,19 +320,20 @@ export function profileToResumeProfile(
       ...(profile.experience.length > 0
         ? {
             experience: {
-              id: "experience",
-              name: "Experience",
-              visible: true,
+              ...base.sections.experience,
+              title: "Experience",
               items: profile.experience.map((entry) => ({
                 id: sectionItemId(),
+                hidden: false,
                 company: entry.company ?? "",
                 position: entry.position ?? "",
                 location: "",
-                date: [entry.startDate, entry.endDate]
+                period: [entry.startDate, entry.endDate]
                   .filter(Boolean)
                   .join(" - "),
-                summary: entry.summary ?? "",
-                visible: true,
+                website: { url: "", label: "" },
+                description: entry.summary ?? "",
+                roles: [],
               })),
             },
           }
@@ -341,24 +341,27 @@ export function profileToResumeProfile(
       ...(profile.education.length > 0
         ? {
             education: {
-              id: "education",
-              name: "Education",
-              visible: true,
+              ...base.sections.education,
+              title: "Education",
               items: profile.education.map((entry) => ({
                 id: sectionItemId(),
-                institution: entry.institution ?? "",
+                hidden: false,
+                school: entry.institution ?? "",
                 degree: entry.degree ?? "",
-                date: [entry.startDate, entry.endDate]
+                area: "",
+                grade: "",
+                location: "",
+                period: [entry.startDate, entry.endDate]
                   .filter(Boolean)
                   .join(" - "),
-                summary: "",
-                visible: true,
+                website: { url: "", label: "" },
+                description: "",
               })),
             },
           }
         : {}),
     },
-  };
+  } as unknown as ResumeProfile;
 }
 
 /**

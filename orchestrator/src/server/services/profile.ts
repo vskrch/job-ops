@@ -66,7 +66,7 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
 
   if (!rxresumeBaseResumeId) {
     throw conflict(
-      "No resume configured. Create a Design Resume (Design Resume tab → Start from scratch) or connect Reactive Resume in Settings.",
+      "No resume configured. Upload a PDF resume (or configure a Design Resume) in Settings.",
     );
   }
 
