@@ -19,6 +19,10 @@ import {
 } from "./services/backup/index";
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
+import {
+  startKeepAliveService,
+  stopKeepAliveService,
+} from "./services/keep-alive";
 import { refreshPipelineScheduler } from "./services/pipeline-scheduler";
 import {
   isRemoteBackupConfigured,
@@ -234,10 +238,20 @@ async function startServer() {
         error: sanitizeUnknown(error),
       });
     }
+
+    // Start self-ping keep-alive service to prevent Heroku Eco dyno from sleeping
+    try {
+      startKeepAliveService();
+    } catch (error) {
+      logger.warn("Failed to start keep-alive service", {
+        error: sanitizeUnknown(error),
+      });
+    }
   });
 
   const gracefulShutdown = (signal: string) => {
     logger.info(`Received ${signal}. Shutting down HTTP server...`);
+    stopKeepAliveService();
     const forceExit = setTimeout(() => {
       logger.error("Forced shutdown after timeout.");
       process.exit(1);
