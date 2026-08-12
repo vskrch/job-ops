@@ -132,7 +132,9 @@ export async function getEffectiveSettings(): Promise<AppSettings> {
 
   if (Object.keys(profile).length === 0) {
     profile = await getProfile().catch((error) => {
-      logger.warn("Failed to load base resume profile for settings", { error });
+      logger.debug("No base resume profile configured for settings yet", {
+        error,
+      });
       return {};
     });
   }

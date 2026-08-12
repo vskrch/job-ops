@@ -248,7 +248,7 @@ export async function parseResumeProfile(
     ],
     jsonSchema: RESUME_PARSE_SCHEMA,
     maxRetries: 1,
-    timeoutMs: 60_000,
+    timeoutMs: 25_000,
   });
 
   if (!result.success) {
