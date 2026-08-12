@@ -16,7 +16,7 @@ export interface BrowserTaskResult {
 export interface BrowserUseClient {
   runTask(
     request: BrowserTaskRequest,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; requestId?: string },
   ): Promise<BrowserTaskResult>;
   health(): Promise<boolean>;
 }
@@ -24,6 +24,7 @@ export interface BrowserUseClient {
 export interface BrowserUseConfig {
   baseUrl: string;
   timeoutMs?: number;
+  apiToken?: string;
 }
 
 export function createBrowserUseClient(
@@ -31,17 +32,26 @@ export function createBrowserUseClient(
 ): BrowserUseClient {
   const baseUrl = config.baseUrl.replace(/\/$/, "");
   const timeoutMs = config.timeoutMs ?? 60_000;
+  const authHeaders: Record<string, string> = config.apiToken
+    ? { Authorization: `Bearer ${config.apiToken}` }
+    : {};
 
   return {
     async runTask(
       request: BrowserTaskRequest,
-      options?: { signal?: AbortSignal },
+      options?: { signal?: AbortSignal; requestId?: string },
     ): Promise<BrowserTaskResult> {
       const signal = options?.signal ?? AbortSignal.timeout(timeoutMs);
       try {
         const response = await fetch(`${baseUrl}/run`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+            ...(options?.requestId
+              ? { "x-request-id": options.requestId }
+              : {}),
+          },
           body: JSON.stringify({
             task: request.task,
             ...(request.url ? { url: request.url } : {}),
@@ -111,5 +121,8 @@ export function createBrowserUseClient(
 export function getBrowserUseConfig(): BrowserUseConfig | null {
   const baseUrl = process.env.BROWSER_USE_BASE_URL?.trim();
   if (!baseUrl) return null;
-  return { baseUrl };
+  return {
+    baseUrl,
+    apiToken: process.env.BROWSER_USE_API_TOKEN?.trim() || undefined,
+  };
 }

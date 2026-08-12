@@ -288,5 +288,10 @@ export const createAppSettings = (
   missingSalaryPenalty: { value: 10, default: 10, override: null },
   autoSkipScoreThreshold: { value: null, default: null, override: null },
   rxresumeMode: { value: "v5", default: "v5", override: null },
+  browserAgentEnabled: { value: false, default: false, override: null },
+  browserAutoApplyEnabled: { value: false, default: false, override: null },
+  browserAgentMaxSteps: { value: 10, default: 10, override: null },
+  browserAgentTimeoutMs: { value: 60000, default: 60000, override: null },
+  browserAgentMaxCost: { value: 0.1, default: 0.1, override: null },
   ...overrides,
 });

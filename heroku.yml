@@ -1,5 +1,7 @@
 build:
   docker:
     web: Dockerfile.heroku
+    browser-use: browser-use/Dockerfile
 run:
   web: sh -c 'export HOME=/app && npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && exec npm run start'
+  browser-use: uvicorn main:app --host 0.0.0.0 --port $PORT

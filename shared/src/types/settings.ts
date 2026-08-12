@@ -238,4 +238,11 @@ export interface AppSettings {
   // Computed:
   basicAuthActive: boolean;
   profileProjects: ResumeProjectCatalogItem[];
+
+  // Browser agent (ADR-004 Track B1):
+  browserAgentEnabled: Resolved<boolean>;
+  browserAutoApplyEnabled: Resolved<boolean>;
+  browserAgentMaxSteps: Resolved<number>;
+  browserAgentTimeoutMs: Resolved<number>;
+  browserAgentMaxCost: Resolved<number>;
 }
