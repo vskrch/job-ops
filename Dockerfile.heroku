@@ -51,14 +51,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ============================================================================
 FROM build-base AS python-deps
 
-# Install Python dependencies.
-RUN pip3 install --break-system-packages playwright python-jobspy
+# Install Python dependencies without caching wheels.
+RUN pip3 install --no-cache-dir --break-system-packages playwright python-jobspy
 
 # Install Firefox for Python Playwright.
 RUN python3 -m playwright install firefox
 
 # Browser Use sidecar (ADR-004): FastAPI wrapper + interactive browser agent.
-RUN pip3 install --break-system-packages fastapi uvicorn pydantic "browser-use" "langchain-openai"
+RUN pip3 install --no-cache-dir --break-system-packages fastapi uvicorn pydantic "browser-use" "langchain-openai"
 
 # Install Chromium for Browser Use (runs inside the web dyno on localhost:8000).
 RUN python3 -m playwright install chromium
@@ -206,4 +206,4 @@ EXPOSE 3001
 WORKDIR /app/orchestrator
 # Start the Browser Use sidecar (localhost:8000) alongside the web server so
 # the browser agent tool can reach it without an externally routable URL.
-CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && (uvicorn main:app --host 127.0.0.1 --port 8000 --app-dir /app/browser-use > /tmp/browser-use.log 2>&1 &) && exec npm run start"]
+CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && (uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1 --limit-concurrency 10 --log-level warning --app-dir /app/browser-use > /tmp/browser-use.log 2>&1 &) && exec npm run start"]
