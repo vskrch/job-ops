@@ -201,10 +201,15 @@ COPY extractors/golangjobs ./extractors/golangjobs
 # Create data directory.
 RUN mkdir -p /app/data/pdfs
 
+# Run as non-root for production safety.
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser && \
+    chown -R appuser:appuser /app/data
+USER appuser
+
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
 WORKDIR /app/orchestrator
-CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && npm run start"]
+CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && exec npm run start"]

@@ -5,6 +5,7 @@ import {
   runBrowserTask,
 } from "@server/services/agentic/browser-task";
 import { getEffectiveSettings } from "@server/services/settings";
+import { validateUrlForCrawl } from "@shared/crawl/engine.js";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 
@@ -29,6 +30,13 @@ browserAgentRouter.post("/run", async (req: Request, res: Response) => {
         res,
         badRequest("Invalid request body", parsed.error.flatten().fieldErrors),
       );
+    }
+
+    if (parsed.data.url) {
+      const ssrfResult = validateUrlForCrawl(parsed.data.url);
+      if (!ssrfResult.ok) {
+        return fail(res, badRequest(`URL rejected: ${ssrfResult.reason}`));
+      }
     }
 
     const result = await runBrowserTask(parsed.data, settings);

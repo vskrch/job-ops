@@ -6,7 +6,7 @@ import {
   notFound,
   toAppError,
 } from "@infra/errors";
-import { fail, ok, okWithMeta } from "@infra/http";
+import { asyncRoute, fail, ok, okWithMeta } from "@infra/http";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
@@ -863,32 +863,45 @@ jobsRouter.post("/actions/stream", async (req: Request, res: Response) => {
   }
 });
 
-jobsRouter.post("/:id/process", async (req: Request, res: Response) => {
-  const forceRaw = req.query.force as string | undefined;
-  const force = forceRaw === "1" || forceRaw === "true";
-  const result = await executeJobActionForJob("move_to_ready", req.params.id, {
-    forceMoveToReady: force,
-    requestOrigin: resolveRequestOrigin(req),
-  });
-  if (!result.ok) return fail(res, mapJobActionFailure(result));
-  ok(res, result.job);
-});
+jobsRouter.post(
+  "/:id/process",
+  asyncRoute(async (req: Request, res: Response) => {
+    const forceRaw = req.query.force as string | undefined;
+    const force = forceRaw === "1" || forceRaw === "true";
+    const result = await executeJobActionForJob(
+      "move_to_ready",
+      req.params.id,
+      {
+        forceMoveToReady: force,
+        requestOrigin: resolveRequestOrigin(req),
+      },
+    );
+    if (!result.ok) return fail(res, mapJobActionFailure(result));
+    ok(res, result.job);
+  }),
+);
 
-jobsRouter.post("/:id/skip", async (req: Request, res: Response) => {
-  const result = await executeJobActionForJob("skip", req.params.id);
-  if (!result.ok) return fail(res, mapJobActionFailure(result));
-  ok(res, result.job);
-});
+jobsRouter.post(
+  "/:id/skip",
+  asyncRoute(async (req: Request, res: Response) => {
+    const result = await executeJobActionForJob("skip", req.params.id);
+    if (!result.ok) return fail(res, mapJobActionFailure(result));
+    ok(res, result.job);
+  }),
+);
 
-jobsRouter.post("/:id/rescore", async (req: Request, res: Response) => {
-  const result = await executeJobActionForJob("rescore", req.params.id, {
-    ...(isDemoMode()
-      ? {}
-      : { getProfileForRescore: createSharedRescoreProfileLoader() }),
-  });
-  if (!result.ok) return fail(res, mapJobActionFailure(result));
-  ok(res, result.job);
-});
+jobsRouter.post(
+  "/:id/rescore",
+  asyncRoute(async (req: Request, res: Response) => {
+    const result = await executeJobActionForJob("rescore", req.params.id, {
+      ...(isDemoMode()
+        ? {}
+        : { getProfileForRescore: createSharedRescoreProfileLoader() }),
+    });
+    if (!result.ok) return fail(res, mapJobActionFailure(result));
+    ok(res, result.job);
+  }),
+);
 
 /**
  * GET /api/jobs/:id - Get a single job

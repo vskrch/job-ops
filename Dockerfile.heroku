@@ -203,7 +203,11 @@ RUN mkdir -p /app/data/pdfs
 
 EXPOSE 3001
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
+
 WORKDIR /app/orchestrator
 # Start the Browser Use sidecar (localhost:8000) alongside the web server so
 # the browser agent tool can reach it without an externally routable URL.
+# `exec` ensures npm (Node) replaces sh as PID 1 for proper signal forwarding.
 CMD ["sh", "-c", "npx tsx src/server/db/restore-remote.ts && npx tsx src/server/db/migrate.ts && (uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1 --limit-concurrency 10 --log-level warning --app-dir /app/browser-use > /tmp/browser-use.log 2>&1 &) && exec npm run start"]

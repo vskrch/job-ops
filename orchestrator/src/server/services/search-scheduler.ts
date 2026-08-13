@@ -165,13 +165,21 @@ async function runScheduledSearch(
  * Start (or restart) all schedulers from the DB. Called at boot and after any
  * schedule mutation.
  */
-export async function refreshSearchScheduler(): Promise<void> {
-  // Stop all existing schedulers and intervals.
+/**
+ * Stop all active search schedulers and clear intervals.
+ * Called during graceful shutdown.
+ */
+export function stopAllSearchSchedulers(): void {
   for (const entry of activeSchedulers.values()) {
     if (entry.interval) clearInterval(entry.interval);
     entry.scheduler.stop();
   }
   activeSchedulers.clear();
+}
+
+export async function refreshSearchScheduler(): Promise<void> {
+  // Stop all existing schedulers and intervals.
+  stopAllSearchSchedulers();
 
   const schedules = await scheduleRepo.getEnabledSearchSchedules();
 

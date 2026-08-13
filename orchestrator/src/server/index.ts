@@ -6,6 +6,7 @@ import "./config/env";
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { createApp } from "./app";
+import { closeDb } from "./db/index";
 import { initializeExtractorRegistry } from "./extractors/registry";
 import * as agenticRepo from "./repositories/agentic-search";
 import * as jobSearchRepo from "./repositories/job-search";
@@ -16,6 +17,7 @@ import {
   registerBackupListener,
   setBackupSettings,
   startBackupScheduler,
+  stopBackupScheduler,
 } from "./services/backup/index";
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
@@ -23,12 +25,18 @@ import {
   startKeepAliveService,
   stopKeepAliveService,
 } from "./services/keep-alive";
-import { refreshPipelineScheduler } from "./services/pipeline-scheduler";
+import {
+  refreshPipelineScheduler,
+  stopAllPipelineSchedulers,
+} from "./services/pipeline-scheduler";
 import {
   isRemoteBackupConfigured,
   syncBackupToRemote,
 } from "./services/remote-backup/index";
-import { refreshSearchScheduler } from "./services/search-scheduler";
+import {
+  refreshSearchScheduler,
+  stopAllSearchSchedulers,
+} from "./services/search-scheduler";
 import { getEffectiveSettings } from "./services/settings";
 import { initialize as initializeVisaSponsors } from "./services/visa-sponsors/index";
 
@@ -43,6 +51,21 @@ async function startServer() {
   ) {
     logger.error(
       "SESSION_SECRET is required in production. Refusing to start.",
+    );
+    process.exit(1);
+  }
+
+  // In production, refuse to start with no authentication configured.
+  // Without BASIC_AUTH or session-based auth, all API routes are open.
+  // Allow opt-out via ALLOW_NO_AUTH=true for single-user/self-hosted scenarios.
+  if (
+    process.env.NODE_ENV === "production" &&
+    !process.env.BASIC_AUTH_USER?.trim() &&
+    !process.env.BASIC_AUTH_PASSWORD?.trim() &&
+    process.env.ALLOW_NO_AUTH !== "true"
+  ) {
+    logger.error(
+      "No authentication configured. Set BASIC_AUTH_USER and BASIC_AUTH_PASSWORD, or set ALLOW_NO_AUTH=true to acknowledge the risk. Refusing to start.",
     );
     process.exit(1);
   }
@@ -104,19 +127,7 @@ async function startServer() {
 
   // Start server
   const server = app.listen(PORT, "0.0.0.0", async () => {
-    console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🚀 Job Ops Orchestrator                                 ║
-║                                                           ║
-║   Server running at: http://0.0.0.0:${PORT}                 ║
-║                                                           ║
-║   API:     http://0.0.0.0:${PORT}/api                       ║
-║   Health:  http://0.0.0.0:${PORT}/health                    ║
-║   PDFs:    http://0.0.0.0:${PORT}/pdfs                      ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+    logger.info("Job Ops Orchestrator server started", { port: PORT });
 
     // Initialize visa sponsors service (downloads data if needed, starts scheduler)
     try {
@@ -252,6 +263,9 @@ async function startServer() {
   const gracefulShutdown = (signal: string) => {
     logger.info(`Received ${signal}. Shutting down HTTP server...`);
     stopKeepAliveService();
+    stopAllSearchSchedulers();
+    stopAllPipelineSchedulers();
+    stopBackupScheduler();
     const forceExit = setTimeout(() => {
       logger.error("Forced shutdown after timeout.");
       process.exit(1);
@@ -261,6 +275,7 @@ async function startServer() {
     const finish = () => {
       clearTimeout(forceExit);
       server.close(() => {
+        closeDb();
         logger.info("HTTP server closed. Exiting process.");
         process.exit(0);
       });
@@ -277,6 +292,15 @@ async function startServer() {
 
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("unhandledRejection", (reason) => {
+    logger.error("Unhandled promise rejection", {
+      error: sanitizeUnknown(reason),
+    });
+  });
+  process.on("uncaughtException", (error) => {
+    logger.error("Uncaught exception", { error: sanitizeUnknown(error) });
+    process.exit(1);
+  });
 }
 
 void startServer();

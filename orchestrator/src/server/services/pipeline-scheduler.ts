@@ -61,15 +61,23 @@ function buildRunConfig(schedule: {
 }
 
 /**
+ * Stop all active pipeline schedulers.
+ * Called during graceful shutdown.
+ */
+export function stopAllPipelineSchedulers(): void {
+  for (const { scheduler } of activeSchedulers.values()) {
+    scheduler.stop();
+  }
+  activeSchedulers.clear();
+}
+
+/**
  * Start (or restart) all schedulers from the DB. Called at boot and after any
  * schedule mutation.
  */
 export async function refreshPipelineScheduler(): Promise<void> {
   // Stop all existing schedulers.
-  for (const { scheduler } of activeSchedulers.values()) {
-    scheduler.stop();
-  }
-  activeSchedulers.clear();
+  stopAllPipelineSchedulers();
 
   const schedules = await scheduleRepo.getEnabledSchedules();
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBrowserUseClient } from "./browser-use-client";
 
 const originalFetch = globalThis.fetch;

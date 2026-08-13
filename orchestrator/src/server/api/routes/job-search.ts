@@ -9,8 +9,14 @@
  * POST   /api/job-search/:id/resend-email — re-send the results email
  */
 
-import { AppError, badRequest, conflict, notFound } from "@infra/errors";
-import { fail, ok } from "@infra/http";
+import {
+  AppError,
+  badRequest,
+  conflict,
+  notFound,
+  toAppError,
+} from "@infra/errors";
+import { asyncRoute, fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
@@ -171,30 +177,37 @@ jobSearchRouter.get("/:id", async (req: Request, res: Response) => {
 /**
  * GET /api/job-search/:id/progress — SSE progress stream.
  */
-jobSearchRouter.get("/:id/progress", async (req: Request, res: Response) => {
-  const searchId = req.params.id;
-  const search = await jobSearchRepo.getJobSearch(searchId);
-  if (!search) {
-    return fail(res, notFound("Search not found."));
-  }
+jobSearchRouter.get(
+  "/:id/progress",
+  asyncRoute(async (req: Request, res: Response) => {
+    try {
+      const searchId = req.params.id;
+      const search = await jobSearchRepo.getJobSearch(searchId);
+      if (!search) {
+        return fail(res, notFound("Search not found."));
+      }
 
-  setupSse(res, {
-    cacheControl: "no-cache, no-transform",
-    disableBuffering: true,
-    flushHeaders: true,
-  });
+      setupSse(res, {
+        cacheControl: "no-cache, no-transform",
+        disableBuffering: true,
+        flushHeaders: true,
+      });
 
-  const unsubscribe = subscribeToSearchProgress(searchId, (event) => {
-    writeSseData(res, event);
-  });
+      const unsubscribe = subscribeToSearchProgress(searchId, (event) => {
+        writeSseData(res, event);
+      });
 
-  const stopHeartbeat = startSseHeartbeat(res);
+      const stopHeartbeat = startSseHeartbeat(res);
 
-  req.on("close", () => {
-    stopHeartbeat();
-    unsubscribe();
-  });
-});
+      req.on("close", () => {
+        stopHeartbeat();
+        unsubscribe();
+      });
+    } catch (error) {
+      fail(res, toAppError(error));
+    }
+  }),
+);
 
 /**
  * POST /api/job-search/:id/resend-email — Re-send the results email.

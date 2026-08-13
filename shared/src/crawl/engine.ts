@@ -1232,7 +1232,7 @@ function fetchImplFallback(
  * an external service which would happily fetch an arbitrary URL on
  * our behalf.
  */
-function validateUrlForCrawl(
+export function validateUrlForCrawl(
   rawUrl: string,
 ): { ok: true } | { ok: false; reason: string } {
   let parsed: URL;

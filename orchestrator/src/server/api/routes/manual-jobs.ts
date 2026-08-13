@@ -13,6 +13,7 @@ import * as jobsRepo from "@server/repositories/jobs";
 import { inferManualJobDetails } from "@server/services/manualJob";
 import { getProfile } from "@server/services/profile";
 import { scoreJobSuitability } from "@server/services/scorer";
+import { validateUrlForCrawl } from "@shared/crawl/engine.js";
 import { type Request, type Response, Router } from "express";
 import { JSDOM } from "jsdom";
 import { z } from "zod";
@@ -64,6 +65,18 @@ manualJobsRouter.post("/fetch", async (req: Request, res: Response) => {
 
   try {
     const input = manualJobFetchSchema.parse(req.body ?? {});
+
+    const ssrfResult = validateUrlForCrawl(input.url);
+    if (!ssrfResult.ok) {
+      return fail(
+        res,
+        new AppError({
+          status: 400,
+          code: "INVALID_REQUEST",
+          message: `URL rejected: ${ssrfResult.reason}`,
+        }),
+      );
+    }
 
     const response = await fetch(input.url, {
       signal: controller.signal,

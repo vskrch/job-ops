@@ -109,11 +109,7 @@ vi.mock("node:child_process", () => {
 });
 
 import { closeDb as getCloseDb } from "@server/db/index";
-import {
-  extractResumeText,
-  parseResumeProfile,
-  profileToResumeProfile,
-} from "./resume-parser";
+import { parseResumeProfile, profileToResumeProfile } from "./resume-parser";
 
 function setLlmData(data: unknown): void {
   (globalThis as unknown as { __mockLlmData?: unknown }).__mockLlmData = data;

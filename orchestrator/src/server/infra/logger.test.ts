@@ -12,9 +12,9 @@ describe("getConfiguredLogLevel", () => {
     }
   });
 
-  it("defaults to debug for full verbose console logging", () => {
+  it("defaults to info for production-appropriate output", () => {
     delete process.env.LOG_LEVEL;
-    expect(getConfiguredLogLevel()).toBe("debug");
+    expect(getConfiguredLogLevel()).toBe("info");
   });
 
   it("accepts verbose as an alias for debug", () => {
@@ -34,9 +34,9 @@ describe("getConfiguredLogLevel", () => {
     }
   });
 
-  it("falls back to debug for unknown values", () => {
+  it("falls back to info for unknown values", () => {
     process.env.LOG_LEVEL = "banana";
-    expect(getConfiguredLogLevel()).toBe("debug");
+    expect(getConfiguredLogLevel()).toBe("info");
   });
 
   it("treats the level case-insensitively", () => {

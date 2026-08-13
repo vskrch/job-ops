@@ -17,15 +17,15 @@ const LOG_LEVEL_ALIASES: Record<string, LogLevel> = {
 
 /**
  * Resolve the configured minimum log level from LOG_LEVEL.
- * Defaults to "debug" (full verbose console output); set LOG_LEVEL=info|warn|error
- * to reduce noise. "verbose" is accepted as an alias for "debug".
+ * Defaults to "info" for production-appropriate output. Set LOG_LEVEL=debug
+ * for full verbose console output; "verbose" and "trace" are aliases for "debug".
  */
 export function getConfiguredLogLevel(): LogLevel {
   const raw = process.env.LOG_LEVEL?.toLowerCase();
   if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") {
     return raw;
   }
-  return raw ? (LOG_LEVEL_ALIASES[raw] ?? "debug") : "debug";
+  return raw ? (LOG_LEVEL_ALIASES[raw] ?? "info") : "info";
 }
 
 export function isDebugLoggingEnabled(): boolean {

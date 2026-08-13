@@ -1,4 +1,5 @@
-import { ok, okWithMeta } from "@infra/http";
+import { toAppError } from "@infra/errors";
+import { asyncRoute, fail, ok, okWithMeta } from "@infra/http";
 import { logger } from "@infra/logger";
 import { isDemoMode } from "@server/config/demo";
 import { getSetting } from "@server/repositories/settings";
@@ -274,97 +275,117 @@ async function validateRxresume(options?: {
 
 onboardingRouter.post(
   "/validate/openrouter",
-  async (req: Request, res: Response) => {
-    if (isDemoMode()) {
-      return okWithMeta(
-        res,
-        {
-          valid: true,
-          message:
-            "Demo mode: OpenRouter validation is simulated and always succeeds.",
-        },
-        { simulated: true },
-      );
-    }
+  asyncRoute(async (req: Request, res: Response) => {
+    try {
+      if (isDemoMode()) {
+        return okWithMeta(
+          res,
+          {
+            valid: true,
+            message:
+              "Demo mode: OpenRouter validation is simulated and always succeeds.",
+          },
+          { simulated: true },
+        );
+      }
 
-    const apiKey =
-      typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined;
-    const result = await validateLlm({ apiKey, provider: "openrouter" });
-    ok(res, result);
-  },
+      const apiKey =
+        typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined;
+      const result = await validateLlm({ apiKey, provider: "openrouter" });
+      ok(res, result);
+    } catch (error) {
+      fail(res, toAppError(error));
+    }
+  }),
 );
 
-onboardingRouter.post("/validate/llm", async (req: Request, res: Response) => {
-  if (isDemoMode()) {
-    return okWithMeta(
-      res,
-      {
-        valid: true,
-        message: "Demo mode: LLM validation is simulated.",
-      },
-      { simulated: true },
-    );
-  }
+onboardingRouter.post(
+  "/validate/llm",
+  asyncRoute(async (req: Request, res: Response) => {
+    try {
+      if (isDemoMode()) {
+        return okWithMeta(
+          res,
+          {
+            valid: true,
+            message: "Demo mode: LLM validation is simulated.",
+          },
+          { simulated: true },
+        );
+      }
 
-  const apiKey =
-    typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined;
-  const provider =
-    typeof req.body?.provider === "string" ? req.body.provider : undefined;
-  const baseUrl =
-    typeof req.body?.baseUrl === "string" ? req.body.baseUrl : undefined;
-  const result = await validateLlm({ apiKey, provider, baseUrl });
-  ok(res, result);
-});
+      const apiKey =
+        typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined;
+      const provider =
+        typeof req.body?.provider === "string" ? req.body.provider : undefined;
+      const baseUrl =
+        typeof req.body?.baseUrl === "string" ? req.body.baseUrl : undefined;
+      const result = await validateLlm({ apiKey, provider, baseUrl });
+      ok(res, result);
+    } catch (error) {
+      fail(res, toAppError(error));
+    }
+  }),
+);
 
 onboardingRouter.post(
   "/validate/rxresume",
-  async (req: Request, res: Response) => {
-    if (isDemoMode()) {
-      return okWithMeta(
-        res,
-        {
-          valid: true,
-          message: "Demo mode: RxResume validation is simulated.",
-        },
-        { simulated: true },
-      );
-    }
+  asyncRoute(async (req: Request, res: Response) => {
+    try {
+      if (isDemoMode()) {
+        return okWithMeta(
+          res,
+          {
+            valid: true,
+            message: "Demo mode: RxResume validation is simulated.",
+          },
+          { simulated: true },
+        );
+      }
 
-    const email =
-      typeof req.body?.email === "string" ? req.body.email : undefined;
-    const password =
-      typeof req.body?.password === "string" ? req.body.password : undefined;
-    const mode = typeof req.body?.mode === "string" ? req.body.mode : undefined;
-    const apiKey =
-      typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined;
-    const baseUrl =
-      typeof req.body?.baseUrl === "string" ? req.body.baseUrl : undefined;
-    const result = await validateRxresume({
-      mode,
-      email,
-      password,
-      apiKey,
-      baseUrl,
-    });
-    ok(res, result);
-  },
+      const email =
+        typeof req.body?.email === "string" ? req.body.email : undefined;
+      const password =
+        typeof req.body?.password === "string" ? req.body.password : undefined;
+      const mode =
+        typeof req.body?.mode === "string" ? req.body.mode : undefined;
+      const apiKey =
+        typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined;
+      const baseUrl =
+        typeof req.body?.baseUrl === "string" ? req.body.baseUrl : undefined;
+      const result = await validateRxresume({
+        mode,
+        email,
+        password,
+        apiKey,
+        baseUrl,
+      });
+      ok(res, result);
+    } catch (error) {
+      fail(res, toAppError(error));
+    }
+  }),
 );
 
 onboardingRouter.get(
   "/validate/resume",
-  async (_req: Request, res: Response) => {
-    if (isDemoMode()) {
-      return okWithMeta(
-        res,
-        {
-          valid: true,
-          message: "Demo mode: resume validation is simulated.",
-        },
-        { simulated: true },
-      );
-    }
+  asyncRoute(async (_req: Request, res: Response) => {
+    try {
+      if (isDemoMode()) {
+        return okWithMeta(
+          res,
+          {
+            valid: true,
+            message: "Demo mode: resume validation is simulated.",
+          },
+          { simulated: true },
+        );
+      }
 
-    const result = await validateResumeConfig();
-    ok(res, result);
-  },
+      const result = await validateResumeConfig();
+      ok(res, result);
+    } catch (error) {
+      fail(res, toAppError(error));
+    }
+  }),
 );

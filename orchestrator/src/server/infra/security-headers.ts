@@ -33,6 +33,10 @@ export function securityHeaders(): RequestHandler {
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("X-DNS-Prefetch-Control", "off");
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=()",
+    );
     res.setHeader("Content-Security-Policy", CSP_HEADER);
     if (isProduction) {
       res.setHeader(
