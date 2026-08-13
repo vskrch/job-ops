@@ -1,3 +1,4 @@
+import { createCrawledFetch } from "@shared/crawl/crawled-fetch.js";
 import type {
   ExtractorManifest,
   ExtractorProgressEvent,
@@ -50,6 +51,7 @@ export const manifest: ExtractorManifest = {
     const result = await runUsaJobs({
       searchTerms: context.searchTerms,
       maxJobsPerTerm,
+      fetchImpl: createCrawledFetch({ source: "usajobs" }),
       onProgress: (event) => {
         if (context.shouldCancel?.()) return;
         context.onProgress?.(toProgress(event));

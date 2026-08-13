@@ -127,7 +127,9 @@ describe("CrawlEngine", () => {
     await engine.getJson({ url: "https://example.com/1", maxAttempts: 1 });
     await engine.getJson({ url: "https://example.com/2", maxAttempts: 1 });
 
-    expect(seen).toEqual(["a", "b"]);
+    // Random rotation with 2 UAs: both should appear (order may vary).
+    expect(seen).toHaveLength(2);
+    expect(new Set(seen)).toEqual(new Set(["a", "b"]));
   });
 
   it("fails over to the jina backend when the direct fetch is blocked", async () => {
@@ -403,9 +405,20 @@ describe("CrawlEngine", () => {
     await engine.request({ url: "https://example.com/1", maxAttempts: 1 });
     await engine.request({ url: "https://example.com/2", maxAttempts: 1 });
 
+    // Random rotation with 2 fingerprints: both should appear (order may vary).
     expect(seen).toHaveLength(2);
-    expect(seen[0]).toEqual({ ua: "UA-A", chUa: '"A"', platform: '"Windows"' });
-    expect(seen[1]).toEqual({ ua: "UA-B", chUa: '"B"', platform: '"macOS"' });
+    const uas = seen.map((s) => s.ua);
+    expect(new Set(uas)).toEqual(new Set(["UA-A", "UA-B"]));
+    // Each entry should have consistent sec-ch-ua + platform.
+    for (const s of seen) {
+      if (s.ua === "UA-A") {
+        expect(s.chUa).toBe('"A"');
+        expect(s.platform).toBe('"Windows"');
+      } else {
+        expect(s.chUa).toBe('"B"');
+        expect(s.platform).toBe('"macOS"');
+      }
+    }
   });
 
   it("fails over to jina when a 200-OK page is a heuristic CAPTCHA block", async () => {
@@ -641,6 +654,74 @@ describe("CrawlEngine", () => {
       expect(jinaUrls).toHaveLength(1);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("escalates direct(blocked) -> browser-use(ok) when configured", async () => {
+    const fetchImpl: CrawlFetch = () =>
+      Promise.resolve(
+        fakeResponse(
+          200,
+          "<html>Just a moment... cf-challenge</html>",
+          "text/html",
+        ),
+      );
+    const engine = new CrawlEngine({
+      fetchImpl,
+      throttleMinMs: 0,
+      throttleMaxMs: 0,
+      browserUse: {
+        async runTask() {
+          return {
+            success: true,
+            result: { text: "Jobs extracted by agentic browser" },
+            screenshots: [],
+            steps: 5,
+          };
+        },
+        async health() {
+          return true;
+        },
+      },
+    });
+
+    const result = await engine.request({
+      url: "https://blocked.example/jobs",
+      backends: ["direct", "browser-use"],
+      maxAttempts: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.backend).toBe("browser-use");
+    expect(result.text).toBe("Jobs extracted by agentic browser");
+  });
+
+  it("returns browser-use not configured when no client is set", async () => {
+    const previousBrowserUseUrl = process.env.BROWSER_USE_BASE_URL;
+    const previousCaptchaKey = process.env.CAPTCHA_SOLVER_API_KEY;
+    delete process.env.BROWSER_USE_BASE_URL;
+    delete process.env.CAPTCHA_SOLVER_API_KEY;
+    try {
+      const engine = new CrawlEngine({
+        fetchImpl: () => Promise.resolve(fakeResponse(403, "blocked")),
+        throttleMinMs: 0,
+        throttleMaxMs: 0,
+      });
+
+      const result = await engine.request({
+        url: "https://example.com",
+        backends: ["browser-use"],
+        maxAttempts: 1,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.backend).toBe("browser-use");
+      expect(result.text).toBe("Browser Use not configured");
+    } finally {
+      if (previousBrowserUseUrl)
+        process.env.BROWSER_USE_BASE_URL = previousBrowserUseUrl;
+      if (previousCaptchaKey)
+        process.env.CAPTCHA_SOLVER_API_KEY = previousCaptchaKey;
     }
   });
 });

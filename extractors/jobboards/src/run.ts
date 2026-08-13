@@ -1,3 +1,4 @@
+import { getBrowserUseConfig } from "@shared/crawl/browser-use-client.js";
 import type { Crawl4AIConfig } from "@shared/crawl/crawl4ai-backend.js";
 import { CrawlEngine, type CrawlRequestResult } from "@shared/crawl/engine.js";
 import {
@@ -132,7 +133,7 @@ async function fetchDescriptions(
     try {
       const detail = await engine.request({
         url: job.jobUrl,
-        backends: ["direct", "jina"],
+        backends: ["direct", "crawl4ai", "jina"],
         maxAttempts: 2,
         thinkTimeMs: { min: 1200, max: 2600 },
       });
@@ -181,14 +182,20 @@ export async function runJobBoards(
     options.behaviorProfile ??
     (llmJobsConfigured(options.llm) ? "normal" : "fast");
   const crawl4aiConfig = readCrawl4aiConfig();
+  const browserUseConfig = getBrowserUseConfig();
   const engine = new CrawlEngine({
     behaviorProfile,
     crawl4ai: crawl4aiConfig,
   });
-  // Escalate direct → crawl4ai (browser) → jina when Crawl4AI is configured.
+  // Escalate direct → crawl4ai (browser) → jina → browser-use (agentic)
+  // when Crawl4AI is configured.
   const backends = crawl4aiConfig
-    ? (["direct", "crawl4ai", "jina"] as const)
-    : (["direct", "jina"] as const);
+    ? browserUseConfig
+      ? (["direct", "crawl4ai", "jina", "browser-use"] as const)
+      : (["direct", "crawl4ai", "jina"] as const)
+    : browserUseConfig
+      ? (["direct", "jina", "browser-use"] as const)
+      : (["direct", "jina"] as const);
 
   const jobs: CreateJobInput[] = [];
   const failures: string[] = [];

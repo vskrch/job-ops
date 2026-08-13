@@ -34,6 +34,17 @@ import {
   isBlockSignal,
 } from "./block-detector.js";
 import {
+  browserUseFetch,
+  createBrowserUseBackend,
+} from "./browser-use-backend.js";
+import type { BrowserUseClient } from "./browser-use-client.js";
+import {
+  type CaptchaSolverConfig,
+  detectCaptcha,
+  getCaptchaSolverConfig,
+  solveCaptcha,
+} from "./captcha-solver.js";
+import {
   type Crawl4AIConfig,
   type Crawl4AIResult,
   crawl4aiFetch,
@@ -126,7 +137,7 @@ export interface CrawlRequestOptions {
   behaviorProfile?: BehaviorProfile;
 }
 
-export type CrawlBackend = "direct" | "crawl4ai" | "jina";
+export type CrawlBackend = "direct" | "crawl4ai" | "jina" | "browser-use";
 
 export interface CrawlRequestResult {
   ok: boolean;
@@ -186,6 +197,10 @@ export interface CrawlEngineOptions {
   behaviorProfile?: BehaviorProfile;
   /** Crawl4AI server config; enables the `crawl4ai` browser backend. */
   crawl4ai?: Crawl4AIConfig;
+  /** Captcha solver config; enables CAPTCHA solving on challenge pages. */
+  captchaSolver?: CaptchaSolverConfig;
+  /** Browser Use client; enables the `browser-use` agentic backend. */
+  browserUse?: BrowserUseClient;
 }
 
 function randomInt(min: number, max: number): number {
@@ -218,13 +233,15 @@ export class CrawlEngine {
   private readonly cacheTtlMs: number;
   private readonly behaviorProfile: BehaviorProfile | undefined;
   private readonly crawl4ai: Crawl4AIConfig | undefined;
+  private readonly captchaSolver: CaptchaSolverConfig | undefined;
+  private readonly browserUse: BrowserUseClient | undefined;
   private readonly cache = new Map<
     string,
     { result: CrawlRequestResult; cachedAt: number }
   >();
   private readonly cooldown: AdaptiveCooldown;
+  private readonly usedFingerprints = new Set<number>();
   private lastRequestAt = 0;
-  private rotateIndex = 0;
 
   constructor(options: CrawlEngineOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetchImplFallback;
@@ -245,18 +262,34 @@ export class CrawlEngine {
     this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS);
     this.behaviorProfile = options.behaviorProfile;
     this.crawl4ai = options.crawl4ai;
+    this.captchaSolver =
+      options.captchaSolver ?? getCaptchaSolverConfig() ?? undefined;
+    this.browserUse =
+      options.browserUse ?? createBrowserUseBackend() ?? undefined;
     this.cooldown = new AdaptiveCooldown(
       { failureThreshold: 5, openMs: 30_000, successThreshold: 2 },
       undefined,
     );
   }
 
-  /** Rotate to the next full browser fingerprint. */
+  /** Rotate to a random browser fingerprint, avoiding recent repeats. */
   nextFingerprint(): BrowserFingerprint {
-    const fingerprint =
-      this.fingerprints[this.rotateIndex % this.fingerprints.length];
-    this.rotateIndex += 1;
-    return fingerprint;
+    if (this.fingerprints.length <= 1) {
+      return this.fingerprints[0];
+    }
+    // Reset used set when all fingerprints have been used
+    if (this.usedFingerprints.size >= this.fingerprints.length) {
+      this.usedFingerprints.clear();
+    }
+    // Pick a random index not recently used
+    let idx: number;
+    let attempts = 0;
+    do {
+      idx = Math.floor(Math.random() * this.fingerprints.length);
+      attempts += 1;
+    } while (this.usedFingerprints.has(idx) && attempts < 10);
+    this.usedFingerprints.add(idx);
+    return this.fingerprints[idx];
   }
 
   /** Backward-compat: rotate just the UA string. */
@@ -445,10 +478,11 @@ export class CrawlEngine {
       return this.requestOnCrawl4ai(options);
     }
 
-    const url =
-      backend === "jina"
-        ? `https://r.jina.ai/${options.url.replace(/ /g, "%20")}`
-        : options.url;
+    // Browser Use is an agentic backend: an LLM-driven browser agent
+    // navigates the page, solves challenges, and extracts text.
+    if (backend === "browser-use") {
+      return this.requestOnBrowserUse(options);
+    }
 
     const jinaHeaders: Record<string, string> = {};
     if (backend === "jina") {
@@ -477,6 +511,13 @@ export class CrawlEngine {
       await this.paceWithProfile(options);
       this.lastRequestAt = Date.now();
       retryAfterMs = undefined;
+
+      // Recompute url each iteration: captcha-solving may have appended a
+      // token to options.url, and jina wraps the original URL.
+      const url =
+        backend === "jina"
+          ? `https://r.jina.ai/${options.url.replace(/ /g, "%20")}`
+          : options.url;
 
       const started = Date.now();
       let data: unknown;
@@ -596,6 +637,52 @@ export class CrawlEngine {
         if (isOk && contentType.includes("html")) {
           blockSignal = detectBlock({ status, contentType, text });
           if (isBlockSignal(blockSignal)) {
+            // Attempt CAPTCHA solving before escalating to the next backend.
+            // Only applies to direct fetches where we have the full HTML.
+            if (
+              blockSignal === "captcha" &&
+              this.captchaSolver &&
+              backend === "direct"
+            ) {
+              const captcha = detectCaptcha(text);
+              if (captcha) {
+                const solved = await solveCaptcha(
+                  this.captchaSolver,
+                  captcha,
+                  options.url,
+                  options.signal,
+                );
+                if (solved.ok && solved.token) {
+                  // Retry the request with the captcha token in the
+                  // appropriate form field. This works for reCAPTCHA,
+                  // hCaptcha, and Turnstile which accept tokens as
+                  // query params or POST body fields.
+                  if (attempt < maxAttempts) {
+                    const reqMethod = options.method ?? "GET";
+                    const tokenField =
+                      captcha.type === "hcaptcha"
+                        ? "h-captcha-response"
+                        : captcha.type === "turnstile"
+                          ? "cf-turnstile-response"
+                          : "g-recaptcha-response";
+                    if (reqMethod === "GET") {
+                      const sep = url.includes("?") ? "&" : "?";
+                      options = {
+                        ...options,
+                        url: `${url}${sep}${tokenField}=${encodeURIComponent(solved.token)}`,
+                      };
+                    } else {
+                      const bodyParts = [
+                        options.body ?? "",
+                        `${tokenField}=${encodeURIComponent(solved.token)}`,
+                      ].filter(Boolean);
+                      options = { ...options, body: bodyParts.join("&") };
+                    }
+                    continue;
+                  }
+                }
+              }
+            }
             blockDetected = true;
             return {
               ok: false,
@@ -779,6 +866,90 @@ export class CrawlEngine {
       attempt: maxAttempts,
       elapsedMs: 0,
       backend: "crawl4ai",
+      contentType: "",
+      cached: false,
+      blockDetected: false,
+      blockSignal: undefined,
+    };
+  }
+
+  /** Browser Use backend: delegate to the agentic sidecar. */
+  private async requestOnBrowserUse(
+    options: CrawlRequestOptions,
+  ): Promise<CrawlRequestResult> {
+    if (!this.browserUse) {
+      return {
+        ok: false,
+        status: 0,
+        data: undefined,
+        text: "Browser Use not configured",
+        attempt: 0,
+        elapsedMs: 0,
+        backend: "browser-use",
+        contentType: "",
+        cached: false,
+        blockDetected: false,
+        blockSignal: undefined,
+      };
+    }
+    if (options.signal?.aborted) {
+      return {
+        ok: false,
+        status: 0,
+        data: undefined,
+        text: "Aborted",
+        attempt: 0,
+        elapsedMs: 0,
+        backend: "browser-use",
+        contentType: "",
+        cached: false,
+        blockDetected: false,
+        blockSignal: undefined,
+      };
+    }
+
+    await this.paceWithProfile(options);
+    this.lastRequestAt = Date.now();
+    const started = Date.now();
+
+    const timeoutMs = options.timeoutMs ?? this.timeoutMs;
+    const attemptSignal =
+      options.signal ??
+      (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs * 2) : undefined);
+
+    const result = await browserUseFetch(this.browserUse, options.url, {
+      signal: attemptSignal,
+      maxSteps: 15,
+    });
+
+    const elapsedMs = Date.now() - started;
+    const text = result.text;
+    const contentType = result.contentType || "text/markdown";
+
+    if (result.ok) {
+      return {
+        ok: true,
+        status: result.statusCode || 200,
+        data: undefined,
+        text,
+        attempt: 1,
+        elapsedMs,
+        backend: "browser-use",
+        contentType,
+        cached: false,
+        blockDetected: false,
+        blockSignal: "ok",
+      };
+    }
+
+    return {
+      ok: false,
+      status: result.statusCode,
+      data: undefined,
+      text: result.error ?? "Browser Use failed",
+      attempt: 1,
+      elapsedMs,
+      backend: "browser-use",
       contentType: "",
       cached: false,
       blockDetected: false,
