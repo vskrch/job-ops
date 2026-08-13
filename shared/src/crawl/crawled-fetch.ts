@@ -63,19 +63,12 @@ export function createCrawledFetch(
     crawl4ai: crawl4aiConfig,
   });
 
-  // Only include `browser-use` in the chain when the env-based config
-  // actually resolved a client — otherwise every request wastes a
-  // round-trip on a "Browser Use not configured" final failure.
-  const browserUseConfigured =
-    Boolean(process.env.BROWSER_USE_BASE_URL?.trim()) ||
-    Boolean(engine as unknown as { browserUse?: unknown });
-  const browserUseAvailable = (() => {
-    // CrawlEngine exposes `browserUse` only via the public API; peek at
-    // a backdoor field is unsafe. Instead, rely on the existence of
-    // BROWSER_USE_BASE_URL env. (If env is set but sidecar is down, the
-    // backend fails fast and escalates — acceptable.)
-    return Boolean(process.env.BROWSER_USE_BASE_URL?.trim());
-  })();
+  // Only include `browser-use` in the chain when BROWSER_USE_BASE_URL is
+  // configured. The engine constructor auto-creates a browserUse client
+  // from env, but we still want to skip the backend entirely (not even
+  // dispatch to it) when the env var is unset so we don't waste a round
+  // trip on a "Browser Use not configured" final failure.
+  const browserUseAvailable = Boolean(process.env.BROWSER_USE_BASE_URL?.trim());
 
   const backends = crawl4aiConfig
     ? browserUseAvailable
@@ -84,7 +77,6 @@ export function createCrawledFetch(
     : browserUseAvailable
       ? (["direct", "jina", "browser-use"] as const)
       : (["direct", "jina"] as const);
-  void browserUseConfigured;
 
   const crawledFetch = (async (
     input: RequestInfo | URL,

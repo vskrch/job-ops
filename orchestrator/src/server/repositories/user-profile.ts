@@ -17,7 +17,8 @@ function currentUserId(): string {
 function mapRowToUserProfile(
   row: typeof userProfiles.$inferSelect,
 ): UserProfile {
-  const rawExperience = (row.experience as UserProfile["experience"] | null) ?? [];
+  const rawExperience =
+    (row.experience as UserProfile["experience"] | null) ?? [];
   const rawProjects = (row.projects as UserProfile["projects"] | null) ?? [];
   // Backfill `bullets` on legacy rows (older uploads predate the schema
   // change). Split any single-line `summary` into bullets so the rendered

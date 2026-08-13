@@ -205,7 +205,8 @@ export async function generateTailoring(
           id: entry.id,
           bullets: entry.bullets
             .filter(
-              (b) => b && typeof b.text === "string" && b.text.trim().length > 0,
+              (b) =>
+                b && typeof b.text === "string" && b.text.trim().length > 0,
             )
             .map((b) => ({
               id: typeof b.id === "string" ? b.id : `${entry.id}#?`,
@@ -317,20 +318,17 @@ async function buildTailoringPrompt(
       const bullets =
         rawBullets.length > 0
           ? rawBullets
-          : (summaryText
-              ? summaryText
-                  .split(/\r?\n/)
-                  .map((line) =>
-                    line.replace(/^\s*[•\-*●◦▪]\s*/, "").trim(),
-                  )
-                  .filter((line) => line.length > 0)
-              : []);
+          : summaryText
+            ? summaryText
+                .split(/\r?\n/)
+                .map((line) => line.replace(/^\s*[•\-*●◦▪]\s*/, "").trim())
+                .filter((line) => line.length > 0)
+            : [];
       return {
         id,
         company,
         position,
-        summary:
-          bullets.length === 0 && summaryText ? summaryText : undefined,
+        summary: bullets.length === 0 && summaryText ? summaryText : undefined,
         bullets: bullets.map((text, index) => ({
           id: `${id}#${index}`,
           text,

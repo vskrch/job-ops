@@ -523,7 +523,10 @@ export async function prepareTailoredResumeForPdf(args: {
     summary?: string | null;
     headline?: string | null;
     skills?: TailoredSkillsInput;
-    experienceBullets?: Array<{ id: string; bullets: { id: string; text: string }[] }> | null;
+    experienceBullets?: Array<{
+      id: string;
+      bullets: { id: string; text: string }[];
+    }> | null;
   };
   jobDescription: string;
   selectedProjectIds?: string | null;
@@ -781,7 +784,8 @@ function applyTailoredExperienceBullets(
   if (!items) return;
 
   for (const raw of items) {
-    const item = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+    const item =
+      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
     if (!item) continue;
     const company = typeof item.company === "string" ? item.company : "";
     const position = typeof item.position === "string" ? item.position : "";
@@ -794,7 +798,7 @@ function applyTailoredExperienceBullets(
           ? item.date
           : "";
     // Extract the start date portion from "YYYY-MM - YYYY-MM" or similar
-    const startDate = date.split(/\s*[–—\-]\s*/)[0]?.trim() ?? "";
+    const startDate = date.split(/\s*[–—-]\s*/)[0]?.trim() ?? "";
     const entryId = [company, position, startDate]
       .join("|")
       .toLowerCase()

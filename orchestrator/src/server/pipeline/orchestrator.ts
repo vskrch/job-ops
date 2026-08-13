@@ -104,7 +104,8 @@ function safeParseExperienceBullets(
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
-    const out: Array<{ id: string; bullets: { id: string; text: string }[] }> = [];
+    const out: Array<{ id: string; bullets: { id: string; text: string }[] }> =
+      [];
     for (const entry of parsed) {
       if (!entry || typeof entry !== "object") continue;
       const e = entry as Record<string, unknown>;
@@ -126,10 +127,9 @@ function safeParseExperienceBullets(
     }
     return out.length > 0 ? out : null;
   } catch {
-    logger.warn(
-      "Failed to parse tailoredExperienceBullets JSON, ignoring",
-      { length: raw.length },
-    );
+    logger.warn("Failed to parse tailoredExperienceBullets JSON, ignoring", {
+      length: raw.length,
+    });
     return null;
   }
 }

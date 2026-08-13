@@ -372,8 +372,7 @@ function normalizeProfile(raw: unknown): ParsedResumeProfile {
     degree: typeof e.degree === "string" ? e.degree : null,
     startDate: typeof e.startDate === "string" ? e.startDate : null,
     endDate: typeof e.endDate === "string" ? e.endDate : null,
-    description:
-      typeof e.description === "string" ? e.description : null,
+    description: typeof e.description === "string" ? e.description : null,
     grade: typeof e.grade === "string" ? e.grade : null,
   }));
 
@@ -393,8 +392,7 @@ function normalizeProfile(raw: unknown): ParsedResumeProfile {
         : bullets;
     return {
       name: typeof p.name === "string" ? p.name : null,
-      description:
-        typeof p.description === "string" ? p.description : null,
+      description: typeof p.description === "string" ? p.description : null,
       bullets: finalBullets,
       url: typeof p.url === "string" ? p.url : null,
       date: typeof p.date === "string" ? p.date : null,
