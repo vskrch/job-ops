@@ -19,8 +19,9 @@ if (!filePath) {
 
 try {
   const buffer = readFileSync(filePath);
-  // TypedArray views are transferred to pdf-parse's worker (no main-thread
-  // copy). The buffer from readFileSync owns its backing store.
+  // Zero-copy view over the buffer's backing store: pdf-parse prefers
+  // TypedArrays and may transfer them to its worker (no extra copy either
+  // way). The buffer from readFileSync owns its backing store.
   const data = new Uint8Array(
     buffer.buffer,
     buffer.byteOffset,

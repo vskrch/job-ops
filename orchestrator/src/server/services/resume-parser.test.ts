@@ -19,24 +19,72 @@ vi.mock("./modelSelection", () => ({
 }));
 
 // The PDF text extractor runs as a child process; fake its execFile plumbing.
+type ExecFileOutcome =
+  | "success"
+  | "killed"
+  | "spawnMissing"
+  | "exit"
+  | "parseFailure"
+  | "emptyText"
+  | "garbage";
+
 vi.mock("node:child_process", () => {
   const execFileMock = (
     _cmd: string,
     _args: string[],
     _opts: unknown,
-    cb: (error: null, stdout: string) => void,
+    cb: (error: Error & { code?: string | number; killed?: boolean; signal?: string } | null, stdout: string, stderr: string) => void,
   ) => {
     const state = globalThis as unknown as {
       __mockExecFileGate?: Promise<void>;
+      __mockExecFileOutcome?: ExecFileOutcome;
     };
+    const outcome = state.__mockExecFileOutcome ?? "success";
     const respond = () => {
-      cb(
-        null,
-        JSON.stringify({
-          ok: true,
-          text: "Jane Doe\nData Engineer\nPython, SQL, AWS",
-        }),
-      );
+      switch (outcome) {
+        case "killed": {
+          const error = new Error("ETIMEDOUT") as Error & { killed: boolean };
+          error.killed = true;
+          cb(error, "", "");
+          return;
+        }
+        case "spawnMissing": {
+          const error = new Error("spawn node ENOENT") as Error & {
+            code: string;
+          };
+          error.code = "ENOENT";
+          cb(error, "", "");
+          return;
+        }
+        case "exit": {
+          const error = new Error("exited") as Error & { code: number };
+          error.code = 1;
+          cb(error, "", "boom");
+          return;
+        }
+        case "parseFailure":
+          cb(
+            null,
+            JSON.stringify({ ok: false, error: "Invalid PDF structure." }),
+            "",
+          );
+          return;
+        case "emptyText":
+          cb(null, JSON.stringify({ ok: true, text: "   \n\n " }), "");
+          return;
+        case "garbage":
+          cb(null, "not json at all", "");
+          return;
+        default:
+          cb(
+            null,
+            JSON.stringify({
+              ok: true,
+              text: "Jane Doe\nData Engineer\nPython, SQL, AWS",
+            }),
+            "",
+          );
+      }
     };
     if (state.__mockExecFileGate) {
       state.__mockExecFileGate.then(respond);
@@ -67,6 +115,12 @@ function setExecFileGate(gate: Promise<void> | undefined): void {
   ).__mockExecFileGate = gate;
 }
 
+function setExecFileOutcome(outcome: ExecFileOutcome): void {
+  (
+    globalThis as unknown as { __mockExecFileOutcome?: ExecFileOutcome }
+  ).__mockExecFileOutcome = outcome;
+}
+
 const originalEnv = { ...process.env };
 
 describe.sequential("resume-parser", () => {
@@ -85,6 +139,7 @@ describe.sequential("resume-parser", () => {
     await import("@server/db/migrate");
     closeDb = getCloseDb;
     setExecFileGate(undefined);
+    setExecFileOutcome("success");
   });
 
   afterEach(async () => {
@@ -270,5 +325,49 @@ describe.sequential("resume-parser", () => {
     ).resolves.toMatchObject({
       profile: { fullName: "Jane Doe" },
     });
+  });
+
+  it("maps extractor failure modes onto the API error contract", async () => {
+    const { extractResumeText: extract } = await import("./resume-parser");
+    const path = join(tempDir, "fake.pdf");
+
+    setExecFileOutcome("killed");
+    await expect(extract(path)).rejects.toMatchObject({
+      status: 408,
+      code: "REQUEST_TIMEOUT",
+    });
+
+    setExecFileOutcome("spawnMissing");
+    await expect(extract(path)).rejects.toMatchObject({
+      status: 502,
+      code: "UPSTREAM_ERROR",
+    });
+
+    setExecFileOutcome("exit");
+    await expect(extract(path)).rejects.toMatchObject({
+      status: 502,
+      code: "UPSTREAM_ERROR",
+    });
+
+    setExecFileOutcome("parseFailure");
+    await expect(extract(path)).rejects.toMatchObject({
+      status: 422,
+      code: "UNPROCESSABLE_ENTITY",
+    });
+
+    setExecFileOutcome("emptyText");
+    await expect(extract(path)).rejects.toMatchObject({
+      status: 422,
+      code: "UNPROCESSABLE_ENTITY",
+    });
+
+    setExecFileOutcome("garbage");
+    await expect(extract(path)).rejects.toMatchObject({
+      status: 502,
+      code: "UPSTREAM_ERROR",
+    });
+
+    setExecFileOutcome("success");
+    await expect(extract(path)).resolves.toContain("Jane Doe");
   });
 });

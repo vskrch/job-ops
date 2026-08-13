@@ -20,6 +20,7 @@ const mockProcessResumeUpload = vi.mocked(processResumeUpload);
 function multipartBody(
   filename: string,
   contentType: string,
+  content = "fake pdf content",
 ): {
   body: string;
   headers: Record<string, string>;
@@ -30,7 +31,7 @@ function multipartBody(
     `Content-Disposition: form-data; name="file"; filename="${filename}"`,
     `Content-Type: ${contentType}`,
     "",
-    "fake pdf content",
+    content,
     `--${boundary}--`,
     "",
   ].join("\r\n");
@@ -77,6 +78,22 @@ describe("User profile API routes", () => {
 
   it("rejects a non-PDF upload with 400", async () => {
     const multipart = multipartBody("notes.txt", "text/plain");
+    const res = await fetch(`${baseUrl}/api/user-profile/resume`, {
+      method: "POST",
+      headers: multipart.headers,
+      body: multipart.body,
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(mockProcessResumeUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized upload with 400 instead of a server error", async () => {
+    const big = "x".repeat(10 * 1024 * 1024 + 1);
+    const multipart = multipartBody("big.pdf", "application/pdf", big);
     const res = await fetch(`${baseUrl}/api/user-profile/resume`, {
       method: "POST",
       headers: multipart.headers,

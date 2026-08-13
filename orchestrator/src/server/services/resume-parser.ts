@@ -132,7 +132,7 @@ function cleanText(text: string): string {
 function extractorScriptPath(): string {
   try {
     const candidate = fileURLToPath(
-      new URL("../../scripts/extract-pdf-text.mjs", import.meta.url),
+      new URL("../../../scripts/extract-pdf-text.mjs", import.meta.url),
     );
     if (existsSync(candidate)) return candidate;
   } catch {
@@ -144,15 +144,18 @@ function extractorScriptPath(): string {
 /** Extract plain text from a resume PDF via a short-lived child process. */
 export function extractResumeText(filePath: string): Promise<string> {
   const scriptPath = extractorScriptPath();
+  const startedAt = Date.now();
 
   return new Promise((resolve, reject) => {
     execFile(
       process.execPath,
       [scriptPath, filePath],
-      { timeout: 45_000, maxBuffer: 2 * 1024 * 1024 },
-      (error, stdout) => {
+      { timeout: 25_000, maxBuffer: 2 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        const durationMs = Date.now() - startedAt;
         if (error) {
           if (error.killed || error.signal) {
+            logger.warn("Resume PDF extraction timed out", { durationMs });
             reject(
               requestTimeout(
                 "Resume parsing took too long. Try a smaller PDF or export it as text.",
@@ -160,8 +163,24 @@ export function extractResumeText(filePath: string): Promise<string> {
             );
             return;
           }
+          if (error.code === "ENOENT") {
+            logger.error("Resume PDF extractor script missing", {
+              scriptPath,
+            });
+            reject(
+              upstreamError("The resume PDF extractor could not be started."),
+            );
+            return;
+          }
+          logger.error("Resume PDF extractor process failed", {
+            durationMs,
+            exitCode: typeof error.code === "number" ? error.code : null,
+            stderr: truncateForLog(stderr),
+          });
           reject(
-            upstreamError("The resume PDF extractor could not be started."),
+            upstreamError(
+              `The resume PDF extractor failed (exit ${String(error.code ?? "unknown")}).`,
+            ),
           );
           return;
         }
@@ -172,6 +191,10 @@ export function extractResumeText(filePath: string): Promise<string> {
               ? (parsed as { ok?: boolean; text?: string; error?: string })
               : {};
           if (!record.ok) {
+            logger.warn("Resume PDF extraction reported a parse failure", {
+              durationMs,
+              error: truncateForLog(record.error),
+            });
             reject(
               unprocessableEntity(
                 `Could not parse the PDF: ${record.error ?? "unknown error"}. Ensure it is a valid, text-based PDF.`,
@@ -181,6 +204,9 @@ export function extractResumeText(filePath: string): Promise<string> {
           }
           const text = cleanText(record.text ?? "");
           if (!text) {
+            logger.warn("Resume PDF extraction produced no text", {
+              durationMs,
+            });
             reject(
               unprocessableEntity(
                 "No text could be extracted from this PDF. It may be a scanned image or lack a text layer. Try exporting the resume as a text-based PDF.",
@@ -190,6 +216,10 @@ export function extractResumeText(filePath: string): Promise<string> {
           }
           resolve(text);
         } catch {
+          logger.error("Resume PDF extractor returned an invalid response", {
+            durationMs,
+            stdout: truncateForLog(stdout),
+          });
           reject(
             upstreamError(
               "The resume PDF extractor returned an invalid response.",
@@ -199,6 +229,11 @@ export function extractResumeText(filePath: string): Promise<string> {
       },
     );
   });
+}
+
+function truncateForLog(value: unknown, max = 300): string | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  return value.slice(0, max);
 }
 
 function emptyProfile(): ParsedResumeProfile {

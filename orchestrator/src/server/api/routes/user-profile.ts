@@ -23,7 +23,12 @@ import {
   processResumeUpload,
   profileToResumeProfile,
 } from "@server/services/resume-parser";
-import { type Request, type Response, Router } from "express";
+import {
+  type NextFunction,
+  type Request,
+  type Response,
+  Router,
+} from "express";
 import multer from "multer";
 
 export const userProfileRouter = Router();
@@ -45,12 +50,31 @@ const upload = multer({
   limits: { fileSize: MAX_RESUME_BYTES },
 });
 
+/** Runs the multer upload and maps its errors onto the API error contract. */
+function uploadResumeSingle(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  upload.single("file")(req, res, (error) => {
+    if (error instanceof multer.MulterError) {
+      const message =
+        error.code === "LIMIT_FILE_SIZE"
+          ? "The PDF is too large. Maximum size is 10 MB."
+          : `Upload failed: ${error.code}`;
+      fail(res, badRequest(message));
+      return;
+    }
+    next(error);
+  });
+}
+
 /**
  * POST /api/user-profile/resume — upload and parse a resume PDF.
  */
 userProfileRouter.post(
   "/resume",
-  upload.single("file"),
+  uploadResumeSingle,
   async (req: Request, res: Response) => {
     const tempPath = req.file?.path ?? null;
     try {
