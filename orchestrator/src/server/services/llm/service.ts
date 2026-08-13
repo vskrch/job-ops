@@ -353,9 +353,7 @@ export class LlmService {
         // Fresh timeout per attempt: a signal created before the retry loop
         // would already be expired by the time the retry runs.
         const timeoutSignal =
-          effectiveTimeout > 0
-            ? AbortSignal.timeout(effectiveTimeout)
-            : null;
+          effectiveTimeout > 0 ? AbortSignal.timeout(effectiveTimeout) : null;
         const combinedSignal = composeSignals(signal, timeoutSignal);
 
         const { url, headers, body } = this.strategy.buildRequest({

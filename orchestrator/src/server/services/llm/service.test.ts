@@ -44,7 +44,10 @@ describe("LlmService retries", () => {
     return new Response(
       JSON.stringify({
         output: [
-          { type: "message", content: [{ type: "output_text", text: content }] },
+          {
+            type: "message",
+            content: [{ type: "output_text", text: content }],
+          },
         ],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
@@ -57,7 +60,12 @@ describe("LlmService retries", () => {
         if (fetchMock.mock.calls.length === 1) {
           await new Promise((_resolve, reject) => {
             init?.signal?.addEventListener("abort", () =>
-              reject(new DOMException("The operation was aborted due to timeout", "AbortError")),
+              reject(
+                new DOMException(
+                  "The operation was aborted due to timeout",
+                  "AbortError",
+                ),
+              ),
             );
           });
         }
@@ -76,7 +84,15 @@ describe("LlmService retries", () => {
     const result = await llm.callJson({
       model: "test-model",
       messages: [{ role: "user", content: "hi" }],
-      jsonSchema: { name: "test", schema: { type: "object" } },
+      jsonSchema: {
+        name: "test",
+        schema: {
+          type: "object",
+          properties: {},
+          required: [],
+          additionalProperties: false,
+        },
+      },
       maxRetries: 1,
       retryDelayMs: 0,
       timeoutMs: 150,

@@ -18,6 +18,7 @@ It lets you configure:
 - Display and writing-style defaults
 - Editable prompt templates for core AI workflows
 - Service credentials and basic auth
+- Resume PDF upload and structured profile extraction
 - Reactive Resume project selection
 - Tracer Links readiness verification
 - Backup and scoring rules
@@ -160,6 +161,19 @@ Defaults and constraints:
   - Must-include projects
   - AI-selectable projects
 - JobOps briefly caches successful Reactive Resume resume data to reduce repeated API calls across settings, profile, and PDF flows
+
+### My Resume (PDF upload)
+
+- Upload a PDF resume in the **My Resume** section to extract a structured profile — no Design Resume or Reactive Resume setup required
+- Parsing runs in the background after the upload is accepted:
+  - The section shows a processing state and polls for completion automatically
+  - With slower LLM providers, conversion can take a minute or more — stay on the page and the result appears when done
+  - If the page is closed early, the import keeps running; refresh Settings to see the result
+- Upload constraints:
+  - PDF files only, up to 10 MB
+  - Only the first 6 pages are parsed
+  - One resume import at a time; a second upload while one is processing returns an error
+- Extraction requires a configured LLM (see **Model** section above). Scanned/image-only PDFs fail with an error because they contain no text layer
 
 ### Tracer Links
 

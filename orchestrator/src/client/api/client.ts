@@ -1132,10 +1132,15 @@ export async function cancelPipeline(input?: {
 }
 
 // User Profile API (uploaded resume)
-export type UploadedResumeProfileResponse = {
-  profile: UserProfile;
-  baseResume: ResumeProfile;
+export type ResumeImportAccepted = {
+  taskId: string;
+  status: "processing";
 };
+
+export type ResumeImportStatus =
+  | { status: "processing" }
+  | { status: "done"; profile: UserProfile; baseResume: ResumeProfile }
+  | { status: "failed"; error?: { code: string; message: string } };
 
 async function fetchAndParseUpload<T>(
   endpoint: string,
@@ -1180,16 +1185,25 @@ async function fetchAndParseUpload<T>(
   return parsed.data as T;
 }
 
-/** Upload a resume PDF; replaces any previous upload. */
+/** Upload a resume PDF; parsing runs in the background (poll for status). */
 export async function uploadResumeProfile(
   file: File,
-): Promise<UploadedResumeProfileResponse> {
+): Promise<ResumeImportAccepted> {
   const form = new FormData();
   form.append("file", file);
-  return fetchAndParseUpload<UploadedResumeProfileResponse>(
+  return fetchAndParseUpload<ResumeImportAccepted>(
     "/user-profile/resume",
     "POST",
     form,
+  );
+}
+
+/** Poll the status of a background resume import task. */
+export async function getResumeImportStatus(
+  taskId: string,
+): Promise<ResumeImportStatus> {
+  return fetchApi<ResumeImportStatus>(
+    `/user-profile/resume/status/${encodeURIComponent(taskId)}`,
   );
 }
 

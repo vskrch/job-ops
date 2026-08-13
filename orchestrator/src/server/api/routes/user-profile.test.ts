@@ -107,7 +107,7 @@ describe("User profile API routes", () => {
     expect(mockProcessResumeUpload).not.toHaveBeenCalled();
   });
 
-  it("uploads a PDF and returns the profile + base resume", async () => {
+  it("accepts a PDF upload with 202 and completes via status polling", async () => {
     mockProcessResumeUpload.mockResolvedValue({
       profile: FAKE_PROFILE,
       baseResume: { basics: { name: "Jane Doe", label: "Data Engineer" } },
@@ -121,11 +121,74 @@ describe("User profile API routes", () => {
     });
     const body = await res.json();
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
-    expect(body.data.profile.fullName).toBe("Jane Doe");
-    expect(body.data.baseResume.basics.name).toBe("Jane Doe");
+    expect(typeof body.data.taskId).toBe("string");
+    expect(body.data.status).toBe("processing");
     expect(mockProcessResumeUpload).toHaveBeenCalledTimes(1);
+
+    let statusBody: Record<string, unknown> | null = null;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const statusRes = await fetch(
+        `${baseUrl}/api/user-profile/resume/status/${body.data.taskId}`,
+      );
+      statusBody = await statusRes.json();
+      expect(statusRes.status).toBe(200);
+      if ((statusBody?.data as { status?: string })?.status === "done") break;
+    }
+
+    const data = statusBody?.data as {
+      status: string;
+      profile?: { fullName?: string };
+      baseResume?: { basics?: { name?: string } };
+    };
+    expect(data.status).toBe("done");
+    expect(data.profile?.fullName).toBe("Jane Doe");
+    expect(data.baseResume?.basics?.name).toBe("Jane Doe");
+  });
+
+  it("reports import failure through the status endpoint", async () => {
+    mockProcessResumeUpload.mockRejectedValue(
+      new Error("Could not parse the PDF: Invalid PDF structure."),
+    );
+
+    const multipart = multipartBody("bad.pdf", "application/pdf");
+    const res = await fetch(`${baseUrl}/api/user-profile/resume`, {
+      method: "POST",
+      headers: multipart.headers,
+      body: multipart.body,
+    });
+    const body = await res.json();
+    expect(res.status).toBe(202);
+
+    let statusBody: Record<string, unknown> | null = null;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const statusRes = await fetch(
+        `${baseUrl}/api/user-profile/resume/status/${body.data.taskId}`,
+      );
+      statusBody = await statusRes.json();
+      if ((statusBody?.data as { status?: string })?.status === "failed") break;
+    }
+
+    const data = statusBody?.data as {
+      status: string;
+      error?: { code: string; message: string };
+    };
+    expect(data.status).toBe("failed");
+    expect(data.error?.message).toContain("Could not parse the PDF");
+  });
+
+  it("returns 404 for an unknown resume import task", async () => {
+    const res = await fetch(
+      `${baseUrl}/api/user-profile/resume/status/does-not-exist`,
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("NOT_FOUND");
   });
 
   it("returns 404 when no resume has been uploaded", async () => {

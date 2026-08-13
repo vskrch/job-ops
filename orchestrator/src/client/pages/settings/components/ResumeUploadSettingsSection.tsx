@@ -14,6 +14,13 @@ type ResumeUploadSettingsSectionProps = {
   layoutMode?: "accordion" | "panel";
 };
 
+const POLL_INTERVAL_MS = 2_000;
+const POLL_TIMEOUT_MS = 5 * 60_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function formatProfileSummary(profile: UserProfile): string {
   const parts: string[] = [];
   if (profile.skills.length > 0) parts.push(`${profile.skills.length} skills`);
@@ -63,9 +70,27 @@ export const ResumeUploadSettingsSection: React.FC<
     }
     setIsUploading(true);
     try {
-      const { profile: uploaded } = await api.uploadResumeProfile(file);
-      setProfile(uploaded);
-      toast.success("Resume uploaded and converted");
+      const { taskId } = await api.uploadResumeProfile(file);
+      const startedAt = Date.now();
+      for (;;) {
+        await sleep(POLL_INTERVAL_MS);
+        const status = await api.getResumeImportStatus(taskId);
+        if (status.status === "done") {
+          setProfile(status.profile);
+          toast.success("Resume uploaded and converted");
+          break;
+        }
+        if (status.status === "failed") {
+          throw new Error(
+            status.error?.message ?? "Resume import failed. Please try again.",
+          );
+        }
+        if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+          throw new Error(
+            "Resume import is taking longer than expected. It keeps running in the background — refresh this page to see the result.",
+          );
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to upload resume";
