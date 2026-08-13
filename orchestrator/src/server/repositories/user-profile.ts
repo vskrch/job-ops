@@ -17,6 +17,21 @@ function currentUserId(): string {
 function mapRowToUserProfile(
   row: typeof userProfiles.$inferSelect,
 ): UserProfile {
+  const rawExperience = (row.experience as UserProfile["experience"] | null) ?? [];
+  const rawProjects = (row.projects as UserProfile["projects"] | null) ?? [];
+  // Backfill `bullets` on legacy rows (older uploads predate the schema
+  // change). Split any single-line `summary` into bullets so the rendered
+  // PDF shows real bullet points instead of a one-liner per job.
+  const experience = rawExperience.map((e) => {
+    const bullets = e.bullets ?? [];
+    if (bullets.length > 0 || !e.summary) return e;
+    return { ...e, bullets: [e.summary] };
+  });
+  const projects = rawProjects.map((p) => {
+    const bullets = p.bullets ?? [];
+    if (bullets.length > 0 || !p.description) return p;
+    return { ...p, bullets: [p.description] };
+  });
   return {
     id: row.id,
     source: "pdf_upload",
@@ -27,8 +42,9 @@ function mapRowToUserProfile(
     headline: row.headline,
     summary: row.summary,
     skills: (row.skills as string[] | null) ?? [],
-    experience: (row.experience as UserProfile["experience"] | null) ?? [],
+    experience,
     education: (row.education as UserProfile["education"] | null) ?? [],
+    projects,
     certifications: (row.certifications as string[] | null) ?? [],
     languages: (row.languages as string[] | null) ?? [],
     links: (row.links as UserProfile["links"] | null) ?? [],
@@ -72,6 +88,7 @@ export async function upsertUserProfile(args: {
       skills: args.profile.skills,
       experience: args.profile.experience,
       education: args.profile.education,
+      projects: args.profile.projects,
       certifications: args.profile.certifications,
       languages: args.profile.languages,
       links: args.profile.links,
@@ -92,6 +109,7 @@ export async function upsertUserProfile(args: {
         skills: args.profile.skills,
         experience: args.profile.experience,
         education: args.profile.education,
+        projects: args.profile.projects,
         certifications: args.profile.certifications,
         languages: args.profile.languages,
         links: args.profile.links,

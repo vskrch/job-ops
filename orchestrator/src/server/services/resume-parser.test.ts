@@ -217,6 +217,108 @@ describe.sequential("resume-parser", () => {
     expect(profile.experience[0]?.company).toBe("Acme");
   });
 
+  it("preserves discrete bullets when the LLM returns them", async () => {
+    setLlmData({
+      fullName: "Jane Doe",
+      skills: [],
+      experience: [
+        {
+          company: "Acme",
+          position: "Data Engineer",
+          summary: "Built data pipelines",
+          bullets: [
+            "Built 5 ETL pipelines processing 10TB daily",
+            "Reduced query latency by 40%",
+            "Mentored 3 junior engineers",
+          ],
+        },
+      ],
+      education: [],
+      projects: [],
+      certifications: [],
+      languages: [],
+      links: [],
+      email: null,
+      phone: null,
+      location: null,
+      headline: null,
+    });
+    const profile = await parseResumeProfile("whatever");
+    expect(profile.experience[0]?.bullets).toEqual([
+      "Built 5 ETL pipelines processing 10TB daily",
+      "Reduced query latency by 40%",
+      "Mentored 3 junior engineers",
+    ]);
+  });
+
+  it("splits a single summary string into bullets when no bullets are returned", async () => {
+    setLlmData({
+      fullName: "Jane Doe",
+      skills: [],
+      experience: [
+        {
+          company: "Acme",
+          position: "Engineer",
+          summary:
+            "Built ETL pipelines. Reduced query latency. Mentored juniors.",
+          bullets: [],
+        },
+      ],
+      education: [],
+      projects: [],
+      certifications: [],
+      languages: [],
+      links: [],
+      email: null,
+      phone: null,
+      location: null,
+      headline: null,
+    });
+    const profile = await parseResumeProfile("whatever");
+    expect(profile.experience[0]?.bullets.length).toBeGreaterThan(1);
+    // The combined summary still wins as fallback text.
+    expect(profile.experience[0]?.summary).toContain("Built ETL");
+  });
+
+  it("preserves project bullets and education description", async () => {
+    setLlmData({
+      fullName: "Jane Doe",
+      skills: [],
+      experience: [],
+      projects: [
+        {
+          name: "OpenSearch indexer",
+          description: "Custom indexer for OpenSearch",
+          bullets: [
+            "Supports 100k docs/sec ingest",
+            "Open source, 500+ GitHub stars",
+          ],
+        },
+      ],
+      education: [
+        {
+          institution: "University of X",
+          degree: "MSc Computer Science",
+          startDate: "2014",
+          endDate: "2016",
+          description: "GPA 3.9, Dean's List",
+          grade: "3.9/4.0",
+        },
+      ],
+      certifications: [],
+      languages: [],
+      links: [],
+      email: null,
+      phone: null,
+      location: null,
+      headline: null,
+    });
+    const profile = await parseResumeProfile("whatever");
+    expect(profile.projects[0]?.bullets).toHaveLength(2);
+    expect(profile.education[0]?.description).toBe("GPA 3.9, Dean's List");
+    expect(profile.education[0]?.grade).toBe("3.9/4.0");
+  });
+
   it("converts a lean profile to the base resume format", () => {
     const converted = profileToResumeProfile({
       fullName: "Jane Doe",
@@ -230,12 +332,14 @@ describe.sequential("resume-parser", () => {
           startDate: "2020-01",
           endDate: "2023-06",
           summary: "Built pipelines",
+          bullets: [],
         },
       ],
       email: null,
       phone: null,
       location: "London",
       education: [],
+      projects: [],
       certifications: [],
       languages: [],
       links: [],

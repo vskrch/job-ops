@@ -52,7 +52,10 @@ export const manifest: ExtractorManifest = {
       searchTerms: context.searchTerms,
       selectedCountry: context.selectedCountry,
       maxJobsPerTerm,
-      fetchImpl: createCrawledFetch({ source: "talent" }),
+      fetchImpl: createCrawledFetch({
+        source: "talent",
+        shouldCancel: context.shouldCancel,
+      }),
       onProgress: (event) => {
         if (context.shouldCancel?.()) return;
         context.onProgress?.(toProgress(event));

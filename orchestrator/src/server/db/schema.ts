@@ -112,6 +112,7 @@ export const jobs = sqliteTable(
     tailoredSummary: text("tailored_summary"),
     tailoredHeadline: text("tailored_headline"),
     tailoredSkills: text("tailored_skills"),
+    tailoredExperienceBullets: text("tailored_experience_bullets"),
     selectedProjectIds: text("selected_project_ids"),
     pdfPath: text("pdf_path"),
     tracerLinksEnabled: integer("tracer_links_enabled", { mode: "boolean" })
@@ -768,6 +769,7 @@ export const userProfiles = sqliteTable(
     skills: text("skills", { mode: "json" }),
     experience: text("experience", { mode: "json" }),
     education: text("education", { mode: "json" }),
+    projects: text("projects", { mode: "json" }),
     certifications: text("certifications", { mode: "json" }),
     languages: text("languages", { mode: "json" }),
     links: text("links", { mode: "json" }),

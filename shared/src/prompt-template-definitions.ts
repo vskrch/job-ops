@@ -71,6 +71,16 @@ INSTRUCTIONS:
    - Return the full "items" array for the skills section, preserving the structure: { "name": "Frontend", "keywords": [...] }.
    - Write user-visible skill text in {{outputLanguage}} when natural, but keep exact JD terms, acronyms, and technology names when that helps ATS matching.
 
+4. "experienceBullets" (Array of Objects) — CRITICAL:
+   For EACH experience entry in MY PROFILE, rewrite its bullets to mirror the JD. Rules:
+   - Each entry's "id" MUST match the id from MY PROFILE exactly (lowercase, "company|position|startDate" format).
+   - Preserve the original bullet count (or FEWER if some don't apply — NEVER more).
+   - Keep the same ordering as the original.
+   - Mirror the source wording; only swap synonyms and add JD keywords that are already implied.
+   - Quantify when the source has a number; never invent metrics.
+   - Return [] if no rewrite is warranted — the original bullets will be used as a fallback.
+   - Each bullet: { "id": "<entry-id>#<index>", "text": "<rewritten>" }.
+
 WRITING STYLE PREFERENCES:
 - Tone: {{tone}}
 - Formality: {{formality}}

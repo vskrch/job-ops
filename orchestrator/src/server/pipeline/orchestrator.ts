@@ -97,6 +97,43 @@ function safeParseSkills(
   }
 }
 
+function safeParseExperienceBullets(
+  raw: string | null | undefined,
+): Array<{ id: string; bullets: { id: string; text: string }[] }> | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const out: Array<{ id: string; bullets: { id: string; text: string }[] }> = [];
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object") continue;
+      const e = entry as Record<string, unknown>;
+      if (typeof e.id !== "string" || !Array.isArray(e.bullets)) continue;
+      const bullets: { id: string; text: string }[] = [];
+      for (const b of e.bullets) {
+        if (!b || typeof b !== "object") continue;
+        const bb = b as Record<string, unknown>;
+        if (typeof bb.text === "string" && bb.text.trim().length > 0) {
+          bullets.push({
+            id: typeof bb.id === "string" ? bb.id : "",
+            text: bb.text,
+          });
+        }
+      }
+      if (bullets.length > 0) {
+        out.push({ id: e.id, bullets });
+      }
+    }
+    return out.length > 0 ? out : null;
+  } catch {
+    logger.warn(
+      "Failed to parse tailoredExperienceBullets JSON, ignoring",
+      { length: raw.length },
+    );
+    return null;
+  }
+}
+
 // ponytail: module-level counting semaphore — single-process only.
 // SQLite + better-sqlite3 is single-connection; this is fine until horizontal
 // scaling. Up to `maxConcurrentPipelines` runs can execute simultaneously.
@@ -419,6 +456,7 @@ export async function summarizeJob(
       let tailoredSummary = job.tailoredSummary;
       let tailoredHeadline = job.tailoredHeadline;
       let tailoredSkills = job.tailoredSkills;
+      let tailoredExperienceBullets = job.tailoredExperienceBullets;
 
       if (!tailoredSummary || !tailoredHeadline || options?.force) {
         jobLogger.info("Generating tailoring content");
@@ -430,6 +468,9 @@ export async function summarizeJob(
           tailoredSummary = tailoringResult.data.summary;
           tailoredHeadline = tailoringResult.data.headline;
           tailoredSkills = JSON.stringify(tailoringResult.data.skills);
+          tailoredExperienceBullets = tailoringResult.data.experienceBullets
+            ? JSON.stringify(tailoringResult.data.experienceBullets)
+            : null;
         } else if (options?.force || !tailoredSummary || !tailoredHeadline) {
           return {
             success: false,
@@ -477,6 +518,7 @@ export async function summarizeJob(
         tailoredSummary: tailoredSummary ?? undefined,
         tailoredHeadline: tailoredHeadline ?? undefined,
         tailoredSkills: tailoredSkills ?? undefined,
+        tailoredExperienceBullets: tailoredExperienceBullets ?? undefined,
         selectedProjectIds: selectedProjectIds ?? undefined,
       });
 
@@ -515,6 +557,9 @@ export async function generateFinalPdf(
           summary: job.tailoredSummary || "",
           headline: job.tailoredHeadline || "",
           skills: safeParseSkills(job.tailoredSkills),
+          experienceBullets: safeParseExperienceBullets(
+            job.tailoredExperienceBullets,
+          ),
         },
         job.jobDescription || "",
         undefined, // deprecated baseResumePath parameter

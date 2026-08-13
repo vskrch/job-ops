@@ -523,6 +523,7 @@ export async function prepareTailoredResumeForPdf(args: {
     summary?: string | null;
     headline?: string | null;
     skills?: TailoredSkillsInput;
+    experienceBullets?: Array<{ id: string; bullets: { id: string; text: string }[] }> | null;
   };
   jobDescription: string;
   selectedProjectIds?: string | null;
@@ -547,6 +548,13 @@ export async function prepareTailoredResumeForPdf(args: {
     resumeData: workingCopy,
     tailoredContent: args.tailoredContent,
   });
+  if (args.tailoredContent.experienceBullets?.length) {
+    applyTailoredExperienceBullets(
+      mode,
+      workingCopy,
+      args.tailoredContent.experienceBullets,
+    );
+  }
 
   const { catalog, selectionItems } = extractProjectsFromResumeByMode(
     mode,
@@ -737,5 +745,62 @@ export async function validateCredentials(
       status,
       message: normalized.message,
     };
+  }
+}
+
+/**
+ * Apply per-experience bullet rewrites produced by the tailoring LLM.
+ *
+ * The tailoring prompt returns one entry per experience id with rewritten
+ * bullets. We match by computing the same stable id from each existing
+ * experience item (company|position|startDate lowercased). When a match
+ * is found, the rewritten bullets replace the description field; when no
+ * match is found the original bullet text is preserved.
+ */
+function applyTailoredExperienceBullets(
+  mode: RxResumeMode,
+  resumeData: Record<string, unknown>,
+  experienceBullets: ReadonlyArray<{
+    id: string;
+    bullets: ReadonlyArray<{ id: string; text: string }>;
+  }>,
+): void {
+  const sections = (resumeData.sections ?? null) as Record<
+    string,
+    unknown
+  > | null;
+  if (!sections) return;
+  const experienceSection = (sections.experience ?? null) as Record<
+    string,
+    unknown
+  > | null;
+  if (!experienceSection) return;
+  const items = Array.isArray(experienceSection.items)
+    ? (experienceSection.items as unknown[])
+    : null;
+  if (!items) return;
+
+  for (const raw of items) {
+    const item = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+    if (!item) continue;
+    const company = typeof item.company === "string" ? item.company : "";
+    const position = typeof item.position === "string" ? item.position : "";
+    const date =
+      mode === "v5"
+        ? typeof item.period === "string"
+          ? item.period
+          : ""
+        : typeof item.date === "string"
+          ? item.date
+          : "";
+    // Extract the start date portion from "YYYY-MM - YYYY-MM" or similar
+    const startDate = date.split(/\s*[–—\-]\s*/)[0]?.trim() ?? "";
+    const entryId = [company, position, startDate]
+      .join("|")
+      .toLowerCase()
+      .replace(/[^a-z0-9|]/g, "");
+    const match = experienceBullets.find((entry) => entry.id === entryId);
+    if (!match || match.bullets.length === 0) continue;
+    item.description = match.bullets.map((b) => b.text).join("\n");
   }
 }

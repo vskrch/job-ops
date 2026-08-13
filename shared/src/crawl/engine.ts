@@ -38,6 +38,7 @@ import {
   createBrowserUseBackend,
 } from "./browser-use-backend.js";
 import type { BrowserUseClient } from "./browser-use-client.js";
+import { CaptchaBudget } from "./captcha-budget.js";
 import {
   type CaptchaSolverConfig,
   detectCaptcha,
@@ -54,7 +55,8 @@ import {
   type BrowserFingerprint,
   DEFAULT_ACCEPT_LANGUAGE,
 } from "./fingerprints.js";
-import { buildOrganicHeaders } from "./organic-headers.js";
+import { logger } from "./logger.js";
+import { OrganicHeaders } from "./organic-headers.js";
 
 export const DEFAULT_USER_AGENTS = BROWSER_FINGERPRINTS.map(
   (fingerprint) => fingerprint.userAgent,
@@ -235,6 +237,8 @@ export class CrawlEngine {
   private readonly crawl4ai: Crawl4AIConfig | undefined;
   private readonly captchaSolver: CaptchaSolverConfig | undefined;
   private readonly browserUse: BrowserUseClient | undefined;
+  private readonly captchaBudget: CaptchaBudget;
+  private readonly organicHeaders = new OrganicHeaders();
   private readonly cache = new Map<
     string,
     { result: CrawlRequestResult; cachedAt: number }
@@ -270,6 +274,12 @@ export class CrawlEngine {
       { failureThreshold: 5, openMs: 30_000, successThreshold: 2 },
       undefined,
     );
+    this.captchaBudget = new CaptchaBudget({
+      perSource:
+        Number.parseInt(process.env.CAPTCHA_BUDGET_PER_SOURCE ?? "3", 10) || 3,
+      global:
+        Number.parseInt(process.env.CAPTCHA_BUDGET_GLOBAL ?? "20", 10) || 20,
+    });
   }
 
   /** Rotate to a random browser fingerprint, avoiding recent repeats. */
@@ -413,8 +423,37 @@ export class CrawlEngine {
       };
     }
 
+    // SSRF guard: reject non-http(s) schemes and resolved private/
+    // loopback/link-local IPs before dispatching to any backend.
+    // This protects the jina backend (which proxies to a third-party
+    // service) and the browser-use backend (which runs an LLM-driven
+    // browser) from being weaponized to fetch internal resources.
+    const ssrfResult = validateUrlForCrawl(options.url);
+    if (!ssrfResult.ok) {
+      logger.warn("SSRF guard rejected URL", {
+        url: redactUrlForLog(options.url),
+        reason: ssrfResult.reason,
+      });
+      return {
+        ok: false,
+        status: 0,
+        data: undefined,
+        text: `URL rejected: ${ssrfResult.reason}`,
+        attempt: 0,
+        elapsedMs: 0,
+        backend: "direct",
+        contentType: "",
+        cached: false,
+        blockDetected: false,
+        blockSignal: undefined,
+      };
+    }
+
     const sourceKey = domainFromUrl(options.url) || options.url;
     if (!this.cooldown.isAvailable(sourceKey)) {
+      // Circuit is open: return without probing the breaker (otherwise
+      // we'd feed a phantom failure into it and reset the open timer,
+      // creating a self-reinforcing loop that never recovers).
       return {
         ok: false,
         status: 0,
@@ -484,6 +523,10 @@ export class CrawlEngine {
       return this.requestOnBrowserUse(options);
     }
 
+    // Compute these here so they're available to the captcha-retry block
+    // below (which lives inside this function).
+    const sourceKey = domainFromUrl(options.url) || options.url;
+
     const jinaHeaders: Record<string, string> = {};
     if (backend === "jina") {
       // HTML mode lets callers run structured-data (JSON-LD) extraction on
@@ -512,6 +555,13 @@ export class CrawlEngine {
       this.lastRequestAt = Date.now();
       retryAfterMs = undefined;
 
+      // One-shot timeout per attempt; caller-provided signals win.
+      // Hoisted out of the try block so the captcha-retry path below
+      // (which runs after the fetch resolves) can use the same signal.
+      const attemptSignal =
+        options.signal ??
+        (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined);
+
       // Recompute url each iteration: captcha-solving may have appended a
       // token to options.url, and jina wraps the original URL.
       const url =
@@ -529,11 +579,6 @@ export class CrawlEngine {
       let droppedAuth = false;
 
       try {
-        // One-shot timeout per attempt; caller-provided signals win.
-        const attemptSignal =
-          options.signal ??
-          (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined);
-
         // Build the header set for this attempt. Direct fetches rotate the
         // full browser fingerprint and add organic (sec-fetch + referer)
         // headers; Jina fetches use a neutral reader UA.
@@ -561,7 +606,7 @@ export class CrawlEngine {
           }
           // Organic headers (sec-fetch-* + referer + occasional DNT) are
           // deterministic and always applied to direct fetches.
-          const organic = buildOrganicHeaders(options.url, fingerprint);
+          const organic = this.organicHeaders.build(options.url, fingerprint);
           baseHeaders = { ...baseHeaders, ...organic };
         }
 
@@ -639,6 +684,8 @@ export class CrawlEngine {
           if (isBlockSignal(blockSignal)) {
             // Attempt CAPTCHA solving before escalating to the next backend.
             // Only applies to direct fetches where we have the full HTML.
+            // Budget cap: refuse to solve if we've already burned the per-
+            // run quota for this domain or globally.
             if (
               blockSignal === "captcha" &&
               this.captchaSolver &&
@@ -646,39 +693,64 @@ export class CrawlEngine {
             ) {
               const captcha = detectCaptcha(text);
               if (captcha) {
-                const solved = await solveCaptcha(
-                  this.captchaSolver,
-                  captcha,
-                  options.url,
-                  options.signal,
-                );
-                if (solved.ok && solved.token) {
-                  // Retry the request with the captcha token in the
-                  // appropriate form field. This works for reCAPTCHA,
-                  // hCaptcha, and Turnstile which accept tokens as
-                  // query params or POST body fields.
-                  if (attempt < maxAttempts) {
-                    const reqMethod = options.method ?? "GET";
-                    const tokenField =
-                      captcha.type === "hcaptcha"
-                        ? "h-captcha-response"
-                        : captcha.type === "turnstile"
-                          ? "cf-turnstile-response"
-                          : "g-recaptcha-response";
-                    if (reqMethod === "GET") {
-                      const sep = url.includes("?") ? "&" : "?";
-                      options = {
-                        ...options,
-                        url: `${url}${sep}${tokenField}=${encodeURIComponent(solved.token)}`,
-                      };
-                    } else {
-                      const bodyParts = [
-                        options.body ?? "",
-                        `${tokenField}=${encodeURIComponent(solved.token)}`,
-                      ].filter(Boolean);
-                      options = { ...options, body: bodyParts.join("&") };
+                if (!this.captchaBudget.allow(sourceKey)) {
+                  logger.debug("Captcha solve budget exhausted", {
+                    sourceKey,
+                  });
+                } else {
+                  const solved = await solveCaptcha(
+                    this.captchaSolver,
+                    captcha,
+                    options.url,
+                    attemptSignal,
+                  );
+                  if (solved.ok && solved.token) {
+                    this.captchaBudget.recordSolve(sourceKey);
+                    // Retry the request with the captcha token in the
+                    // appropriate form field. This works for reCAPTCHA,
+                    // hCaptcha, and Turnstile which accept tokens as
+                    // query params or POST body fields.
+                    if (attempt < maxAttempts) {
+                      const reqMethod = options.method ?? "GET";
+                      const tokenField =
+                        captcha.type === "hcaptcha"
+                          ? "h-captcha-response"
+                          : captcha.type === "turnstile"
+                            ? "cf-turnstile-response"
+                            : "g-recaptcha-response";
+                      // Only inject the token into URL/body when the
+                      // content type makes sense (don't corrupt JSON).
+                      const reqContentType =
+                        (options.headers?.["content-type"] as string) ?? "";
+                      const isJson = /json/i.test(reqContentType);
+                      if (reqMethod === "GET") {
+                        const sep = url.includes("?") ? "&" : "?";
+                        options = {
+                          ...options,
+                          url: `${url}${sep}${tokenField}=${encodeURIComponent(solved.token)}`,
+                        };
+                      } else if (!isJson) {
+                        const bodyParts = [
+                          options.body ?? "",
+                          `${tokenField}=${encodeURIComponent(solved.token)}`,
+                        ].filter(Boolean);
+                        options = { ...options, body: bodyParts.join("&") };
+                      } else {
+                        // JSON body — append token as a JSON field if possible.
+                        try {
+                          const parsed = JSON.parse(options.body ?? "{}");
+                          parsed[tokenField] = solved.token;
+                          options = {
+                            ...options,
+                            body: JSON.stringify(parsed),
+                          };
+                        } catch {
+                          // Body wasn't valid JSON — skip injection to
+                          // avoid corrupting the request.
+                        }
+                      }
+                      continue;
                     }
-                    continue;
                   }
                 }
               }
@@ -927,8 +999,17 @@ export class CrawlEngine {
     const contentType = result.contentType || "text/markdown";
 
     if (result.ok) {
+      // Block detection on the agent's output: if it failed to solve a
+      // challenge and returned challenge text, treat it as a block so
+      // downstream extractors don't parse challenge text as job content.
+      const bsig = detectBlock({
+        status: result.statusCode || 200,
+        contentType,
+        text,
+      });
+      const blockDetected = isBlockSignal(bsig);
       return {
-        ok: true,
+        ok: !blockDetected,
         status: result.statusCode || 200,
         data: undefined,
         text,
@@ -937,8 +1018,8 @@ export class CrawlEngine {
         backend: "browser-use",
         contentType,
         cached: false,
-        blockDetected: false,
-        blockSignal: "ok",
+        blockDetected,
+        blockSignal: bsig,
       };
     }
 
@@ -1138,4 +1219,76 @@ function fetchImplFallback(
     body,
     signal: init.signal,
   }) as ReturnType<CrawlFetch>;
+}
+
+/**
+ * SSRF guard: reject URLs that would cause the engine to fetch internal
+ * infrastructure (cloud metadata endpoints, loopback, private networks).
+ *
+ * Applied at the entry of `CrawlEngine.request()` so every backend
+ * (direct, crawl4ai, jina, browser-use) is protected. Crawl4AI's
+ * undetected-browser mode and browser-use's agentic browser can both
+ * reach Docker-network peers and the host filesystem; jina relays to
+ * an external service which would happily fetch an arbitrary URL on
+ * our behalf.
+ */
+function validateUrlForCrawl(
+  rawUrl: string,
+): { ok: true } | { ok: false; reason: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return { ok: false, reason: "Invalid URL" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, reason: `Scheme not allowed: ${parsed.protocol}` };
+  }
+  const host = parsed.hostname.toLowerCase();
+  // Loopback / localhost / link-local / cloud metadata endpoints.
+  const BLOCKED_HOSTS = new Set([
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+    "[::1]",
+    "metadata.google.internal",
+    "169.254.169.254",
+  ]);
+  if (BLOCKED_HOSTS.has(host)) {
+    return { ok: false, reason: `Blocked host: ${host}` };
+  }
+  // Private IPv4 ranges (RFC 1918 + loopback + link-local).
+  if (isPrivateIpv4(host)) {
+    return { ok: false, reason: `Private IP: ${host}` };
+  }
+  return { ok: true };
+}
+
+function isPrivateIpv4(host: string): boolean {
+  const parts = host.split(".");
+  if (parts.length !== 4) return false;
+  const nums = parts.map((p) => Number.parseInt(p, 10));
+  if (nums.some((n) => !Number.isFinite(n) || n < 0 || n > 255)) return false;
+  const [a, b] = nums;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+
+function redactUrlForLog(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    const params = Array.from(u.searchParams.entries());
+    const redacted = params.map(([k]) => `${k}=[REDACTED]`);
+    if (redacted.length > 0) {
+      return `${u.origin}${u.pathname}?${redacted.join("&")}`;
+    }
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return "[invalid-url]";
+  }
 }

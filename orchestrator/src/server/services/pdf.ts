@@ -44,10 +44,17 @@ export interface PdfResult {
   error?: string;
 }
 
+export interface TailoredBullet {
+  id: string;
+  text: string;
+}
+
 export interface TailoredPdfContent {
   summary?: string | null;
   headline?: string | null;
   skills?: Array<{ name: string; keywords: string[] }> | null;
+  /** Optional experience bullet rewrites keyed by stable entry id. */
+  experienceBullets?: Array<{ id: string; bullets: TailoredBullet[] }> | null;
 }
 
 export interface GeneratePdfOptions {

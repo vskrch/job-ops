@@ -22,10 +22,39 @@ import {
   stripWordLimitFromConstraints,
 } from "./writing-style";
 
+export interface TailoredBullet {
+  /** Stable identifier matching the source experience entry (position+company+start). */
+  id: string;
+  /** Bullet text rewritten for this job. Same length-or-shorter than source. */
+  text: string;
+}
+
+export interface TailoredExperienceEntry {
+  id: string;
+  bullets: TailoredBullet[];
+}
+
 export interface TailoredData {
   summary: string;
   headline: string;
   skills: Array<{ name: string; keywords: string[] }>;
+  /** Optional per-experience bullet rewrites keyed by source entry id. */
+  experienceBullets?: TailoredExperienceEntry[];
+}
+
+/**
+ * Build a stable id for an experience entry from its contents, used to
+ * thread tailoring output back into the rendered PDF.
+ */
+export function experienceEntryId(args: {
+  company?: string | null;
+  position?: string | null;
+  startDate?: string | null;
+}): string {
+  return [args.company ?? "", args.position ?? "", args.startDate ?? ""]
+    .join("|")
+    .toLowerCase()
+    .replace(/[^a-z0-9|]/g, "");
 }
 
 export interface TailoringResult {
@@ -65,6 +94,44 @@ const TAILORING_SCHEMA: JsonSchemaDefinition = {
             },
           },
           required: ["name", "keywords"],
+          additionalProperties: false,
+        },
+      },
+      experienceBullets: {
+        type: "array",
+        description:
+          "Per-experience bullet rewrites. Each entry's id must match an experience id from MY PROFILE.",
+        items: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description:
+                "Stable identifier (company|position|startDate lowercased). Must match MY PROFILE exactly.",
+            },
+            bullets: {
+              type: "array",
+              description:
+                "Rewritten bullets preserving the original count (or fewer) and ordering. Mirror source wording + keywords; do NOT invent.",
+              items: {
+                type: "object",
+                properties: {
+                  id: {
+                    type: "string",
+                    description:
+                      "Stable id within this experience entry (index-based or first-40-chars hash).",
+                  },
+                  text: {
+                    type: "string",
+                    description: "Rewritten bullet text.",
+                  },
+                },
+                required: ["text"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["id", "bullets"],
           additionalProperties: false,
         },
       },
@@ -111,7 +178,7 @@ export async function generateTailoring(
     };
   }
 
-  const { summary, headline, skills } = result.data;
+  const { summary, headline, skills, experienceBullets } = result.data;
 
   // Basic validation — treat missing required fields as a failed generation
   if (!summary || !headline || !Array.isArray(skills)) {
@@ -123,12 +190,38 @@ export async function generateTailoring(
     };
   }
 
+  // Normalize experienceBullets: keep only entries whose id matches a
+  // known experience id and whose bullets are non-empty strings. Drop
+  // the rest silently so malformed LLM output doesn't corrupt the resume.
+  const safeExperienceBullets = Array.isArray(experienceBullets)
+    ? experienceBullets
+        .filter(
+          (entry) =>
+            entry &&
+            typeof entry.id === "string" &&
+            Array.isArray(entry.bullets),
+        )
+        .map((entry) => ({
+          id: entry.id,
+          bullets: entry.bullets
+            .filter(
+              (b) => b && typeof b.text === "string" && b.text.trim().length > 0,
+            )
+            .map((b) => ({
+              id: typeof b.id === "string" ? b.id : `${entry.id}#?`,
+              text: b.text,
+            })),
+        }))
+        .filter((entry) => entry.bullets.length > 0)
+    : undefined;
+
   return {
     success: true,
     data: {
       summary: sanitizeText(summary),
       headline: sanitizeText(headline),
       skills,
+      experienceBullets: safeExperienceBullets,
     },
   };
 }
@@ -205,13 +298,43 @@ async function buildTailoringPrompt(
     }),
     experience: rawExperience.map((e) => {
       const item = e as Record<string, unknown>;
+      const company = String(item.company || item.name || "");
+      const position = String(item.position || item.role || "");
+      const startDate = String(item.startDate || "");
+      const id = experienceEntryId({ company, position, startDate });
+      const rawBullets = Array.isArray(item.bullets)
+        ? (item.bullets as unknown[]).filter(
+            (b): b is string => typeof b === "string" && b.trim().length > 0,
+          )
+        : [];
+      const summaryText =
+        item.summary || item.description
+          ? String(item.summary || item.description)
+          : undefined;
+      // If the LLM/parser preserved bullets, send them as the canonical
+      // list. Otherwise fall back to splitting the summary on newlines
+      // so the tailoring LLM still sees discrete achievements.
+      const bullets =
+        rawBullets.length > 0
+          ? rawBullets
+          : (summaryText
+              ? summaryText
+                  .split(/\r?\n/)
+                  .map((line) =>
+                    line.replace(/^\s*[•\-*●◦▪]\s*/, "").trim(),
+                  )
+                  .filter((line) => line.length > 0)
+              : []);
       return {
-        company: String(item.company || item.name || ""),
-        position: String(item.position || item.role || ""),
+        id,
+        company,
+        position,
         summary:
-          item.summary || item.description
-            ? String(item.summary || item.description)
-            : undefined,
+          bullets.length === 0 && summaryText ? summaryText : undefined,
+        bullets: bullets.map((text, index) => ({
+          id: `${id}#${index}`,
+          text,
+        })),
       };
     }),
   };

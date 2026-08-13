@@ -53,6 +53,7 @@ const FAKE_PROFILE: import("@shared/types").UserProfile = {
   skills: ["Python", "SQL"],
   experience: [],
   education: [],
+  projects: [],
   certifications: [],
   languages: [],
   links: [],

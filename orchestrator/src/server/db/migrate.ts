@@ -376,6 +376,7 @@ const migrations = [
   `ALTER TABLE jobs ADD COLUMN selected_project_ids TEXT`,
   `ALTER TABLE jobs ADD COLUMN tailored_headline TEXT`,
   `ALTER TABLE jobs ADD COLUMN tailored_skills TEXT`,
+  `ALTER TABLE jobs ADD COLUMN tailored_experience_bullets TEXT`,
   `ALTER TABLE jobs ADD COLUMN tracer_links_enabled INTEGER NOT NULL DEFAULT 0`,
 
   // Add user_id columns for existing databases
@@ -807,6 +808,7 @@ const migrations = [
     skills TEXT,
     experience TEXT,
     education TEXT,
+    projects TEXT,
     certifications TEXT,
     languages TEXT,
     links TEXT,
@@ -815,6 +817,12 @@ const migrations = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id)`,
+
+  // user_profiles: add `projects` column for bullet-aware profile schema.
+  // Older deployments won't have this column; ADD COLUMN is idempotent
+  // only via the failure-recovery loop at the bottom of this file.
+  // For fresh installs the column is already part of the CREATE TABLE.
+  `ALTER TABLE user_profiles ADD COLUMN projects TEXT`,
 
   // Multi-schedule pipeline: create the pipeline_schedules table.
   `CREATE TABLE IF NOT EXISTS pipeline_schedules (

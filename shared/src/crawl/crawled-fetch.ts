@@ -36,6 +36,14 @@ export interface CrawledFetchOptions {
   behaviorProfile?: "fast" | "normal" | "cautious" | "stealth";
   /** Override Crawl4AI config; defaults to env-based config. */
   crawl4ai?: Crawl4AIConfig;
+  /**
+   * Cancellation callback. When provided, the returned fetch function
+   * aborts in-flight engine requests within ~1s of the callback returning
+   * true. This is how pipeline `shouldCancel` propagates into the
+   * engine so long-running captcha solves and browser-use tasks can be
+   * interrupted at the next checkpoint.
+   */
+  shouldCancel?: () => boolean;
 }
 
 /**
@@ -48,18 +56,35 @@ export function createCrawledFetch(
 ): typeof fetch {
   const behaviorProfile = options.behaviorProfile ?? "normal";
   const crawl4aiConfig = options.crawl4ai ?? readCrawl4aiConfig() ?? undefined;
+  const shouldCancel = options.shouldCancel;
 
   const engine = new CrawlEngine({
     behaviorProfile,
     crawl4ai: crawl4aiConfig,
   });
 
-  // Full escalation chain: direct → crawl4ai → jina → browser-use.
-  // The engine constructor auto-initializes browserUse from env, so
-  // the "browser-use" backend is available when BROWSER_USE_BASE_URL is set.
+  // Only include `browser-use` in the chain when the env-based config
+  // actually resolved a client — otherwise every request wastes a
+  // round-trip on a "Browser Use not configured" final failure.
+  const browserUseConfigured =
+    Boolean(process.env.BROWSER_USE_BASE_URL?.trim()) ||
+    Boolean(engine as unknown as { browserUse?: unknown });
+  const browserUseAvailable = (() => {
+    // CrawlEngine exposes `browserUse` only via the public API; peek at
+    // a backdoor field is unsafe. Instead, rely on the existence of
+    // BROWSER_USE_BASE_URL env. (If env is set but sidecar is down, the
+    // backend fails fast and escalates — acceptable.)
+    return Boolean(process.env.BROWSER_USE_BASE_URL?.trim());
+  })();
+
   const backends = crawl4aiConfig
-    ? (["direct", "crawl4ai", "jina", "browser-use"] as const)
-    : (["direct", "jina", "browser-use"] as const);
+    ? browserUseAvailable
+      ? (["direct", "crawl4ai", "jina", "browser-use"] as const)
+      : (["direct", "crawl4ai", "jina"] as const)
+    : browserUseAvailable
+      ? (["direct", "jina", "browser-use"] as const)
+      : (["direct", "jina"] as const);
+  void browserUseConfigured;
 
   const crawledFetch = (async (
     input: RequestInfo | URL,
@@ -73,7 +98,12 @@ export function createCrawledFetch(
         : (init.headers as Record<string, string>)
       : {};
     const body = typeof init?.body === "string" ? init.body : undefined;
-    const signal = init?.signal ?? undefined;
+    const callerSignal = init?.signal ?? undefined;
+
+    // Compose the caller's signal with our shouldCancel poller. The
+    // poller polls at 1s intervals (cheap) and aborts when either
+    // signal fires.
+    const composedSignal = composeAbortSignals(callerSignal, shouldCancel);
 
     const result: CrawlRequestResult = await engine.request({
       url,
@@ -82,12 +112,23 @@ export function createCrawledFetch(
       body,
       backends,
       maxAttempts: 3,
-      signal: signal ?? undefined,
+      signal: composedSignal,
     });
 
-    // Map CrawlEngine result back to a standard Response.
+    // Map CrawlEngine result back to a standard Response. Preserve the
+    // original HTTP status when it's a real status; otherwise map
+    // blocked/circuit-breaker/aborted cases to appropriate non-2xx codes
+    // so extractors can detect and react.
+    const status =
+      result.ok && result.status >= 200
+        ? result.status
+        : result.status > 0
+          ? result.status
+          : result.blockDetected
+            ? 502
+            : 503;
     return new Response(result.text, {
-      status: result.ok && result.status >= 200 ? result.status : 502,
+      status,
       headers: result.contentType
         ? { "content-type": result.contentType }
         : undefined,
@@ -95,6 +136,37 @@ export function createCrawledFetch(
   }) as typeof fetch;
 
   return crawledFetch;
+}
+
+/**
+ * Combine an optional caller signal with a `shouldCancel` poller.
+ * Returns `undefined` when neither is provided (no abort capability).
+ * The poller ticks every 1s — cheap, and fast enough for cancellation
+ * UX where multi-second tail latency is acceptable.
+ */
+function composeAbortSignals(
+  callerSignal: AbortSignal | undefined,
+  shouldCancel: (() => boolean) | undefined,
+): AbortSignal | undefined {
+  if (!callerSignal && !shouldCancel) return undefined;
+  const controller = new AbortController();
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+  }
+  if (shouldCancel) {
+    const interval = setInterval(() => {
+      if (shouldCancel()) {
+        controller.abort();
+        clearInterval(interval);
+      }
+    }, 1000);
+    controller.signal.addEventListener("abort", () => clearInterval(interval), {
+      once: true,
+    });
+  }
+  return controller.signal;
 }
 
 /** Read Crawl4AI config from env (shared with jobboards extractor). */
