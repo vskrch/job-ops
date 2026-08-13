@@ -335,12 +335,8 @@ export class LlmService {
     const jobId = args.jobId;
     const model = normalizeModelForProvider(this.provider, rawModel);
 
-    // ponytail: AbortSignal.any composes caller signal with a default timeout.
     // Caller signal (cancellation) takes precedence; timeout is a safety net.
     const effectiveTimeout = timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
-    const timeoutSignal =
-      effectiveTimeout > 0 ? AbortSignal.timeout(effectiveTimeout) : null;
-    const combinedSignal = composeSignals(signal, timeoutSignal);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const attemptStartedAt = Date.now();
@@ -353,6 +349,14 @@ export class LlmService {
           });
           await sleep(getRetryDelayMs(retryDelayMs, attempt));
         }
+
+        // Fresh timeout per attempt: a signal created before the retry loop
+        // would already be expired by the time the retry runs.
+        const timeoutSignal =
+          effectiveTimeout > 0
+            ? AbortSignal.timeout(effectiveTimeout)
+            : null;
+        const combinedSignal = composeSignals(signal, timeoutSignal);
 
         const { url, headers, body } = this.strategy.buildRequest({
           mode,

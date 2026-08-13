@@ -333,6 +333,10 @@ export async function parseResumeProfile(
   const { model } = await resolveLlmRuntimeSettings("default");
   const llm = new LlmService();
 
+  // The upload request must finish inside the platform router's 30s budget,
+  // so cap the whole LLM phase with an overall deadline while still allowing
+  // one fast retry (bad JSON, transient failures) within that window.
+  const llmDeadline = AbortSignal.timeout(24_000);
   const result = await llm.callJson<Record<string, unknown>>({
     model,
     messages: [
@@ -341,7 +345,8 @@ export async function parseResumeProfile(
     ],
     jsonSchema: RESUME_PARSE_SCHEMA,
     maxRetries: 1,
-    timeoutMs: 25_000,
+    timeoutMs: 24_000,
+    signal: llmDeadline,
   });
 
   if (!result.success) {
