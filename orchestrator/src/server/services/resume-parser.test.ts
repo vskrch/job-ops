@@ -33,7 +33,17 @@ vi.mock("node:child_process", () => {
     _cmd: string,
     _args: string[],
     _opts: unknown,
-    cb: (error: Error & { code?: string | number; killed?: boolean; signal?: string } | null, stdout: string, stderr: string) => void,
+    cb: (
+      error:
+        | (Error & {
+            code?: string | number;
+            killed?: boolean;
+            signal?: string;
+          })
+        | null,
+      stdout: string,
+      stderr: string,
+    ) => void,
   ) => {
     const state = globalThis as unknown as {
       __mockExecFileGate?: Promise<void>;
