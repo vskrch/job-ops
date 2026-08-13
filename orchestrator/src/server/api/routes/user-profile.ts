@@ -11,6 +11,9 @@
  * DELETE /api/user-profile          — remove the uploaded profile
  */
 
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { badRequest, notFound, toAppError } from "@infra/errors";
 import { fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
@@ -27,8 +30,18 @@ export const userProfileRouter = Router();
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 
+// Uploads spool to disk instead of RAM: PDF parsing expands files many times
+// over in memory, and on the constrained production container a memory-backed
+// upload was enough to push the process past its heap limit.
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, file, cb) =>
+      cb(
+        null,
+        `jobops-resume-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname).toLowerCase() || ".pdf"}`,
+      ),
+  }),
   limits: { fileSize: MAX_RESUME_BYTES },
 });
 
@@ -39,6 +52,7 @@ userProfileRouter.post(
   "/resume",
   upload.single("file"),
   async (req: Request, res: Response) => {
+    const tempPath = req.file?.path ?? null;
     try {
       if (!req.file) {
         return fail(
@@ -54,7 +68,7 @@ userProfileRouter.post(
       }
 
       const { profile, baseResume } = await processResumeUpload(
-        req.file.buffer,
+        tempPath as string,
         req.file.originalname || null,
       );
       // The profile fallback in getProfile() caches conversions; invalidate so
@@ -69,6 +83,10 @@ userProfileRouter.post(
       return ok(res, { profile, baseResume }, 201);
     } catch (error) {
       return fail(res, toAppError(error));
+    } finally {
+      if (tempPath) {
+        fs.unlink(tempPath).catch(() => {});
+      }
     }
   },
 );

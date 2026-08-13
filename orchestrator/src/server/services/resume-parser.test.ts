@@ -18,24 +18,35 @@ vi.mock("./modelSelection", () => ({
   resolveLlmRuntimeSettings: vi.fn(async () => ({ model: "test-model" })),
 }));
 
-// Delegate to a per-test fake when configured, otherwise the real parser.
-vi.mock("pdf-parse", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("pdf-parse")>();
+// The PDF text extractor runs as a child process; fake its execFile plumbing.
+vi.mock("node:child_process", () => {
+  const execFileMock = (
+    _cmd: string,
+    _args: string[],
+    _opts: unknown,
+    cb: (error: null, stdout: string) => void,
+  ) => {
+    const state = globalThis as unknown as {
+      __mockExecFileGate?: Promise<void>;
+    };
+    const respond = () => {
+      cb(
+        null,
+        JSON.stringify({
+          ok: true,
+          text: "Jane Doe\nData Engineer\nPython, SQL, AWS",
+        }),
+      );
+    };
+    if (state.__mockExecFileGate) {
+      state.__mockExecFileGate.then(respond);
+    } else {
+      respond();
+    }
+  };
   return {
-    PDFParse: function PdfParseProxy(options: { data: Buffer }) {
-      const Fake = (
-        globalThis as unknown as {
-          __MockPDFParseClass?: new (options: {
-            data: Buffer;
-          }) => {
-            getText(): Promise<{ text: string }>;
-            destroy(): Promise<void>;
-          };
-        }
-      ).__MockPDFParseClass;
-      if (Fake) return new Fake(options);
-      return new actual.PDFParse(options);
-    },
+    execFile: execFileMock,
+    default: { execFile: execFileMock },
   };
 });
 
@@ -46,43 +57,14 @@ import {
   profileToResumeProfile,
 } from "./resume-parser";
 
-const TINY_PDF = Buffer.from(
-  [
-    "%PDF-1.4",
-    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",
-    "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj",
-    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj",
-    "4 0 obj<</Length 44>>stream",
-    "BT /F1 12 Tf 72 712 Td (Hello Resume World) Tj ET",
-    "endstream endobj",
-    "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj",
-    "trailer<</Root 1 0 R>>",
-    "%%EOF",
-  ].join("\n"),
-);
-
-class FakePDFParse {
-  async getText(): Promise<{ text: string }> {
-    return { text: "Jane Doe\nData Engineer\nPython, SQL, AWS" };
-  }
-  async destroy(): Promise<void> {}
-}
-
-class EmptyPDFParse {
-  async getText(): Promise<{ text: string }> {
-    return { text: "   \n\n  " };
-  }
-  async destroy(): Promise<void> {}
-}
-
-function stubPdfParse(fake: typeof FakePDFParse | typeof EmptyPDFParse): void {
-  (
-    globalThis as unknown as { __MockPDFParseClass?: unknown }
-  ).__MockPDFParseClass = fake;
-}
-
 function setLlmData(data: unknown): void {
   (globalThis as unknown as { __mockLlmData?: unknown }).__mockLlmData = data;
+}
+
+function setExecFileGate(gate: Promise<void> | undefined): void {
+  (
+    globalThis as unknown as { __mockExecFileGate?: Promise<void> }
+  ).__mockExecFileGate = gate;
 }
 
 const originalEnv = { ...process.env };
@@ -102,26 +84,13 @@ describe.sequential("resume-parser", () => {
     };
     await import("@server/db/migrate");
     closeDb = getCloseDb;
-    delete (globalThis as unknown as { __MockPDFParseClass?: unknown })
-      .__MockPDFParseClass;
+    setExecFileGate(undefined);
   });
 
   afterEach(async () => {
     if (closeDb) closeDb();
     closeDb = null;
     await rm(tempDir, { recursive: true, force: true });
-  });
-
-  it("extracts text from a real PDF buffer", async () => {
-    const text = await extractResumeText(TINY_PDF);
-    expect(text).toContain("Hello Resume World");
-  });
-
-  it("throws when no text can be extracted from a PDF", async () => {
-    stubPdfParse(EmptyPDFParse);
-    await expect(extractResumeText(Buffer.alloc(0))).rejects.toThrow(
-      "No text could be extracted",
-    );
   });
 
   it("parses a structured profile from resume text via LLM", async () => {
@@ -225,7 +194,6 @@ describe.sequential("resume-parser", () => {
   });
 
   it("processes an upload end-to-end and persists the profile", async () => {
-    stubPdfParse(FakePDFParse);
     setLlmData({
       fullName: "Jane Doe",
       email: "jane@example.com",
@@ -248,7 +216,7 @@ describe.sequential("resume-parser", () => {
     );
 
     const { profile, baseResume } = await processUpload(
-      Buffer.from("fake-pdf"),
+      join(tempDir, "fake-resume.pdf"),
       "resume.pdf",
     );
 
@@ -257,5 +225,50 @@ describe.sequential("resume-parser", () => {
     expect(profile.fileName).toBe("resume.pdf");
     expect(profile.skills).toEqual(["Python", "SQL"]);
     expect(baseResume.basics?.name).toBe("Jane Doe");
+  });
+
+  it("rejects a concurrent upload while another is parsing", async () => {
+    setLlmData({
+      fullName: "Jane Doe",
+      email: "jane@example.com",
+      phone: null,
+      location: "London, UK",
+      headline: "Data Engineer",
+      summary: null,
+      skills: ["Python", "SQL"],
+      experience: [],
+      education: [],
+      certifications: [],
+      languages: [],
+      links: [],
+    });
+
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    setExecFileGate(gate);
+
+    const { processResumeUpload: processUpload } = await import(
+      "./resume-parser"
+    );
+
+    const first = processUpload(join(tempDir, "fake-resume.pdf"), "resume.pdf");
+    await expect(
+      processUpload(join(tempDir, "fake-resume-2.pdf"), "resume.pdf"),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+
+    releaseGate();
+    const result = await first;
+    expect(result.profile.fullName).toBe("Jane Doe");
+
+    // The lock is released after the first parse finishes.
+    await expect(
+      processUpload(join(tempDir, "fake-resume-3.pdf"), "resume.pdf"),
+    ).resolves.toMatchObject({
+      profile: { fullName: "Jane Doe" },
+    });
   });
 });

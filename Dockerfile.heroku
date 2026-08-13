@@ -181,7 +181,7 @@ RUN set -eux; \
 # ============================================================================
 FROM runtime-node-deps AS production
 
-ENV NODE_OPTIONS="--max-old-space-size=256"
+ENV NODE_OPTIONS="--max-old-space-size=320"
 
 # Copy production-only runtime assets from sibling stages.
 COPY --from=tectonic /usr/local/bin/tectonic /usr/local/bin/tectonic

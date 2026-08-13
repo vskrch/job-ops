@@ -11,8 +11,18 @@
  * Privacy: only the structured profile is persisted — never the raw text.
  */
 
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { AppError, unprocessableEntity, upstreamError } from "@infra/errors";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  AppError,
+  conflict,
+  requestTimeout,
+  unprocessableEntity,
+  upstreamError,
+} from "@infra/errors";
 import { logger } from "@infra/logger";
 import * as userProfileRepo from "@server/repositories/user-profile";
 import type {
@@ -20,7 +30,6 @@ import type {
   ResumeProfile,
   UserProfile,
 } from "@shared/types";
-import { PDFParse } from "pdf-parse";
 import { LlmService } from "./llm/service";
 import type { JsonSchemaDefinition } from "./llm/types";
 import { resolveLlmRuntimeSettings } from "./modelSelection";
@@ -111,7 +120,8 @@ Rules:
 - Empty collections should be [] (never null).`;
 
 function cleanText(text: string): string {
-  return text
+  const truncated = text.slice(0, MAX_LLM_INPUT_CHARS * 4);
+  return truncated
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
@@ -119,28 +129,76 @@ function cleanText(text: string): string {
     .slice(0, MAX_LLM_INPUT_CHARS);
 }
 
-/** Extract plain text from a PDF buffer. */
-export async function extractResumeText(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+function extractorScriptPath(): string {
   try {
-    const result = await parser.getText();
-    const text = cleanText(result.text);
-    if (!text) {
-      throw unprocessableEntity(
-        "No text could be extracted from this PDF. It may be a scanned image or lack a text layer. Try exporting the resume as a text-based PDF.",
-      );
-    }
-    return text;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    const message =
-      error instanceof Error ? error.message : "Failed to read the PDF";
-    throw unprocessableEntity(
-      `Could not parse the PDF: ${message}. Ensure it is a valid, text-based PDF.`,
+    const candidate = fileURLToPath(
+      new URL("../../scripts/extract-pdf-text.mjs", import.meta.url),
     );
-  } finally {
-    await parser.destroy();
+    if (existsSync(candidate)) return candidate;
+  } catch {
+    // import.meta.url is not a file:// URL in some runtimes (e.g. vitest).
   }
+  return path.resolve(process.cwd(), "scripts/extract-pdf-text.mjs");
+}
+
+/** Extract plain text from a resume PDF via a short-lived child process. */
+export function extractResumeText(filePath: string): Promise<string> {
+  const scriptPath = extractorScriptPath();
+
+  return new Promise((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [scriptPath, filePath],
+      { timeout: 45_000, maxBuffer: 2 * 1024 * 1024 },
+      (error, stdout) => {
+        if (error) {
+          if (error.killed || error.signal) {
+            reject(
+              requestTimeout(
+                "Resume parsing took too long. Try a smaller PDF or export it as text.",
+              ),
+            );
+            return;
+          }
+          reject(
+            upstreamError("The resume PDF extractor could not be started."),
+          );
+          return;
+        }
+        try {
+          const parsed: unknown = JSON.parse(stdout);
+          const record =
+            parsed && typeof parsed === "object"
+              ? (parsed as { ok?: boolean; text?: string; error?: string })
+              : {};
+          if (!record.ok) {
+            reject(
+              unprocessableEntity(
+                `Could not parse the PDF: ${record.error ?? "unknown error"}. Ensure it is a valid, text-based PDF.`,
+              ),
+            );
+            return;
+          }
+          const text = cleanText(record.text ?? "");
+          if (!text) {
+            reject(
+              unprocessableEntity(
+                "No text could be extracted from this PDF. It may be a scanned image or lack a text layer. Try exporting the resume as a text-based PDF.",
+              ),
+            );
+            return;
+          }
+          resolve(text);
+        } catch {
+          reject(
+            upstreamError(
+              "The resume PDF extractor returned an invalid response.",
+            ),
+          );
+        }
+      },
+    );
+  });
 }
 
 function emptyProfile(): ParsedResumeProfile {
@@ -367,16 +425,32 @@ export function profileToResumeProfile(
 /**
  * End-to-end: extract text from the uploaded PDF, parse the profile, persist
  * it (replacing any previous upload), and return the profile + base resume.
+ *
+ * Serialized behind a process-wide lock: PDF parsing and LLM extraction are
+ * the two memory-heavy phases, and concurrent uploads can exhaust the
+ * constrained container heap (see Heroku R14/OOM incident).
  */
+let resumeParseInFlight = false;
+
 export async function processResumeUpload(
-  buffer: Buffer,
+  filePath: string,
   fileName: string | null,
 ): Promise<{ profile: UserProfile; baseResume: ResumeProfile }> {
-  const text = await extractResumeText(buffer);
-  const parsed = await parseResumeProfile(text);
-  const profile = await userProfileRepo.upsertUserProfile({
-    profile: parsed,
-    fileName,
-  });
-  return { profile, baseResume: profileToResumeProfile(parsed) };
+  if (resumeParseInFlight) {
+    throw conflict(
+      "A resume is already being processed. Please try again in a moment.",
+    );
+  }
+  resumeParseInFlight = true;
+  try {
+    const text = await extractResumeText(filePath);
+    const parsed = await parseResumeProfile(text);
+    const profile = await userProfileRepo.upsertUserProfile({
+      profile: parsed,
+      fileName,
+    });
+    return { profile, baseResume: profileToResumeProfile(parsed) };
+  } finally {
+    resumeParseInFlight = false;
+  }
 }
