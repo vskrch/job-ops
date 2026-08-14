@@ -350,6 +350,16 @@ const HEALTH_PROBE_CONFIG_BY_SOURCE: Record<
     selectedCountry: "united kingdom",
     settings: {},
   },
+  jobicy: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
+  arbeitnow: {
+    searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
+    selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,
+    settings: {},
+  },
   manual: {
     searchTerm: DEFAULT_HEALTH_SEARCH_TERM,
     selectedCountry: DEFAULT_HEALTH_SELECTED_COUNTRY,

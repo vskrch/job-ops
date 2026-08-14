@@ -1,3 +1,4 @@
+import { llmParseJobs } from "@shared/llm/job-parser.js";
 import type { CreateJobInput } from "@shared/types/jobs";
 
 const CAREERBUILDER_ORIGIN = "https://www.careerbuilder.com";
@@ -263,7 +264,26 @@ export async function runCareerBuilder(
         }
 
         const cards = extractCards(body);
-        if (cards.length === 0) break;
+        if (cards.length === 0) {
+          if (body.length > 200) {
+            const recovered = await llmParseJobs({
+              source: "careerbuilder",
+              searchTerm,
+              pageText: body,
+              maxJobs: maxJobsPerTerm - termJobs,
+            });
+            if (recovered && recovered.length > 0) {
+              for (const mapped of recovered) {
+                if (termJobs >= maxJobsPerTerm) break;
+                if (seen.has(mapped.jobUrl)) continue;
+                seen.add(mapped.jobUrl);
+                jobs.push(mapped);
+                termJobs += 1;
+              }
+            }
+          }
+          break;
+        }
 
         let pageJobs = 0;
         for (const rawCard of cards) {

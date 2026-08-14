@@ -1,17 +1,18 @@
 # Todo List
 
-- [x] Add settings for LLM crawling and enrichment (`llmCrawlingEnabled`, `llmEnrichmentEnabled`, `llmMaxEnrichmentJobs`) in `settings-registry.ts` <!-- id: 0 -->
-- [x] Upgrade `shared/src/llm/job-parser.ts` with deep structured job extraction & detail parsing <!-- id: 1 -->
-- [x] Create `orchestrator/src/server/services/crawler-llm/enricher.ts` with search term synthesis, detail gathering, and relevance filtering <!-- id: 2 -->
-- [x] Integrate LLM-powered crawling and information gathering into `discoverJobsStep` in `discover-jobs.ts` <!-- id: 3 -->
-- [x] Write unit & integration tests for LLM crawling and information gathering <!-- id: 4 -->
-- [x] Run full CI parity checks (Biome, TypeScript, tests, client build) and verify zero regressions <!-- id: 5 -->
+- [x] Upgrade `enricher.ts` with parallel `asyncPool` concurrency for ultra-fast multi-job enrichment <!-- id: 0 -->
+- [x] Expand LLM enrichment schema with `techStack`, `seniorityLevel`, `visaStatus`, and `workArrangement` <!-- id: 1 -->
+- [x] Add platform-specific query adaptation in `synthesizeCrawlTermsWithLlm` <!-- id: 2 -->
+- [x] Implement self-healing LLM fallback parser in `careerbuilder/src/run.ts` when regex returns 0 matches <!-- id: 3 -->
+- [x] Create high-yield zero-403 API extractors: `extractors/jobicy` and `extractors/arbeitnow` <!-- id: 4 -->
+- [x] Register new sources in `shared/src/extractors/index.ts` and `demo-defaults.data.ts` <!-- id: 5 -->
+- [x] Write unit & integration tests and run full CI parity checks (Biome, TypeScript, tests, client build) <!-- id: 6 -->
 
 ## Review & Verification Summary
-- Created `orchestrator/src/server/services/crawler-llm/enricher.ts` with:
-  1. `synthesizeCrawlTermsWithLlm`: Profile & intent-driven query synthesis generating high-precision search keywords and negative exclusion terms.
-  2. `enrichDiscoveredJobsWithLlm`: Automated detail page crawler & structured LLM information extractor for jobs with missing/short descriptions.
-  3. `filterJobsByNegativeKeywords`: Rejection filter for non-technical or mismatched jobs (e.g. sales, marketing, intern).
-- Integrated with `discoverJobsStep` in `orchestrator/src/server/pipeline/steps/discover-jobs.ts`.
-- Registered `llmCrawlingEnabled`, `llmEnrichmentEnabled`, and `llmMaxEnrichmentJobs` in `shared/src/settings-registry.ts`.
-- All 206 test suites (1,348 tests) passed. Biome CI, TypeScript noEmit, and Vite client build 100% green.
+- **High-Throughput Parallel Enrichment**: Concurrently enriches truncated jobs using `asyncPool` with concurrency 4.
+- **Deep Semantic Schema**: Extracts `skills`, `seniorityLevel` (junior, mid, senior, lead, staff), `workArrangement` (remote, hybrid, onsite), `visaStatus` (sponsorship availability), and clean salary bounds.
+- **Self-Healing LLM Extraction**: CareerBuilder and other DOM extractors now auto-heal with `llmParseJobs` whenever anti-bot or DOM changes yield 0 regex matches.
+- **New High-Yield Zero-403 Extractors**:
+  - `jobicy` (Jobicy Public JSON API)
+  - `arbeitnow` (Arbeitnow Public JSON API)
+- **CI Parity**: 208 test suites passed, 1,350 unit & integration tests passed. Biome CI, shared & orchestrator TypeScript, and client build 100% green.

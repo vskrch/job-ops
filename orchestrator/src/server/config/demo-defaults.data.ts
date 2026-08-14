@@ -300,6 +300,8 @@ export const DEMO_SOURCE_BASE_URLS: Record<JobSource, string> = {
   internshala: "https://internshala.com",
   gradcracker: "https://www.gradcracker.com",
   ukvisajobs: "https://www.ukvisajobs.com",
+  jobicy: "https://jobicy.com",
+  arbeitnow: "https://www.arbeitnow.com",
   manual: "https://example.com",
 };
 

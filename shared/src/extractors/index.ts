@@ -53,6 +53,8 @@ export const EXTRACTOR_SOURCE_IDS = [
   "internshala",
   "gradcracker",
   "ukvisajobs",
+  "jobicy",
+  "arbeitnow",
   "manual",
 ] as const;
 
@@ -264,6 +266,16 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
     order: 550,
     category: "pipeline",
     requiresCredentials: true,
+  },
+  jobicy: {
+    label: "Jobicy",
+    order: 560,
+    category: "pipeline",
+  },
+  arbeitnow: {
+    label: "Arbeitnow",
+    order: 570,
+    category: "pipeline",
   },
 };
 

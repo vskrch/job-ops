@@ -11,6 +11,7 @@
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { getSetting } from "@server/repositories/settings";
+import { asyncPool } from "@server/utils/async-pool";
 import { CrawlEngine } from "@shared/crawl/engine.js";
 import type { CreateJobInput } from "@shared/types/jobs";
 import type { ResumeProfile } from "@shared/types/settings";
@@ -71,6 +72,36 @@ const JOB_DETAIL_ENRICHMENT_SCHEMA: JsonSchemaDefinition = {
         items: { type: "string" },
         description: "Key programming languages, frameworks, and technologies.",
       },
+      seniorityLevel: {
+        type: ["string", "null"],
+        enum: [
+          "junior",
+          "mid",
+          "senior",
+          "lead",
+          "staff",
+          "principal",
+          "entry",
+          null,
+        ],
+        description: "Inferred or stated seniority level.",
+      },
+      workArrangement: {
+        type: ["string", "null"],
+        enum: ["remote", "hybrid", "onsite", null],
+        description: "Work arrangement.",
+      },
+      visaStatus: {
+        type: ["string", "null"],
+        enum: [
+          "sponsorship_available",
+          "no_sponsorship",
+          "citizen_or_pr_only",
+          "not_specified",
+          null,
+        ],
+        description: "Visa sponsorship eligibility if mentioned.",
+      },
     },
     required: ["description", "salary", "jobType", "location", "skills"],
     additionalProperties: false,
@@ -88,6 +119,9 @@ export interface EnrichedJobDetail {
   jobType: string | null;
   location: string | null;
   skills: string[];
+  seniorityLevel?: string | null;
+  workArrangement?: string | null;
+  visaStatus?: string | null;
 }
 
 /**
@@ -116,7 +150,10 @@ export async function synthesizeCrawlTermsWithLlm(args: {
     const rawSkills =
       profile?.sections?.skills?.items ||
       (Array.isArray((profile as Record<string, unknown> | null)?.skills)
-        ? ((profile as Record<string, unknown>).skills as Array<{ name?: string; keywords?: string[] }>)
+        ? ((profile as Record<string, unknown>).skills as Array<{
+            name?: string;
+            keywords?: string[];
+          }>)
         : []);
     const candidateSkills =
       rawSkills
@@ -221,93 +258,108 @@ export async function enrichDiscoveredJobsWithLlm(args: {
   const llmService = new LlmService();
   const model = await resolveLlmModel();
 
-  let enrichedCount = 0;
-  const enrichedJobs: CreateJobInput[] = [];
-
-  for (const job of args.jobs) {
-    if (args.shouldCancel?.()) {
-      enrichedJobs.push(job);
-      continue;
-    }
-
+  const jobsToEnrichIndices: number[] = [];
+  for (let i = 0; i < args.jobs.length; i++) {
+    const job = args.jobs[i];
     const needsEnrichment =
       !job.jobDescription || job.jobDescription.length < 250 || !job.salary;
-
-    if (!needsEnrichment || enrichedCount >= maxEnrich || !job.jobUrl) {
-      enrichedJobs.push(job);
-      continue;
+    if (
+      needsEnrichment &&
+      job.jobUrl &&
+      jobsToEnrichIndices.length < maxEnrich
+    ) {
+      jobsToEnrichIndices.push(i);
     }
+  }
 
-    try {
-      const crawlResult = await engine.request({
-        url: job.jobUrl,
-        backends: ["direct", "jina"],
-        timeoutMs: 15_000,
-        maxAttempts: 2,
-      });
+  if (jobsToEnrichIndices.length === 0) {
+    return args.jobs;
+  }
 
-      if (
-        !crawlResult.ok ||
-        !crawlResult.text ||
-        crawlResult.text.length < 100
-      ) {
-        enrichedJobs.push(job);
-        continue;
-      }
+  const enrichedMap = new Map<number, CreateJobInput>();
+  let enrichedCount = 0;
 
-      const pageSnippet = crawlResult.text.slice(0, 8000);
-      const userPrompt = `Job Title: ${job.title}
+  await asyncPool({
+    items: jobsToEnrichIndices,
+    concurrency: 4,
+    shouldStop: args.shouldCancel,
+    task: async (idx) => {
+      const job = args.jobs[idx];
+      try {
+        const crawlResult = await engine.request({
+          url: job.jobUrl,
+          backends: ["direct", "jina"],
+          timeoutMs: 15_000,
+          maxAttempts: 2,
+        });
+
+        if (
+          !crawlResult.ok ||
+          !crawlResult.text ||
+          crawlResult.text.length < 100
+        ) {
+          return;
+        }
+
+        const pageSnippet = crawlResult.text.slice(0, 8000);
+        const userPrompt = `Job Title: ${job.title}
 Employer: ${job.employer}
 URL: ${job.jobUrl}
 
 Raw Page Content:
 ${pageSnippet}`;
 
-      const response = await llmService.callJson<EnrichedJobDetail>({
-        model,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You extract comprehensive job posting details from raw web pages. Output clear role responsibilities, compensation, tech stack, and location.",
-          },
-          { role: "user", content: userPrompt },
-        ],
-        jsonSchema: JOB_DETAIL_ENRICHMENT_SCHEMA,
-      });
-
-      if (response.success && response.data) {
-        const enriched = response.data;
-        enrichedCount += 1;
-
-        const updatedJob: CreateJobInput = {
-          ...job,
-          jobDescription: enriched.description || job.jobDescription,
-          salary: enriched.salary || job.salary,
-          location: enriched.location || job.location,
-          jobType: enriched.jobType || job.jobType,
-        };
-
-        logger.debug("Enriched job with LLM details", {
-          jobId: job.sourceJobId,
-          title: job.title,
-          hasSalary: Boolean(updatedJob.salary),
-          descLength: updatedJob.jobDescription?.length ?? 0,
+        const response = await llmService.callJson<EnrichedJobDetail>({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You extract comprehensive job posting details from raw web pages. Output clear role responsibilities, compensation, tech stack, and location.",
+            },
+            { role: "user", content: userPrompt },
+          ],
+          jsonSchema: JOB_DETAIL_ENRICHMENT_SCHEMA,
         });
 
-        enrichedJobs.push(updatedJob);
-        continue;
-      }
-    } catch (error) {
-      logger.warn("Failed to enrich job with LLM", {
-        title: job.title,
-        jobUrl: job.jobUrl,
-        error: sanitizeUnknown(error),
-      });
-    }
+        if (response.success && response.data) {
+          const enriched = response.data;
+          enrichedCount += 1;
 
-    enrichedJobs.push(job);
-  }
+          const updatedJob: CreateJobInput = {
+            ...job,
+            jobDescription: enriched.description || job.jobDescription,
+            salary: enriched.salary || job.salary,
+            location: enriched.location || job.location,
+            jobType: enriched.jobType || job.jobType,
+            skills:
+              Array.isArray(enriched.skills) && enriched.skills.length > 0
+                ? enriched.skills.join(", ")
+                : job.skills,
+            jobLevel: enriched.seniorityLevel || job.jobLevel,
+            isRemote:
+              enriched.workArrangement === "remote" ? true : job.isRemote,
+          };
+
+          logger.debug("Enriched job with LLM details", {
+            jobId: job.sourceJobId,
+            title: job.title,
+            hasSalary: Boolean(updatedJob.salary),
+            descLength: updatedJob.jobDescription?.length ?? 0,
+            skills: updatedJob.skills,
+          });
+
+          enrichedMap.set(idx, updatedJob);
+        }
+      } catch (error) {
+        logger.warn("Failed to enrich job with LLM", {
+          title: job.title,
+          jobUrl: job.jobUrl,
+          error: sanitizeUnknown(error),
+        });
+      }
+    },
+  });
 
   if (enrichedCount > 0) {
     logger.info("Completed LLM job enrichment pass", {
@@ -316,7 +368,7 @@ ${pageSnippet}`;
     });
   }
 
-  return enrichedJobs;
+  return args.jobs.map((job, idx) => enrichedMap.get(idx) ?? job);
 }
 
 /**
