@@ -923,6 +923,30 @@ export const settingsRegistry = {
     serialize: (value: number | null | undefined): string | null =>
       value === null || value === undefined ? null : String(value),
   },
+  llmCrawlingEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "1",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  llmEnrichmentEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "1",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  llmMaxEnrichmentJobs: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1).max(50),
+    default: (): number => 15,
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
 } as const;
 
 export type SettingsRegistry = typeof settingsRegistry;

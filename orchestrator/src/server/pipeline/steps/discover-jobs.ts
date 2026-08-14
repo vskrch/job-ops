@@ -3,6 +3,11 @@ import { sanitizeUnknown } from "@infra/sanitize";
 import { getExtractorRegistry } from "@server/extractors/registry";
 import { getAllJobUrls } from "@server/repositories/jobs";
 import * as settingsRepo from "@server/repositories/settings";
+import {
+  enrichDiscoveredJobsWithLlm,
+  filterJobsByNegativeKeywords,
+  synthesizeCrawlTermsWithLlm,
+} from "@server/services/crawler-llm/enricher";
 import { asyncPool } from "@server/utils/async-pool";
 import {
   formatCountryLabel,
@@ -93,18 +98,12 @@ export async function discoverJobsStep(args: {
   const registry = await getExtractorRegistry();
 
   const searchTermsSetting = settings.searchTerms;
-  let searchTerms: string[] = [];
-
-  if (searchTermsSetting) {
-    searchTerms = JSON.parse(searchTermsSetting) as string[];
-  } else {
-    const defaultSearchTermsEnv =
-      process.env.JOBSPY_SEARCH_TERMS || "web developer";
-    searchTerms = defaultSearchTermsEnv
-      .split("|")
-      .map((term) => term.trim())
-      .filter(Boolean);
-  }
+  const rawSearchTerms: string[] = searchTermsSetting
+    ? (JSON.parse(searchTermsSetting) as string[])
+    : (process.env.JOBSPY_SEARCH_TERMS || "web developer")
+        .split("|")
+        .map((term) => term.trim())
+        .filter(Boolean);
 
   const selectedCountry = normalizeCountryKey(
     settings.jobspyCountryIndeed ??
@@ -112,6 +111,12 @@ export async function discoverJobsStep(args: {
       settings.jobspyLocation ??
       "united states",
   );
+
+  const { searchTerms, negativeKeywords } = await synthesizeCrawlTermsWithLlm({
+    baseSearchTerms: rawSearchTerms,
+    selectedCountry,
+    settings,
+  });
   const compatibleSources = args.mergedConfig.sources.filter((source) =>
     isSourceAllowedForCountry(source, selectedCountry),
   );
@@ -342,11 +347,22 @@ export async function discoverJobsStep(args: {
     });
   }
 
+  const negativeFilteredJobs = filterJobsByNegativeKeywords(
+    filteredDiscoveredJobs,
+    negativeKeywords,
+  );
+
+  const enrichedJobs = await enrichDiscoveredJobsWithLlm({
+    jobs: negativeFilteredJobs,
+    settings,
+    shouldCancel: args.shouldCancel,
+  });
+
   if (args.shouldCancel?.()) {
-    return { discoveredJobs: filteredDiscoveredJobs, sourceErrors };
+    return { discoveredJobs: enrichedJobs, sourceErrors };
   }
 
-  if (filteredDiscoveredJobs.length === 0 && sourceErrors.length > 0) {
+  if (enrichedJobs.length === 0 && sourceErrors.length > 0) {
     throw new Error(`All sources failed: ${sourceErrors.join("; ")}`);
   }
 
@@ -354,7 +370,7 @@ export async function discoverJobsStep(args: {
     logger.warn("Some discovery sources failed", { sourceErrors });
   }
 
-  progressHelpers.crawlingComplete(filteredDiscoveredJobs.length);
+  progressHelpers.crawlingComplete(enrichedJobs.length);
 
-  return { discoveredJobs: filteredDiscoveredJobs, sourceErrors };
+  return { discoveredJobs: enrichedJobs, sourceErrors };
 }
