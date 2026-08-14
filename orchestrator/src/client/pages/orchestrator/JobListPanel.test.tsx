@@ -233,4 +233,28 @@ describe("JobListPanel", () => {
       "opacity-100",
     );
   });
+
+  it("calls onExportFilteredCsv when export CSV button is clicked", () => {
+    const jobs = [createJob({ id: "job-1", title: "Backend Engineer" })];
+    const onExport = vi.fn();
+    render(
+      <JobListPanel
+        isLoading={false}
+        jobs={jobs}
+        activeJobs={jobs}
+        selectedJobId={null}
+        selectedJobIds={new Set()}
+        activeTab="ready"
+        onSelectJob={vi.fn()}
+        onToggleSelectJob={vi.fn()}
+        onToggleSelectAll={vi.fn()}
+        onExportFilteredCsv={onExport}
+      />,
+    );
+
+    const exportBtn = screen.getByRole("button", { name: /export csv/i });
+    expect(exportBtn).toBeInTheDocument();
+    fireEvent.click(exportBtn);
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
 });

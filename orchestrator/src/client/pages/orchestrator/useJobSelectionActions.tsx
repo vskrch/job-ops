@@ -1,4 +1,5 @@
 import * as api from "@client/api";
+import { downloadJobsCsv } from "@client/lib/csv-export";
 import type {
   JobAction,
   JobActionResponse,
@@ -278,6 +279,28 @@ export function useJobSelectionActions({
     [activeTab, selectedJobIds, loadJobs],
   );
 
+  const exportSelectedJobs = useCallback(() => {
+    if (selectedJobs.length === 0) {
+      toast.error("No jobs selected to export.");
+      return;
+    }
+    const success = downloadJobsCsv(selectedJobs, `jobs-${activeTab}-selected`);
+    if (success) {
+      toast.success(`Exported ${selectedJobs.length} selected jobs to CSV.`);
+    }
+  }, [selectedJobs, activeTab]);
+
+  const exportFilteredJobs = useCallback(() => {
+    if (activeJobs.length === 0) {
+      toast.error("No filtered jobs to export.");
+      return;
+    }
+    const success = downloadJobsCsv(activeJobs, `jobs-${activeTab}-filtered`);
+    if (success) {
+      toast.success(`Exported ${activeJobs.length} filtered jobs to CSV.`);
+    }
+  }, [activeJobs, activeTab]);
+
   return {
     selectedJobIds,
     canSkipSelected,
@@ -288,5 +311,7 @@ export function useJobSelectionActions({
     toggleSelectAll,
     clearSelection,
     runJobAction,
+    exportSelectedJobs,
+    exportFilteredJobs,
   };
 }

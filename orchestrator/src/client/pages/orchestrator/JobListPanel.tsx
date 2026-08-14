@@ -1,5 +1,5 @@
 import type { JobListItem } from "@shared/types.js";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import type React from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +23,7 @@ interface JobListPanelProps {
   onSelectJob: (jobId: string) => void;
   onToggleSelectJob: (jobId: string) => void;
   onToggleSelectAll: (checked: boolean) => void;
+  onExportFilteredCsv?: () => void;
   primaryEmptyStateAction?: EmptyStateAction;
   secondaryEmptyStateAction?: EmptyStateAction;
   emptyStateMessage?: string;
@@ -38,6 +39,7 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
   onSelectJob,
   onToggleSelectJob,
   onToggleSelectAll,
+  onExportFilteredCsv,
   primaryEmptyStateAction,
   secondaryEmptyStateAction,
   emptyStateMessage,
@@ -78,10 +80,10 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
         <p className="sr-only" aria-live="polite">
           {isLoading ? "Loading jobs…" : `${activeJobs.length} jobs shown`}
         </p>
-        <div className="flex items-center justify-between gap-3 px-4 py-2 opacity-100 transition-opacity sm:opacity-50 sm:hover:opacity-100">
+        <div className="flex items-center justify-between gap-3 px-4 py-2 opacity-100 transition-opacity sm:opacity-75 sm:hover:opacity-100">
           <label
             htmlFor="job-list-select-all"
-            className="flex items-center gap-2 text-xs text-muted-foreground"
+            className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer"
           >
             <Checkbox
               id="job-list-select-all"
@@ -97,11 +99,26 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
               }}
               aria-label="Select all filtered jobs"
             />
-            Select all filtered
+            Select all filtered ({activeJobs.length})
           </label>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {selectedJobIds.size} selected
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {selectedJobIds.size} selected
+            </span>
+            {onExportFilteredCsv && activeJobs.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={onExportFilteredCsv}
+                title="Export all filtered jobs to CSV"
+              >
+                <Download className="mr-1 h-3.5 w-3.5" />
+                Export CSV
+              </Button>
+            )}
+          </div>
         </div>
         {activeJobs.map((job) => {
           const isSelected = job.id === selectedJobId;

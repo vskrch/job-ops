@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Download } from "lucide-react";
 import type React from "react";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +12,7 @@ interface FloatingJobActionsBarProps {
   onMoveToReady: () => void;
   onSkipSelected: () => void;
   onRescoreSelected: () => void;
+  onExportSelected?: () => void;
   onClear: () => void;
 }
 
@@ -23,6 +25,7 @@ export const FloatingJobActionsBar: React.FC<FloatingJobActionsBarProps> = ({
   onMoveToReady,
   onSkipSelected,
   onRescoreSelected,
+  onExportSelected,
   onClear,
 }) => {
   return (
@@ -74,6 +77,20 @@ export const FloatingJobActionsBar: React.FC<FloatingJobActionsBarProps> = ({
                   onClick={onRescoreSelected}
                 >
                   Recalculate match
+                </Button>
+              )}
+              {onExportSelected && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={jobActionInFlight}
+                  onClick={onExportSelected}
+                  title="Export selected jobs to CSV"
+                >
+                  <Download className="mr-1 h-3.5 w-3.5" />
+                  Export CSV
                 </Button>
               )}
               <Button

@@ -8,6 +8,7 @@
 
 import * as api from "@client/api";
 import { PageHeader, PageMain } from "@client/components/layout";
+import { downloadJobsCsv } from "@client/lib/csv-export";
 import type {
   JobSearch,
   JobSearchProgressEvent,
@@ -19,6 +20,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Download,
   Loader2,
   Mail,
   MailX,
@@ -683,10 +685,26 @@ export const JobSearchPage: React.FC = () => {
           {/* Job Results */}
           {results && results.jobs.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                 <CardTitle className="text-base">
                   Ranked Results ({results.jobs.length})
                 </CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const jobsToExport = results.jobs.map((item) => ({
+                      ...item.job,
+                      suitabilityScore: item.relevanceScore,
+                      suitabilityReason: item.matchExplanation,
+                    }));
+                    downloadJobsCsv(jobsToExport, "search-results");
+                  }}
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  Export CSV
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">

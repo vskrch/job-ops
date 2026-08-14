@@ -239,6 +239,8 @@ export const OrchestratorPage: React.FC = () => {
     toggleSelectAll,
     clearSelection,
     runJobAction,
+    exportSelectedJobs,
+    exportFilteredJobs,
   } = useJobSelectionActions({
     activeJobs,
     activeTab,
@@ -521,6 +523,7 @@ export const OrchestratorPage: React.FC = () => {
               onSelectJob={handleSelectJob}
               onToggleSelectJob={toggleSelectJob}
               onToggleSelectAll={toggleSelectAll}
+              onExportFilteredCsv={exportFilteredJobs}
               primaryEmptyStateAction={primaryEmptyStateAction}
               secondaryEmptyStateAction={secondaryEmptyStateAction}
               emptyStateMessage={emptyStateMessage}
@@ -552,6 +555,7 @@ export const OrchestratorPage: React.FC = () => {
         onMoveToReady={() => void runJobAction("move_to_ready")}
         onSkipSelected={() => void runJobAction("skip")}
         onRescoreSelected={() => void runJobAction("rescore")}
+        onExportSelected={exportSelectedJobs}
         onClear={clearSelection}
       />
 
