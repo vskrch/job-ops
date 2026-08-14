@@ -1,5 +1,11 @@
 import type { CreateJobInput } from "@shared/types/jobs";
 import { fetchAshbyJobs } from "./ashby";
+import {
+  DEFAULT_ASHBY_ORGS,
+  DEFAULT_GREENHOUSE_BOARDS,
+  DEFAULT_LEVER_COMPANIES,
+  matchesAtsJobFilter,
+} from "./discovery";
 import { fetchGreenhouseJobs } from "./greenhouse";
 import { fetchLeverJobs } from "./lever";
 
@@ -45,6 +51,9 @@ export interface FetchJobOptions {
 }
 
 export interface RunAtsOptions {
+  searchTerms?: string[];
+  selectedCountry?: string;
+  maxJobs?: number;
   greenhouseBoards?: string[];
   leverCompanies?: string[];
   ashbyOrgs?: string[];
@@ -69,9 +78,21 @@ function parseList(value: string | undefined): string[] {
 
 export async function runAts(options: RunAtsOptions = {}): Promise<AtsResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const greenhouseBoards = options.greenhouseBoards ?? [];
-  const leverCompanies = options.leverCompanies ?? [];
-  const ashbyOrgs = options.ashbyOrgs ?? [];
+  const userGreenhouse = options.greenhouseBoards ?? [];
+  const userLever = options.leverCompanies ?? [];
+  const userAshby = options.ashbyOrgs ?? [];
+
+  const useDefaults =
+    userGreenhouse.length === 0 &&
+    userLever.length === 0 &&
+    userAshby.length === 0;
+
+  const greenhouseBoards = useDefaults
+    ? [...DEFAULT_GREENHOUSE_BOARDS]
+    : userGreenhouse;
+  const leverCompanies = useDefaults ? [...DEFAULT_LEVER_COMPANIES] : userLever;
+  const ashbyOrgs = useDefaults ? [...DEFAULT_ASHBY_ORGS] : userAshby;
+  const maxJobs = options.maxJobs ?? 100;
 
   const fetchOptions: FetchJobOptions = {
     fetchImpl,
@@ -85,8 +106,19 @@ export async function runAts(options: RunAtsOptions = {}): Promise<AtsResult> {
 
     for (const board of greenhouseBoards) {
       if (options.shouldCancel?.()) break;
+      if (jobs.length >= maxJobs) break;
       const boardJobs = await fetchGreenhouseJobs(board, fetchOptions);
       for (const job of boardJobs) {
+        if (jobs.length >= maxJobs) break;
+        if (
+          !matchesAtsJobFilter(
+            job,
+            options.searchTerms,
+            options.selectedCountry,
+          )
+        ) {
+          continue;
+        }
         const key = job.sourceJobId ?? job.jobUrl;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -96,8 +128,19 @@ export async function runAts(options: RunAtsOptions = {}): Promise<AtsResult> {
 
     for (const company of leverCompanies) {
       if (options.shouldCancel?.()) break;
+      if (jobs.length >= maxJobs) break;
       const companyJobs = await fetchLeverJobs(company, fetchOptions);
       for (const job of companyJobs) {
+        if (jobs.length >= maxJobs) break;
+        if (
+          !matchesAtsJobFilter(
+            job,
+            options.searchTerms,
+            options.selectedCountry,
+          )
+        ) {
+          continue;
+        }
         const key = job.sourceJobId ?? job.jobUrl;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -107,8 +150,19 @@ export async function runAts(options: RunAtsOptions = {}): Promise<AtsResult> {
 
     for (const org of ashbyOrgs) {
       if (options.shouldCancel?.()) break;
+      if (jobs.length >= maxJobs) break;
       const orgJobs = await fetchAshbyJobs(org, fetchOptions);
       for (const job of orgJobs) {
+        if (jobs.length >= maxJobs) break;
+        if (
+          !matchesAtsJobFilter(
+            job,
+            options.searchTerms,
+            options.selectedCountry,
+          )
+        ) {
+          continue;
+        }
         const key = job.sourceJobId ?? job.jobUrl;
         if (seen.has(key)) continue;
         seen.add(key);

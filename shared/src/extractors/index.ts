@@ -55,6 +55,7 @@ export const EXTRACTOR_SOURCE_IDS = [
   "ukvisajobs",
   "jobicy",
   "arbeitnow",
+  "themuse",
   "manual",
 ] as const;
 
@@ -275,6 +276,11 @@ export const EXTRACTOR_SOURCE_METADATA: Record<
   arbeitnow: {
     label: "Arbeitnow",
     order: 570,
+    category: "pipeline",
+  },
+  themuse: {
+    label: "The Muse",
+    order: 580,
     category: "pipeline",
   },
 };

@@ -39,15 +39,15 @@ export const manifest: ExtractorManifest = {
       context.settings.ashbyOrgs ?? process.env.ASHBY_ORGS,
     );
 
-    if (
-      greenhouseBoards.length === 0 &&
-      leverCompanies.length === 0 &&
-      ashbyOrgs.length === 0
-    ) {
-      return { success: true, jobs: [] };
-    }
+    const parsedMax = context.settings.jobspyResultsWanted
+      ? Number.parseInt(context.settings.jobspyResultsWanted, 10)
+      : Number.NaN;
+    const maxJobs = Number.isFinite(parsedMax) ? Math.max(1, parsedMax) : 50;
 
     const result = await runAts({
+      searchTerms: context.searchTerms,
+      selectedCountry: context.selectedCountry,
+      maxJobs,
       greenhouseBoards,
       leverCompanies,
       ashbyOrgs,
