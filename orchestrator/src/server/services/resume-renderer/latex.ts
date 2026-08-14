@@ -15,7 +15,8 @@ import type {
   ResumeRenderer,
 } from "./types";
 
-const TEMPLATE_FILES: Record<"jake" | "modern", string> = {
+const TEMPLATE_FILES: Record<"charter" | "jake" | "modern", string> = {
+  charter: "charter-resume.tex",
   jake: "jake-resume.tex",
   modern: "modern-resume.tex",
 };
@@ -23,8 +24,8 @@ const TEMPLATE_FILES: Record<"jake" | "modern", string> = {
 function resolveTemplatePath(templateId: LatexTemplateId): string {
   const fileName =
     templateId === "custom"
-      ? TEMPLATE_FILES.jake
-      : (TEMPLATE_FILES[templateId] ?? TEMPLATE_FILES.jake);
+      ? TEMPLATE_FILES.charter
+      : (TEMPLATE_FILES[templateId] ?? TEMPLATE_FILES.charter);
   try {
     if (import.meta.url.startsWith("file:")) {
       const modulePath = fileURLToPath(import.meta.url);
@@ -137,8 +138,66 @@ function renderProjectEntry(entry: LatexResumeEntry): string {
   return lines.join("\n");
 }
 
-function renderSummarySection(document: LatexResumeDocument): string {
+function renderCharterSubheadingEntry(entry: LatexResumeEntry): string {
+  const title = renderLink(entry.title, entry.url);
+  const subtitle = entry.subtitle
+    ? `{${escapeForCommand(entry.subtitle)}}`
+    : "";
+  const date = entry.date ? escapeForCommand(entry.date) : "";
+  const header = `\\textbf{${title},}${subtitle ? ` ${subtitle}` : ""} \\hfill ${date} \\\\`;
+  const lines = [header, "\\vspace{-9pt}"];
+  if (entry.bullets.length > 0) {
+    lines.push(
+      "\\begin{itemize}",
+      ...entry.bullets.map((b) => `  \\item ${escapeForCommand(b)}`),
+      "\\end{itemize}",
+    );
+  }
+  return lines.join("\n");
+}
+
+function renderCharterEducationEntry(entry: LatexResumeEntry): string {
+  const title = renderLink(entry.title, entry.url);
+  const subtitle = entry.subtitle
+    ? ` -- ${escapeForCommand(entry.subtitle)}`
+    : "";
+  const date = entry.date ? `\\hfill ${escapeForCommand(entry.date)}` : "";
+  return `\\textbf{${title}}${subtitle} ${date}`;
+}
+
+function renderCharterProjectEntry(entry: LatexResumeEntry): string {
+  const title = renderLink(entry.title, entry.url);
+  const subtitle = entry.subtitle
+    ? ` -- ${escapeForCommand(entry.subtitle)}`
+    : "";
+  const date = entry.date ? `\\hfill ${escapeForCommand(entry.date)}` : "";
+  const lines = [
+    `\\textbf{${title}}${subtitle} ${date} \\\\`,
+    "\\vspace{-9pt}",
+  ];
+  if (entry.bullets.length > 0) {
+    lines.push(
+      "\\begin{itemize}",
+      ...entry.bullets.map((b) => `  \\item ${escapeForCommand(b)}`),
+      "\\end{itemize}",
+    );
+  }
+  return lines.join("\n");
+}
+
+function renderSummarySection(
+  document: LatexResumeDocument,
+  isCharter = false,
+): string {
   if (!document.summary) return "";
+  if (isCharter) {
+    return [
+      "\\section*{Summary}",
+      escapeForCommand(document.summary),
+      "\\vspace{-6.5pt}",
+      "",
+    ].join("\n");
+  }
   return [
     "\\section{Summary}",
     " \\begin{itemize}[leftmargin=0.15in, label={}]",
@@ -151,9 +210,23 @@ function renderSummarySection(document: LatexResumeDocument): string {
 function renderEntrySection(args: {
   title: string;
   entries: LatexResumeEntry[];
-  kind: "subheading" | "project";
+  kind: "subheading" | "project" | "education";
+  isCharter?: boolean;
 }): string {
   if (args.entries.length === 0) return "";
+  if (args.isCharter) {
+    const body = args.entries
+      .map((entry) => {
+        if (args.kind === "education")
+          return renderCharterEducationEntry(entry);
+        if (args.kind === "project") return renderCharterProjectEntry(entry);
+        return renderCharterSubheadingEntry(entry);
+      })
+      .join("\n\n");
+    return [`\\section*{${args.title}}`, body, "\\vspace{-6.5pt}", ""].join(
+      "\n",
+    );
+  }
   const body = args.entries
     .map((entry) =>
       args.kind === "project"
@@ -170,15 +243,28 @@ function renderEntrySection(args: {
   ].join("\n");
 }
 
-function renderSkillsSection(document: LatexResumeDocument): string {
+function renderSkillsSection(
+  document: LatexResumeDocument,
+  isCharter = false,
+): string {
   if (document.skillGroups.length === 0) return "";
+  if (isCharter) {
+    const items = document.skillGroups
+      .map((group) => {
+        const keywords = group.keywords
+          .map((keyword) => escapeForCommand(keyword))
+          .join(", ");
+        return `\\textbf{${escapeForCommand(group.name)}:} ${keywords} \\\\`;
+      })
+      .join("\n");
+    return ["\\section*{Skills}", items, "\\vspace{-6.5pt}", ""].join("\n");
+  }
   const items = document.skillGroups
     .map((group) => {
-      const keywords = group.keywords.map((keyword) =>
-        escapeForCommand(keyword),
-      );
-      const keywordsText = keywords.join(", ");
-      return `     \\textbf{${escapeForCommand(group.name)}}{: ${keywordsText}} \\\\`;
+      const keywords = group.keywords
+        .map((keyword) => escapeForCommand(keyword))
+        .join(", ");
+      return `     \\textbf{${escapeForCommand(group.name)}}{: ${keywords}} \\\\`;
     })
     .join("\n");
   return [
@@ -200,17 +286,18 @@ async function loadTemplate(
     if (customContent?.trim()) return customContent;
     const dbValue = await getSetting("customLatexTemplate");
     if (dbValue?.trim()) return dbValue;
-    throw new Error(
-      "Custom LaTeX template is selected but no custom TeX content was found. Provide custom TeX in Settings or switch to a built-in template (jake, modern).",
-    );
+    return await readFile(resolveTemplatePath("charter"), "utf8");
   }
   return await readFile(resolveTemplatePath(templateId), "utf8");
 }
 
-function buildLatexDocument(
+export function buildLatexDocument(
   document: LatexResumeDocument,
   template: string,
+  templateId?: LatexTemplateId,
 ): string {
+  const isCharter =
+    templateId === "charter" || !template.includes("\\resumeSubheading");
   const headlineBlock = document.headline
     ? `    \\small ${escapeForCommand(document.headline)} \\\\ \\vspace{1pt}\n`
     : "";
@@ -218,32 +305,57 @@ function buildLatexDocument(
     document.contactItems.length > 0
       ? `    \\small ${renderContactItems(document.contactItems)}\n`
       : "";
-  const body = [
-    renderSummarySection(document),
-    renderEntrySection({
-      title: "Experience",
-      entries: document.experience,
-      kind: "subheading",
-    }),
-    renderEntrySection({
-      title: "Education",
-      entries: document.education,
-      kind: "subheading",
-    }),
-    renderEntrySection({
-      title: "Projects",
-      entries: document.projects,
-      kind: "project",
-    }),
-    renderSkillsSection(document),
-  ]
-    .filter(Boolean)
-    .join("\n");
+
+  const skillsSection = renderSkillsSection(document, isCharter);
+  const experienceSection = renderEntrySection({
+    title: "Experience",
+    entries: document.experience,
+    kind: "subheading",
+    isCharter,
+  });
+  const educationSection = renderEntrySection({
+    title: "Education",
+    entries: document.education,
+    kind: "education",
+    isCharter,
+  });
+  const projectsSection = renderEntrySection({
+    title: "Projects",
+    entries: document.projects,
+    kind: "project",
+    isCharter,
+  });
+  const summarySection = renderSummarySection(document, isCharter);
+
+  const body = isCharter
+    ? [
+        skillsSection,
+        experienceSection,
+        educationSection,
+        projectsSection,
+        summarySection,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : [
+        summarySection,
+        experienceSection,
+        educationSection,
+        projectsSection,
+        skillsSection,
+      ]
+        .filter(Boolean)
+        .join("\n");
 
   return template
     .replace("__NAME__", escapeForCommand(document.name))
     .replace("__HEADLINE_BLOCK__", headlineBlock)
     .replace("__CONTACT_BLOCK__", contactBlock)
+    .replace("__SKILLS__", skillsSection)
+    .replace("__EXPERIENCE__", experienceSection)
+    .replace("__EDUCATION__", educationSection)
+    .replace("__PROJECTS__", projectsSection)
+    .replace("__SUMMARY__", summarySection)
     .replace("__BODY__", body);
 }
 
@@ -332,7 +444,7 @@ export const latexResumeRenderer: ResumeRenderer = {
     document,
     outputPath,
     jobId,
-    templateId = "jake",
+    templateId = "charter",
     customTemplateContent,
   }) {
     const tempDir = await mkdtemp(
@@ -343,7 +455,7 @@ export const latexResumeRenderer: ResumeRenderer = {
 
     try {
       const template = await loadTemplate(templateId, customTemplateContent);
-      const latex = buildLatexDocument(document, template);
+      const latex = buildLatexDocument(document, template, templateId);
 
       await writeFile(texPath, latex, "utf8");
       await runTectonic({ cwd: tempDir, texPath, jobId });
@@ -395,7 +507,7 @@ export async function renderLatexPdf(args: {
 }
 
 export function getLatexTemplatePath(
-  templateId: LatexTemplateId = "jake",
+  templateId: LatexTemplateId = "charter",
 ): string {
   return resolveTemplatePath(templateId);
 }
@@ -405,7 +517,7 @@ export function getTectonicBinary(): string {
 }
 
 export async function readLatexTemplate(
-  templateId: LatexTemplateId = "jake",
+  templateId: LatexTemplateId = "charter",
 ): Promise<string> {
   return await loadTemplate(templateId);
 }

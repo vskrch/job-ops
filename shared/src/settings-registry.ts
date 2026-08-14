@@ -292,7 +292,7 @@ export const settingsRegistry = {
   latexTemplate: {
     kind: "typed" as const,
     schema: z.enum(LATEX_TEMPLATE_VALUES),
-    default: (): LatexTemplate => "jake",
+    default: (): LatexTemplate => "charter",
     parse: parseLatexTemplateOrNull,
     serialize: (value: LatexTemplate | null | undefined): string | null =>
       value ?? null,

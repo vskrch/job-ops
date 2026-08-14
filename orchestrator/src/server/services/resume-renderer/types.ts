@@ -19,7 +19,7 @@ export interface LatexResumeSkillGroup {
   keywords: string[];
 }
 
-export type LatexTemplateId = "jake" | "modern" | "custom";
+export type LatexTemplateId = "charter" | "jake" | "modern" | "custom";
 
 export interface LatexResumeDocument {
   name: string;

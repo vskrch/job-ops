@@ -1,5 +1,6 @@
 export * from "./agentic-search";
 export * from "./api";
+export * from "./auth";
 export * from "./chat";
 export * from "./design-resume";
 export * from "./design-resume-jake";

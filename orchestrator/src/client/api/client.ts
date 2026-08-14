@@ -65,7 +65,9 @@ import type {
   TracerReadinessResponse,
   UpdatePipelineScheduleInput,
   UpdateSearchScheduleInput,
+  UserAccount,
   UserProfile,
+  UserStats,
   ValidationResult,
   VisaSponsor,
   VisaSponsorSearchResponse,
@@ -1838,4 +1840,109 @@ export function subscribeToJobSearchProgress(
     `/api/job-search/${searchId}/progress`,
     handlers,
   );
+}
+
+// ============================================================================
+// Auth & User Account API
+// ============================================================================
+
+export async function getCurrentUser(): Promise<UserAccount | null> {
+  const result = await fetchApi<{ user: UserAccount | null }>("/auth/me");
+  return result.user;
+}
+
+export async function loginUser(
+  email: string,
+  password: string,
+): Promise<UserAccount> {
+  const result = await fetchApi<{ user: UserAccount }>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  return result.user;
+}
+
+export async function registerUser(
+  email: string,
+  password: string,
+  name?: string,
+): Promise<UserAccount> {
+  const result = await fetchApi<{ user: UserAccount }>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password, name }),
+  });
+  return result.user;
+}
+
+export async function logoutUser(): Promise<void> {
+  await fetchApi<{ loggedOut: boolean }>("/auth/logout", {
+    method: "POST",
+  });
+}
+
+export async function forgotPassword(email: string): Promise<{
+  message: string;
+  emailSent: boolean;
+  devToken?: string;
+  resetUrl?: string;
+}> {
+  return fetchApi<{
+    message: string;
+    emailSent: boolean;
+    devToken?: string;
+    resetUrl?: string;
+  }>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function verifyResetToken(
+  token: string,
+): Promise<{ valid: boolean; email?: string }> {
+  return fetchApi<{ valid: boolean; email?: string }>(
+    "/auth/verify-reset-token",
+    {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    },
+  );
+}
+
+export async function resetPassword(
+  token: string,
+  newPassword: string,
+): Promise<{ message: string }> {
+  return fetchApi<{ message: string }>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
+export async function updateUserProfile(input: {
+  name?: string;
+  email?: string;
+}): Promise<UserAccount> {
+  const result = await fetchApi<{ user: UserAccount }>("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return result.user;
+}
+
+export async function changeUserPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ message: string }> {
+  return fetchApi<{ message: string }>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getUserStats(): Promise<{
+  stats: UserStats;
+  isAnonymous: boolean;
+}> {
+  return fetchApi<{ stats: UserStats; isAnonymous: boolean }>("/auth/stats");
 }

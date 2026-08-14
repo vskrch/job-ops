@@ -234,3 +234,66 @@ export async function sendSearchResultsEmail(
     return { success: false, error: message };
   }
 }
+
+/**
+ * Send a password reset email with the secure token link.
+ */
+export async function sendPasswordResetEmail(
+  recipient: string,
+  resetUrl: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const config = getSmtpConfig();
+    if (!config) {
+      logger.info("SMTP not configured, password reset email skipped", {
+        recipient: recipient.replace(/(.{2}).*(@.*)/, "$1***$2"),
+      });
+      return { success: false, error: "SMTP not configured" };
+    }
+
+    const { default: nodemailer } = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.port === 465,
+      auth: config.user
+        ? { user: config.user, pass: config.password ?? undefined }
+        : undefined,
+    });
+
+    const subject = "Reset Your JobOps Password";
+    const text = `You requested a password reset for your JobOps account.\n\nPlease click the link below to set a new password:\n${resetUrl}\n\nThis link is valid for 1 hour. If you did not request this, you can safely ignore this email.`;
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1e293b;">
+        <h2 style="margin-top: 0; color: #0f172a;">Reset Your JobOps Password</h2>
+        <p>You recently requested to reset your password for your JobOps account.</p>
+        <div style="margin: 28px 0;">
+          <a href="${escapeHtml(resetUrl)}" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; display: inline-block;">Reset Password</a>
+        </div>
+        <p style="font-size: 14px; color: #64748b;">Or copy and paste this link in your browser:</p>
+        <p style="font-size: 13px; word-break: break-all; color: #2563eb;">${escapeHtml(resetUrl)}</p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 0;">This link is valid for 1 hour. If you did not request this password reset, please ignore this email.</p>
+      </div>
+    `;
+
+    const info = await transporter.sendMail({
+      from: config.from,
+      to: recipient,
+      subject,
+      text,
+      html,
+    });
+
+    logger.info("Password reset email sent", {
+      recipient: recipient.replace(/(.{2}).*(@.*)/, "$1***$2"),
+      messageId: info.messageId,
+    });
+
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("Failed to send password reset email", { error: message });
+    return { success: false, error: message };
+  }
+}

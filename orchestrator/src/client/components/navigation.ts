@@ -8,6 +8,7 @@ import {
   Search,
   Settings,
   Shield,
+  User,
 } from "lucide-react";
 
 export type NavLink = {
@@ -56,6 +57,12 @@ export const NAV_LINKS: NavLink[] = [
     activePaths: ["/tracer-links"],
   },
   { to: "/visa-sponsors", label: "Visa Sponsors", icon: Shield },
+  {
+    to: "/profile",
+    label: "Account & Profile",
+    icon: User,
+    activePaths: ["/profile", "/account", "/user"],
+  },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

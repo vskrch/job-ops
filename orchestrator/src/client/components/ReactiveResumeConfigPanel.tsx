@@ -232,6 +232,9 @@ export const ReactiveResumeConfigPanel: React.FC<
               <SelectValue placeholder="Choose LaTeX template" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="charter">
+                {LATEX_TEMPLATE_LABELS.charter}
+              </SelectItem>
               <SelectItem value="jake">{LATEX_TEMPLATE_LABELS.jake}</SelectItem>
               <SelectItem value="modern">
                 {LATEX_TEMPLATE_LABELS.modern}
@@ -256,7 +259,7 @@ export const ReactiveResumeConfigPanel: React.FC<
                 id="customLatexTemplate"
                 rows={10}
                 className="w-full rounded-md border border-input bg-background p-2 font-mono text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="\documentclass{article} ... \begin{document} __NAME__ __BODY__ \end{document}"
+                placeholder="\documentclass[10.5pt]{article} ... \begin{document} \centerline{\Huge __NAME__} __BODY__ \end{document}"
                 value={customLatexTemplate}
                 onChange={(e) => onCustomLatexTemplateChange?.(e.target.value)}
                 disabled={disabled}
@@ -264,7 +267,9 @@ export const ReactiveResumeConfigPanel: React.FC<
               <p className="text-[11px] text-muted-foreground">
                 Placeholders available: <code>__NAME__</code>,{" "}
                 <code>__HEADLINE_BLOCK__</code>, <code>__CONTACT_BLOCK__</code>,{" "}
-                <code>__BODY__</code>.
+                <code>__BODY__</code>, <code>__SKILLS__</code>,{" "}
+                <code>__EXPERIENCE__</code>, <code>__EDUCATION__</code>,{" "}
+                <code>__PROJECTS__</code>, <code>__SUMMARY__</code>.
               </p>
             </div>
           )}

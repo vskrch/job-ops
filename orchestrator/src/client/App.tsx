@@ -41,6 +41,21 @@ const DesignResumePage = lazy(() =>
     default: m.DesignResumePage,
   })),
 );
+const ForgotPasswordPage = lazy(() =>
+  import("./pages/ForgotPasswordPage").then((m) => ({
+    default: m.ForgotPasswordPage,
+  })),
+);
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPasswordPage").then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
+);
+const UserProfilePage = lazy(() =>
+  import("./pages/UserProfilePage").then((m) => ({
+    default: m.UserProfilePage,
+  })),
+);
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })),
 );
@@ -93,6 +108,8 @@ const VisaSponsorsPage = lazy(() =>
 /** Backwards-compatibility redirects: old URL paths -> new URL paths */
 const REDIRECTS: Array<{ from: string; to: string }> = [
   { from: "/", to: "/jobs/ready" },
+  { from: "/account", to: "/profile" },
+  { from: "/user", to: "/profile" },
   { from: "/home", to: "/overview" },
   { from: "/ready", to: "/jobs/ready" },
   { from: "/ready/:jobId", to: "/jobs/ready/:jobId" },
@@ -117,6 +134,7 @@ const PAGE_TITLES: Array<{ prefix: string; title: string }> = [
   { prefix: "/job-search", title: "Job Search" },
   { prefix: "/applications", title: "In Progress Board" },
   { prefix: "/design-resume", title: "Design Resume" },
+  { prefix: "/profile", title: "Account & Profile" },
   { prefix: "/settings", title: "Settings" },
   { prefix: "/tracer-links", title: "Tracer Links" },
   { prefix: "/tracking-inbox", title: "Tracking Inbox" },
@@ -124,6 +142,8 @@ const PAGE_TITLES: Array<{ prefix: string; title: string }> = [
   { prefix: "/job/", title: "Job" },
   { prefix: "/login", title: "Sign in" },
   { prefix: "/register", title: "Create account" },
+  { prefix: "/forgot-password", title: "Forgot Password" },
+  { prefix: "/reset-password", title: "Reset Password" },
 ];
 
 export const App: React.FC = () => {
@@ -255,6 +275,15 @@ export const App: React.FC = () => {
                   {/* Application routes */}
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
+                  <Route
+                    path="/forgot-password"
+                    element={<ForgotPasswordPage />}
+                  />
+                  <Route
+                    path="/reset-password"
+                    element={<ResetPasswordPage />}
+                  />
+                  <Route path="/profile" element={<UserProfilePage />} />
                   <Route path="/overview" element={<HomePage />} />
                   <Route
                     path="/oauth/gmail/callback"

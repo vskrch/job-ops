@@ -60,9 +60,17 @@ describe("latex resume renderer", () => {
     );
   });
 
+  it("exposes the bundled Charter template as default", async () => {
+    expect(getLatexTemplatePath()).toContain("charter-resume.tex");
+    expect(getLatexTemplatePath("charter")).toContain("charter-resume.tex");
+    const template = await readLatexTemplate("charter");
+    expect(template).toContain("Charter Single-Column Clean Resume");
+    expect(template).toContain("__BODY__");
+  });
+
   it("exposes the bundled Jake template", async () => {
-    expect(getLatexTemplatePath()).toContain("jake-resume.tex");
-    const template = await readLatexTemplate();
+    expect(getLatexTemplatePath("jake")).toContain("jake-resume.tex");
+    const template = await readLatexTemplate("jake");
     expect(template).toContain("Resume in Latex");
     expect(template).toContain("__BODY__");
   });
@@ -74,10 +82,9 @@ describe("latex resume renderer", () => {
     expect(template).toContain("__NAME__");
   });
 
-  it("falls back to Jake for unknown template ids", async () => {
-    // ponytail: getLatexTemplatePath coerces unknown ids to jake via TEMPLATE_FILES fallback
+  it("falls back to Charter for unknown template ids", async () => {
     expect(getLatexTemplatePath("nonexistent" as never)).toContain(
-      "jake-resume.tex",
+      "charter-resume.tex",
     );
   });
 
@@ -115,16 +122,86 @@ describe("latex resume renderer", () => {
   });
 
   it.skipIf(!tectonicAvailable())(
-    "renders a PDF when tectonic is installed",
+    "renders a PDF with the Charter template when tectonic is installed",
     async () => {
       const tempDir = await createTempDir();
       tempDirs.push(tempDir);
-      const outputPath = join(tempDir, "resume.pdf");
+      const outputPath = join(tempDir, "resume_charter.pdf");
 
       await renderLatexPdf({
         document: baseDocument,
         outputPath,
-        jobId: "job-render-success",
+        jobId: "job-charter-success",
+        templateId: "charter",
+      });
+
+      const stats = spawnSync("sh", ["-lc", `test -s "${outputPath}"`], {
+        stdio: "ignore",
+      });
+      expect(stats.status).toBe(0);
+    },
+  );
+
+  it.skipIf(!tectonicAvailable())(
+    "renders a PDF with the Jake template when tectonic is installed",
+    async () => {
+      const tempDir = await createTempDir();
+      tempDirs.push(tempDir);
+      const outputPath = join(tempDir, "resume_jake.pdf");
+
+      await renderLatexPdf({
+        document: baseDocument,
+        outputPath,
+        jobId: "job-jake-success",
+        templateId: "jake",
+      });
+
+      const stats = spawnSync("sh", ["-lc", `test -s "${outputPath}"`], {
+        stdio: "ignore",
+      });
+      expect(stats.status).toBe(0);
+    },
+  );
+
+  it.skipIf(!tectonicAvailable())(
+    "renders a PDF with a custom user-provided LaTeX template",
+    async () => {
+      const tempDir = await createTempDir();
+      tempDirs.push(tempDir);
+      const outputPath = join(tempDir, "resume_custom.pdf");
+
+      const customTemplate = `
+\\documentclass[10.5pt]{article}
+\\usepackage[letterpaper,top=0.4in,bottom=0.4in,left=0.5in,right=0.5in]{geometry}
+\\usepackage{charter}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
+\\usepackage{enumitem}
+\\usepackage[hidelinks]{hyperref}
+\\usepackage{titlesec}
+\\usepackage{iftex}
+\\raggedright
+\\pagestyle{empty}
+
+\\titleformat{\\section}{\\bfseries\\large}{}{0pt}{}[\\vspace{1pt}\\titlerule\\vspace{-6.5pt}]
+
+\\begin{document}
+\\centerline{\\Huge __NAME__}
+\\vspace{5pt}
+\\centerline{__CONTACT_BLOCK__}
+\\vspace{-10pt}
+
+__BODY__
+
+\\end{document}
+`;
+
+      await renderLatexPdf({
+        document: baseDocument,
+        outputPath,
+        jobId: "job-custom-success",
+        templateId: "custom",
+        customTemplateContent: customTemplate,
       });
 
       const stats = spawnSync("sh", ["-lc", `test -s "${outputPath}"`], {

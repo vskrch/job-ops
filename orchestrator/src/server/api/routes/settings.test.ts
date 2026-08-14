@@ -100,8 +100,8 @@ describe.sequential("Settings API routes", () => {
     expect(body.data.rxresumeUrl).toBe("https://env.rxresume.example.com");
     expect(body.data.pdfRenderer.value).toBe("latex");
     expect(body.data.pdfRenderer.default).toBe("latex");
-    expect(body.data.latexTemplate.value).toBe("jake");
-    expect(body.data.latexTemplate.default).toBe("jake");
+    expect(body.data.latexTemplate.value).toBe("charter");
+    expect(body.data.latexTemplate.default).toBe("charter");
     expect(body.data.llmApiKeyHint).toBe("secr");
     expect(body.data.basicAuthPassword).toBeNull();
     expect(body.data.basicAuthActive).toBe(false);

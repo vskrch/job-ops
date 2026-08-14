@@ -1,18 +1,24 @@
+import * as api from "@client/api";
+import type { UserAccount } from "@shared/types";
 import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
-export interface User {
-  id: string;
-  email: string;
-  name: string | null;
-}
+export type User = UserAccount;
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (email: string, password: string, name?: string) => Promise<User>;
   logout: () => Promise<void>;
+  updateProfile: (data: { name?: string; email?: string }) => Promise<User>;
+  refreshAuth: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,60 +29,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const json = await res.json();
-          if (json.ok && json.data?.user) {
-            setUser(json.data.user);
-          } else {
-            setUser(null);
-          }
-        }
-      } catch {
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    void initAuth();
+  const refreshAuth = useCallback(async () => {
+    try {
+      const currentUser = await api.getCurrentUser();
+      setUser(currentUser);
+      return currentUser;
+    } catch {
+      setUser(null);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void refreshAuth();
+  }, [refreshAuth]);
+
   const login = async (email: string, password: string) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json.error?.message || "Login failed");
-    }
-    setUser(json.data.user);
+    const loggedInUser = await api.loginUser(email, password);
+    setUser(loggedInUser);
+    return loggedInUser;
   };
 
   const register = async (email: string, password: string, name?: string) => {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, name }),
-    });
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json.error?.message || "Registration failed");
-    }
-    setUser(json.data.user);
+    const newUser = await api.registerUser(email, password, name);
+    setUser(newUser);
+    return newUser;
   };
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await api.logoutUser();
     setUser(null);
   };
 
+  const updateProfile = async (data: { name?: string; email?: string }) => {
+    const updated = await api.updateUserProfile(data);
+    setUser(updated);
+    return updated;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        register,
+        logout,
+        updateProfile,
+        refreshAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -85,9 +89,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 const defaultAuthContext: AuthContextType = {
   user: null,
   isLoading: false,
-  login: async () => {},
-  register: async () => {},
+  login: async () => {
+    throw new Error("AuthProvider missing");
+  },
+  register: async () => {
+    throw new Error("AuthProvider missing");
+  },
   logout: async () => {},
+  updateProfile: async () => {
+    throw new Error("AuthProvider missing");
+  },
+  refreshAuth: async () => null,
 };
 
 export const useAuth = () => {
