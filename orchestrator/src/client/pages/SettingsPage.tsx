@@ -117,6 +117,12 @@ const DEFAULT_FORM_VALUES: UpdateSettingsInput = {
   scoringPromptTemplate: "",
   jobSearchParsePromptTemplate: "",
   jobSearchCacheTtlMinutes: null,
+  metaSearchEnabled: null,
+  metaSearchTimeoutMs: null,
+  searchAutoIngestEnabled: null,
+  searchAutoIngestMinRelevance: null,
+  mcpEnabled: null,
+  serpApiKey: "",
 };
 
 type LlmProviderValue = LlmProviderId | null;
@@ -506,6 +512,15 @@ const mapSettingsToForm = (data: AppSettings): UpdateSettingsInput => ({
     data.ghostwriterSystemPromptTemplate.value ?? "",
   tailoringPromptTemplate: data.tailoringPromptTemplate.value ?? "",
   scoringPromptTemplate: data.scoringPromptTemplate.value ?? "",
+  jobSearchParsePromptTemplate: data.jobSearchParsePromptTemplate?.value ?? "",
+  jobSearchCacheTtlMinutes: data.jobSearchCacheTtlMinutes?.override ?? null,
+  metaSearchEnabled: data.metaSearchEnabled?.override ?? null,
+  metaSearchTimeoutMs: data.metaSearchTimeoutMs?.override ?? null,
+  searchAutoIngestEnabled: data.searchAutoIngestEnabled?.override ?? null,
+  searchAutoIngestMinRelevance:
+    data.searchAutoIngestMinRelevance?.override ?? null,
+  mcpEnabled: data.mcpEnabled?.override ?? null,
+  serpApiKey: data.serpApiKey?.override ?? "",
 });
 
 const normalizeString = (value: string | null | undefined) => {
@@ -707,6 +722,32 @@ const getDerivedSettings = (settings: AppSettings | null) => {
         default: settings?.jobSearchParsePromptTemplate?.default ?? "",
       },
     },
+    searchEngine: {
+      metaSearchEnabled: {
+        effective: settings?.metaSearchEnabled?.value ?? true,
+        default: settings?.metaSearchEnabled?.default ?? true,
+      },
+      metaSearchTimeoutMs: {
+        effective: settings?.metaSearchTimeoutMs?.value ?? 60000,
+        default: settings?.metaSearchTimeoutMs?.default ?? 60000,
+      },
+      searchAutoIngestEnabled: {
+        effective: settings?.searchAutoIngestEnabled?.value ?? false,
+        default: settings?.searchAutoIngestEnabled?.default ?? false,
+      },
+      searchAutoIngestMinRelevance: {
+        effective: settings?.searchAutoIngestMinRelevance?.value ?? 70,
+        default: settings?.searchAutoIngestMinRelevance?.default ?? 70,
+      },
+      mcpEnabled: {
+        effective: settings?.mcpEnabled?.value ?? false,
+        default: settings?.mcpEnabled?.default ?? false,
+      },
+      serpApiKey: {
+        effective: settings?.serpApiKey?.value ?? "",
+        default: settings?.serpApiKey?.default ?? "",
+      },
+    },
   };
 };
 
@@ -893,6 +934,7 @@ export const SettingsPage: React.FC = () => {
     backup,
     scoring,
     promptTemplates,
+    searchEngine,
   } = derived;
 
   const handleCreateBackup = async () => {
@@ -1250,6 +1292,30 @@ export const SettingsPage: React.FC = () => {
         jobSearchParsePromptTemplate: nullIfSame(
           normalizeString(data.jobSearchParsePromptTemplate),
           promptTemplates.jobSearchParsePromptTemplate.default,
+        ),
+        metaSearchEnabled: nullIfSame(
+          data.metaSearchEnabled,
+          searchEngine.metaSearchEnabled.default,
+        ),
+        metaSearchTimeoutMs: nullIfSame(
+          data.metaSearchTimeoutMs,
+          searchEngine.metaSearchTimeoutMs.default,
+        ),
+        searchAutoIngestEnabled: nullIfSame(
+          data.searchAutoIngestEnabled,
+          searchEngine.searchAutoIngestEnabled.default,
+        ),
+        searchAutoIngestMinRelevance: nullIfSame(
+          data.searchAutoIngestMinRelevance,
+          searchEngine.searchAutoIngestMinRelevance.default,
+        ),
+        mcpEnabled: nullIfSame(
+          data.mcpEnabled,
+          searchEngine.mcpEnabled.default,
+        ),
+        serpApiKey: nullIfSame(
+          normalizeString(data.serpApiKey),
+          searchEngine.serpApiKey.default,
         ),
         ...envPayload,
       };
@@ -1643,7 +1709,14 @@ export const SettingsPage: React.FC = () => {
       );
       break;
     case "search-engine":
-      activeSectionContent = <SearchEngineSettingsSection mode="panel" />;
+      activeSectionContent = (
+        <SearchEngineSettingsSection
+          values={searchEngine}
+          isLoading={isLoading}
+          isSaving={isSaving}
+          mode="panel"
+        />
+      );
       break;
     case "webhooks":
       activeSectionContent = (

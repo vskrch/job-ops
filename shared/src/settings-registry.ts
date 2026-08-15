@@ -959,42 +959,37 @@ export const settingsRegistry = {
   metaSearchEnabled: {
     kind: "typed" as const,
     schema: z.boolean(),
-    default: (): string => "1",
+    default: (): boolean => true,
     parse: parseBitBoolOrNull,
-    serialize: (value: boolean | null | undefined): string | null =>
-      value === null || value === undefined ? null : value ? "1" : "0",
+    serialize: serializeBitBool,
   },
   metaSearchTimeoutMs: {
     kind: "typed" as const,
     schema: z.coerce.number().int().min(1000).max(120000),
     default: (): number => 60000,
     parse: parseIntOrNull,
-    serialize: (value: number | null | undefined): string | null =>
-      value === null || value === undefined ? null : String(value),
+    serialize: serializeNullableNumber,
   },
   searchAutoIngestEnabled: {
     kind: "typed" as const,
     schema: z.boolean(),
-    default: (): string => "0",
+    default: (): boolean => false,
     parse: parseBitBoolOrNull,
-    serialize: (value: boolean | null | undefined): string | null =>
-      value === null || value === undefined ? null : value ? "1" : "0",
+    serialize: serializeBitBool,
   },
   searchAutoIngestMinRelevance: {
     kind: "typed" as const,
     schema: z.coerce.number().int().min(0).max(100),
     default: (): number => 70,
     parse: parseIntOrNull,
-    serialize: (value: number | null | undefined): string | null =>
-      value === null || value === undefined ? null : String(value),
+    serialize: serializeNullableNumber,
   },
   mcpEnabled: {
     kind: "typed" as const,
     schema: z.boolean(),
-    default: (): string => "0",
+    default: (): boolean => false,
     parse: parseBitBoolOrNull,
-    serialize: (value: boolean | null | undefined): string | null =>
-      value === null || value === undefined ? null : value ? "1" : "0",
+    serialize: serializeBitBool,
   },
 } as const;
 

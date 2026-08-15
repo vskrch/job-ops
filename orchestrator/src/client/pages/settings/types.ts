@@ -69,3 +69,12 @@ export type PromptTemplatesValues = {
   scoringPromptTemplate: EffectiveDefault<string>;
   jobSearchParsePromptTemplate: EffectiveDefault<string>;
 };
+
+export type SearchEngineValues = {
+  metaSearchEnabled: EffectiveDefault<boolean>;
+  metaSearchTimeoutMs: EffectiveDefault<number>;
+  searchAutoIngestEnabled: EffectiveDefault<boolean>;
+  searchAutoIngestMinRelevance: EffectiveDefault<number>;
+  mcpEnabled: EffectiveDefault<boolean>;
+  serpApiKey: EffectiveDefault<string>;
+};

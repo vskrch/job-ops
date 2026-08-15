@@ -1,10 +1,6 @@
-/**
- * Search Engine & MCP Settings Section (ADR-008).
- *
- * Controls internet-wide search crawling, auto-ingesting to tracked applications,
- * free meta-search fallback, and MCP agent integration.
- */
-
+import type { SearchEngineValues } from "@client/pages/settings/types";
+import type { UpdateSettingsInput } from "@shared/settings-schema.js";
+import type React from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,13 +9,17 @@ import { Switch } from "@/components/ui/switch";
 import { SettingsSectionFrame } from "./SettingsSectionFrame";
 
 interface SearchEngineSettingsSectionProps {
+  values: SearchEngineValues;
+  isLoading: boolean;
+  isSaving: boolean;
   mode?: "accordion" | "panel";
 }
 
 export const SearchEngineSettingsSection: React.FC<
   SearchEngineSettingsSectionProps
-> = ({ mode = "accordion" }) => {
-  const { control, register } = useFormContext();
+> = ({ values, isLoading, isSaving, mode = "accordion" }) => {
+  const { metaSearchEnabled, searchAutoIngestEnabled, mcpEnabled } = values;
+  const { control, register } = useFormContext<UpdateSettingsInput>();
 
   return (
     <SettingsSectionFrame
@@ -49,7 +49,10 @@ export const SearchEngineSettingsSection: React.FC<
         {/* Free Meta Search */}
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div className="space-y-0.5">
-            <Label htmlFor="metaSearchEnabled" className="text-sm font-medium">
+            <Label
+              htmlFor="metaSearchEnabled"
+              className="text-sm font-medium cursor-pointer"
+            >
               Free Internet-Wide Meta-Search
             </Label>
             <p className="text-xs text-muted-foreground">
@@ -64,8 +67,9 @@ export const SearchEngineSettingsSection: React.FC<
             render={({ field }) => (
               <Switch
                 id="metaSearchEnabled"
-                checked={Boolean(field.value)}
-                onCheckedChange={field.onChange}
+                checked={field.value ?? metaSearchEnabled.default}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                disabled={isLoading || isSaving}
               />
             )}
           />
@@ -76,7 +80,7 @@ export const SearchEngineSettingsSection: React.FC<
           <div className="space-y-0.5">
             <Label
               htmlFor="searchAutoIngestEnabled"
-              className="text-sm font-medium"
+              className="text-sm font-medium cursor-pointer"
             >
               Auto-Save Search Results to Tracked Jobs
             </Label>
@@ -91,8 +95,9 @@ export const SearchEngineSettingsSection: React.FC<
             render={({ field }) => (
               <Switch
                 id="searchAutoIngestEnabled"
-                checked={Boolean(field.value)}
-                onCheckedChange={field.onChange}
+                checked={field.value ?? searchAutoIngestEnabled.default}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                disabled={isLoading || isSaving}
               />
             )}
           />
@@ -101,7 +106,10 @@ export const SearchEngineSettingsSection: React.FC<
         {/* MCP Server */}
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div className="space-y-0.5">
-            <Label htmlFor="mcpEnabled" className="text-sm font-medium">
+            <Label
+              htmlFor="mcpEnabled"
+              className="text-sm font-medium cursor-pointer"
+            >
               Model Context Protocol (MCP) Server
             </Label>
             <p className="text-xs text-muted-foreground">
@@ -116,8 +124,9 @@ export const SearchEngineSettingsSection: React.FC<
             render={({ field }) => (
               <Switch
                 id="mcpEnabled"
-                checked={Boolean(field.value)}
-                onCheckedChange={field.onChange}
+                checked={field.value ?? mcpEnabled.default}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                disabled={isLoading || isSaving}
               />
             )}
           />
@@ -135,6 +144,7 @@ export const SearchEngineSettingsSection: React.FC<
             id="serpApiKey"
             type="password"
             placeholder="Optional Google Jobs SerpAPI token"
+            disabled={isLoading || isSaving}
             {...register("serpApiKey")}
           />
           <p className="text-xs text-muted-foreground">

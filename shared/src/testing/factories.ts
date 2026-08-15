@@ -294,5 +294,11 @@ export const createAppSettings = (
   browserAgentMaxSteps: { value: 10, default: 10, override: null },
   browserAgentTimeoutMs: { value: 60000, default: 60000, override: null },
   browserAgentMaxCost: { value: 0.1, default: 0.1, override: null },
+  serpApiKey: { value: "", default: "", override: null },
+  metaSearchEnabled: { value: true, default: true, override: null },
+  metaSearchTimeoutMs: { value: 60000, default: 60000, override: null },
+  searchAutoIngestEnabled: { value: false, default: false, override: null },
+  searchAutoIngestMinRelevance: { value: 70, default: 70, override: null },
+  mcpEnabled: { value: false, default: false, override: null },
   ...overrides,
 });

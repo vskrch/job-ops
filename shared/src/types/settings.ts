@@ -251,4 +251,12 @@ export interface AppSettings {
   browserAgentMaxSteps: Resolved<number>;
   browserAgentTimeoutMs: Resolved<number>;
   browserAgentMaxCost: Resolved<number>;
+
+  // Search Engine & MCP (ADR-008):
+  serpApiKey: Resolved<string>;
+  metaSearchEnabled: Resolved<boolean>;
+  metaSearchTimeoutMs: Resolved<number>;
+  searchAutoIngestEnabled: Resolved<boolean>;
+  searchAutoIngestMinRelevance: Resolved<number>;
+  mcpEnabled: Resolved<boolean>;
 }
