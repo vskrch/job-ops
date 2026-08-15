@@ -25,6 +25,7 @@ import { PromptTemplatesSection } from "@client/pages/settings/components/Prompt
 import { ReactiveResumeSection } from "@client/pages/settings/components/ReactiveResumeSection";
 import { ResumeUploadSettingsSection } from "@client/pages/settings/components/ResumeUploadSettingsSection";
 import { ScoringSettingsSection } from "@client/pages/settings/components/ScoringSettingsSection";
+import { SearchEngineSettingsSection } from "@client/pages/settings/components/SearchEngineSettingsSection";
 import { TracerLinksSettingsSection } from "@client/pages/settings/components/TracerLinksSettingsSection";
 import { WebhooksSection } from "@client/pages/settings/components/WebhooksSection";
 import {
@@ -139,6 +140,7 @@ type SettingsSectionId =
   | "scoring"
   | "reactive-resume"
   | "my-resume"
+  | "search-engine"
   | "webhooks"
   | "tracer-links"
   | "environment"
@@ -223,6 +225,21 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "My Resume",
         description: "Upload your resume PDF as the base resume.",
         searchTerms: ["upload", "pdf", "resume", "profile", "base resume"],
+      },
+      {
+        id: "search-engine",
+        label: "Search & MCP",
+        description:
+          "Internet-wide crawl, auto-tracking, and Model Context Protocol agent server.",
+        searchTerms: [
+          "search",
+          "crawl",
+          "mcp",
+          "agent",
+          "serpapi",
+          "duckduckgo",
+          "auto ingest",
+        ],
       },
       {
         id: "webhooks",
@@ -338,6 +355,12 @@ const SECTION_FIELD_MAP: Record<
     "resumeProjects",
   ],
   "my-resume": [],
+  "search-engine": [
+    "metaSearchEnabled",
+    "searchAutoIngestEnabled",
+    "mcpEnabled",
+    "serpApiKey",
+  ],
   webhooks: ["pipelineWebhookUrl", "jobCompleteWebhookUrl", "webhookSecret"],
   "tracer-links": [],
   environment: [
@@ -1511,6 +1534,8 @@ export const SettingsPage: React.FC = () => {
           : null;
       case "my-resume":
         return null;
+      case "search-engine":
+        return { label: "Free Search Active", variant: "outline" as const };
       case "pipeline-schedule":
         return null;
       case "webhooks":
@@ -1616,6 +1641,9 @@ export const SettingsPage: React.FC = () => {
           layoutMode="panel"
         />
       );
+      break;
+    case "search-engine":
+      activeSectionContent = <SearchEngineSettingsSection mode="panel" />;
       break;
     case "webhooks":
       activeSectionContent = (

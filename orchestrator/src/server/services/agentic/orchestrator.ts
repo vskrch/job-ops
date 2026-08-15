@@ -833,6 +833,22 @@ async function runAgenticLoop(
           searchCompletedAt: new Date().toISOString(),
         });
 
+        // Auto-persist highly-relevant jobs to the tracked jobs table (SE-015).
+        try {
+          const { importSearchJobsToTracked } = await import(
+            "../job-search/import"
+          );
+          await importSearchJobsToTracked(searchRecord.id, {
+            mode: "above_threshold",
+            minRelevance: 70,
+          });
+        } catch (importErr) {
+          logger.warn("Auto-import of agentic search results failed", {
+            searchId,
+            error: sanitizeUnknown(importErr),
+          });
+        }
+
         await recordToolCall({
           searchId,
           toolName: "send_search_email",

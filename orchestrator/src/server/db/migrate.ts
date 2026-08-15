@@ -1110,6 +1110,19 @@ export function runMigrations(db: Database.Database): void {
     );
   }
 
+  // Create dedup_fingerprints table for cross-search and cross-pipeline dedup (ADR-008).
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS dedup_fingerprints (
+      fingerprint TEXT PRIMARY KEY,
+      canonical_job_url TEXT NOT NULL,
+      first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_dedup_fingerprints_url ON dedup_fingerprints(canonical_job_url)`,
+  );
+
   console.log("🎉 Database migrations complete!");
 }
 

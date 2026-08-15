@@ -1842,6 +1842,32 @@ export function subscribeToJobSearchProgress(
   );
 }
 
+export async function importSearchJobs(
+  searchId: string,
+  params: {
+    mode: "all" | "selected" | "above_threshold";
+    jobUrls?: string[];
+    minRelevance?: number;
+  },
+): Promise<{ imported: number; skipped: number; duplicates: number }> {
+  return fetchApi<{ imported: number; skipped: number; duplicates: number }>(
+    `/job-search/${searchId}/import`,
+    {
+      method: "POST",
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+export async function checkTrackedJobUrls(
+  jobUrls: string[],
+): Promise<{ trackedUrls: string[] }> {
+  return fetchApi<{ trackedUrls: string[] }>("/job-search/check-tracked", {
+    method: "POST",
+    body: JSON.stringify({ jobUrls }),
+  });
+}
+
 // ============================================================================
 // Auth & User Account API
 // ============================================================================

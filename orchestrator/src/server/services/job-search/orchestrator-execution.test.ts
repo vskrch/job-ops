@@ -105,6 +105,11 @@ vi.mock("@server/repositories/settings", () => ({
   getSetting: vi.fn(async () => null),
 }));
 
+vi.mock("./meta-search", () => ({
+  getAvailableMetaAdapters: vi.fn(async () => []),
+  runMetaSearchAdapter: vi.fn(),
+}));
+
 vi.mock("../email", () => ({
   sendSearchResultsEmail: vi.fn(async () => ({
     success: false,

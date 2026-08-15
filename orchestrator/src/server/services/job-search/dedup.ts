@@ -1,9 +1,14 @@
 /**
- * Multi-signal deduplication for jobs from multiple sources.
+ * Multi-signal indexed deduplication for jobs from multiple sources (ADR-008 SE-016).
  *
- * Uses source job ID, canonical URL, application URL, and content fingerprint
- * to detect duplicates. When duplicates are found, keeps the record with more
- * complete data and merges source lists.
+ * Uses Map-based indexed lookup across:
+ * 1. Source job ID (`${source}:${sourceJobId}`)
+ * 2. Normalized direct job URL
+ * 3. Normalized application URL
+ * 4. Content fingerprint (`${employer}|${title}|${location}`)
+ * 5. Employer-scoped fuzzy title similarity
+ *
+ * Reduces deduplication time from O(n²) to O(n) amortized.
  */
 
 import type { CreateJobInput } from "@shared/types";
@@ -15,11 +20,10 @@ export interface DedupResult {
   duplicatesRemoved: number;
 }
 
-function normalizeUrl(url: string | undefined): string | null {
+export function normalizeUrl(url: string | undefined): string | null {
   if (!url) return null;
   try {
     const u = new URL(url);
-    // Strip trailing slash, lowercase host, strip common tracking params.
     u.hostname = u.hostname.toLowerCase();
     u.hash = "";
     const trackingParams = [
@@ -43,7 +47,7 @@ function normalizeUrl(url: string | undefined): string | null {
   }
 }
 
-function normalizeTitle(title: string): string {
+export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
@@ -51,7 +55,7 @@ function normalizeTitle(title: string): string {
     .trim();
 }
 
-function normalizeEmployer(employer: string): string {
+export function normalizeEmployer(employer: string): string {
   return employer
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
@@ -59,7 +63,7 @@ function normalizeEmployer(employer: string): string {
     .trim();
 }
 
-function normalizeLocation(location: string | undefined): string {
+export function normalizeLocation(location: string | undefined): string {
   if (!location) return "";
   return location
     .toLowerCase()
@@ -137,18 +141,16 @@ function completenessScore(job: CreateJobInput): number {
   return score;
 }
 
-interface DedupKey {
-  /** Source-specific ID key: source + sourceJobId. */
+export interface DedupKey {
   sourceId: string | null;
-  /** Canonical job URL. */
   url: string | null;
-  /** Canonical application URL. */
   appUrl: string | null;
-  /** Content fingerprint: employer + title + location. */
   content: string;
+  employer: string;
+  location: string;
 }
 
-function computeKeys(job: CreateJobInput): DedupKey {
+export function computeKeys(job: CreateJobInput): DedupKey {
   const sourceId =
     job.sourceJobId && job.source ? `${job.source}:${job.sourceJobId}` : null;
   const url = normalizeUrl(job.jobUrl);
@@ -157,81 +159,113 @@ function computeKeys(job: CreateJobInput): DedupKey {
   const title = normalizeTitle(job.title);
   const location = normalizeLocation(job.location);
   const content = `${employer}|${title}|${location}`;
-  return { sourceId, url, appUrl, content };
-}
-
-function isDuplicate(
-  keys: DedupKey,
-  existingKeys: DedupKey,
-  existingJob: CreateJobInput,
-  job: CreateJobInput,
-): boolean {
-  // Strong signals: exact match on source ID, URL, or application URL.
-  if (keys.sourceId && keys.sourceId === existingKeys.sourceId) return true;
-  if (keys.url && keys.url === existingKeys.url) return true;
-  if (keys.appUrl && keys.appUrl === existingKeys.appUrl) return true;
-
-  // Content fingerprint match: same employer + similar title + same location.
-  if (keys.content === existingKeys.content) return true;
-
-  // Fuzzy content match: same employer + high title similarity + same location.
-  const empMatch =
-    normalizeEmployer(job.employer) === normalizeEmployer(existingJob.employer);
-  const locMatch =
-    normalizeLocation(job.location) === normalizeLocation(existingJob.location);
-  if (empMatch && locMatch) {
-    const sim = titleSimilarity(job.title, existingJob.title);
-    if (sim >= 0.85) {
-      // Also verify description similarity if both have descriptions.
-      const descA = descriptionFingerprint(job.jobDescription);
-      const descB = descriptionFingerprint(existingJob.jobDescription);
-      if (descA && descB) {
-        const descSim =
-          1 - levenshtein(descA, descB) / Math.max(descA.length, descB.length);
-        return descSim >= 0.7;
-      }
-      return true;
-    }
-  }
-
-  return false;
+  return { sourceId, url, appUrl, content, employer, location };
 }
 
 /**
- * Deduplicate jobs across and within sources.
+ * Fast O(1) Index for matching duplicates.
+ */
+class DedupIndex {
+  private bySourceId = new Map<string, number>();
+  private byUrl = new Map<string, number>();
+  private byAppUrl = new Map<string, number>();
+  private byContent = new Map<string, number>();
+  private byEmployer = new Map<string, number[]>();
+
+  public findDuplicateIndex(
+    keys: DedupKey,
+    canonical: Array<CreateJobInput & { sources: string[] }>,
+    job: CreateJobInput,
+  ): number | null {
+    // 1. Exact matches (O(1))
+    if (keys.sourceId) {
+      const idx = this.bySourceId.get(keys.sourceId);
+      if (idx !== undefined) return idx;
+    }
+    if (keys.url) {
+      const idx = this.byUrl.get(keys.url);
+      if (idx !== undefined) return idx;
+    }
+    if (keys.appUrl) {
+      const idx = this.byAppUrl.get(keys.appUrl);
+      if (idx !== undefined) return idx;
+    }
+    if (keys.content) {
+      const idx = this.byContent.get(keys.content);
+      if (idx !== undefined) return idx;
+    }
+
+    // 2. Fuzzy matches scoped strictly to same employer candidates (small array)
+    const employerMatches = this.byEmployer.get(keys.employer);
+    if (employerMatches && employerMatches.length > 0) {
+      for (const idx of employerMatches) {
+        const candidate = canonical[idx];
+        if (normalizeLocation(candidate.location) === keys.location) {
+          const sim = titleSimilarity(job.title, candidate.title);
+          if (sim >= 0.85) {
+            const descA = descriptionFingerprint(job.jobDescription);
+            const descB = descriptionFingerprint(candidate.jobDescription);
+            if (descA && descB) {
+              const descSim =
+                1 -
+                levenshtein(descA, descB) /
+                  Math.max(descA.length, descB.length);
+              if (descSim >= 0.7) return idx;
+            } else {
+              return idx;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public add(keys: DedupKey, index: number): void {
+    if (keys.sourceId) this.bySourceId.set(keys.sourceId, index);
+    if (keys.url) this.byUrl.set(keys.url, index);
+    if (keys.appUrl) this.byAppUrl.set(keys.appUrl, index);
+    this.byContent.set(keys.content, index);
+
+    if (keys.employer) {
+      const existing = this.byEmployer.get(keys.employer) || [];
+      existing.push(index);
+      this.byEmployer.set(keys.employer, existing);
+    }
+  }
+}
+
+/**
+ * Deduplicate jobs across and within sources using an indexed O(n) pass.
  * Returns canonical jobs with merged source lists, and the count of removed duplicates.
  */
 export function deduplicateJobs(jobs: CreateJobInput[]): DedupResult {
   const canonical: Array<CreateJobInput & { sources: string[] }> = [];
-  const canonicalKeys: DedupKey[] = [];
+  const index = new DedupIndex();
   let duplicatesRemoved = 0;
 
   for (const job of jobs) {
     const keys = computeKeys(job);
-    let foundDuplicate = false;
+    const dupIdx = index.findDuplicateIndex(keys, canonical, job);
 
-    for (let i = 0; i < canonical.length; i++) {
-      if (isDuplicate(keys, canonicalKeys[i], canonical[i], job)) {
-        // Merge: keep the record with higher completeness score.
-        if (completenessScore(job) > completenessScore(canonical[i])) {
-          canonical[i] = {
-            ...job,
-            sources: [...new Set([...canonical[i].sources, job.source])],
-          };
-        } else {
-          canonical[i].sources = [
-            ...new Set([...canonical[i].sources, job.source]),
-          ];
-        }
-        duplicatesRemoved++;
-        foundDuplicate = true;
-        break;
+    if (dupIdx !== null) {
+      // Merge: keep record with higher completeness score
+      if (completenessScore(job) > completenessScore(canonical[dupIdx])) {
+        canonical[dupIdx] = {
+          ...job,
+          sources: [...new Set([...canonical[dupIdx].sources, job.source])],
+        };
+      } else {
+        canonical[dupIdx].sources = [
+          ...new Set([...canonical[dupIdx].sources, job.source]),
+        ];
       }
-    }
-
-    if (!foundDuplicate) {
+      duplicatesRemoved++;
+    } else {
+      const newIdx = canonical.length;
       canonical.push({ ...job, sources: [job.source] });
-      canonicalKeys.push(keys);
+      index.add(keys, newIdx);
     }
   }
 

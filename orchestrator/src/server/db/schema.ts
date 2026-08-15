@@ -843,3 +843,23 @@ export type NewSearchScheduleRow = typeof searchSchedules.$inferInsert;
 
 export type JobSearchRow = typeof jobSearches.$inferSelect;
 export type NewJobSearchRow = typeof jobSearches.$inferInsert;
+
+export const dedupFingerprints = sqliteTable(
+  "dedup_fingerprints",
+  {
+    fingerprint: text("fingerprint").primaryKey(),
+    canonicalJobUrl: text("canonical_job_url").notNull(),
+    firstSeenAt: text("first_seen_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    lastSeenAt: text("last_seen_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    canonicalUrlIndex: index("idx_dedup_fingerprints_url").on(
+      table.canonicalJobUrl,
+    ),
+  }),
+);
+
+export type DedupFingerprintRow = typeof dedupFingerprints.$inferSelect;
+export type NewDedupFingerprintRow = typeof dedupFingerprints.$inferInsert;

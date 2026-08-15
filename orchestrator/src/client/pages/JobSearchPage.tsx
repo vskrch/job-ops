@@ -18,6 +18,8 @@ import type {
 } from "@shared/types";
 import {
   AlertCircle,
+  BookmarkPlus,
+  Check,
   CheckCircle2,
   Clock,
   Download,
@@ -26,6 +28,7 @@ import {
   MailX,
   Search as SearchIcon,
   Send,
+  Sparkles,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -67,6 +70,9 @@ export const JobSearchPage: React.FC = () => {
     [],
   );
   const [error, setError] = useState<string | null>(null);
+  const [trackedUrls, setTrackedUrls] = useState<Set<string>>(new Set());
+  const [importingAll, setImportingAll] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const unsubscribeProgress = useCallback(() => {
@@ -252,6 +258,63 @@ export const JobSearchPage: React.FC = () => {
     setQuery(q);
   }, []);
 
+  const results = search?.results;
+
+  // Check tracked status whenever results are loaded
+  useEffect(() => {
+    if (!results || results.jobs.length === 0) return;
+    const urls = results.jobs.map((j) => j.job.jobUrl);
+    api
+      .checkTrackedJobUrls(urls)
+      .then((res) => {
+        setTrackedUrls(new Set(res.trackedUrls));
+      })
+      .catch(() => {});
+  }, [results]);
+
+  const handleTrackSingleJob = useCallback(
+    async (jobUrl: string) => {
+      if (!searchId) return;
+      try {
+        await api.importSearchJobs(searchId, {
+          mode: "selected",
+          jobUrls: [jobUrl],
+        });
+        setTrackedUrls((prev) => new Set([...prev, jobUrl]));
+        setImportFeedback("Job successfully saved to Tracked Applications!");
+        setTimeout(() => setImportFeedback(null), 4000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to track job");
+      }
+    },
+    [searchId],
+  );
+
+  const handleImportAll = useCallback(async () => {
+    if (!searchId || !results) return;
+    setImportingAll(true);
+    setImportFeedback(null);
+    try {
+      const res = await api.importSearchJobs(searchId, {
+        mode: "above_threshold",
+        minRelevance: 70,
+      });
+      // Mark matching jobs as tracked in UI
+      const highMatchingUrls = results.jobs
+        .filter((j) => j.relevanceScore >= 70)
+        .map((j) => j.job.jobUrl);
+      setTrackedUrls((prev) => new Set([...prev, ...highMatchingUrls]));
+      setImportFeedback(
+        `Imported ${res.imported} new jobs to Tracked Applications (${res.duplicates} existing/duplicates skipped).`,
+      );
+      setTimeout(() => setImportFeedback(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import jobs");
+    } finally {
+      setImportingAll(false);
+    }
+  }, [searchId, results]);
+
   useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
@@ -261,7 +324,6 @@ export const JobSearchPage: React.FC = () => {
   }, []);
 
   const isSearching = phase === "parsing" || phase === "searching";
-  const results = search?.results;
 
   return (
     <>
@@ -682,6 +744,17 @@ export const JobSearchPage: React.FC = () => {
             </Card>
           )}
 
+          {/* Import Feedback Banner */}
+          {importFeedback && (
+            <Alert className="border-green-600 bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-100">
+              <Sparkles className="h-4 w-4 text-green-600" />
+              <AlertTitle className="font-medium">
+                Applications Updated
+              </AlertTitle>
+              <AlertDescription>{importFeedback}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Job Results */}
           {results && results.jobs.length > 0 && (
             <Card>
@@ -689,22 +762,43 @@ export const JobSearchPage: React.FC = () => {
                 <CardTitle className="text-base">
                   Ranked Results ({results.jobs.length})
                 </CardTitle>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const jobsToExport = results.jobs.map((item) => ({
-                      ...item.job,
-                      suitabilityScore: item.relevanceScore,
-                      suitabilityReason: item.matchExplanation,
-                    }));
-                    downloadJobsCsv(jobsToExport, "search-results");
-                  }}
-                >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  Export CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    disabled={importingAll}
+                    onClick={handleImportAll}
+                  >
+                    {importingAll ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />
+                        Track All (70%+)
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const jobsToExport = results.jobs.map((item) => ({
+                        ...item.job,
+                        suitabilityScore: item.relevanceScore,
+                        suitabilityReason: item.matchExplanation,
+                      }));
+                      downloadJobsCsv(jobsToExport, "search-results");
+                    }}
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    Export CSV
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -713,6 +807,8 @@ export const JobSearchPage: React.FC = () => {
                       key={`${item.job.jobUrl}-${i}`}
                       item={item}
                       index={i}
+                      isTracked={trackedUrls.has(item.job.jobUrl)}
+                      onTrack={() => handleTrackSingleJob(item.job.jobUrl)}
                     />
                   ))}
                 </div>
@@ -740,9 +836,13 @@ export const JobSearchPage: React.FC = () => {
 function JobResultCard({
   item,
   index,
+  isTracked,
+  onTrack,
 }: {
   item: JobSearchResultItem;
   index: number;
+  isTracked?: boolean;
+  onTrack?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -766,6 +866,14 @@ function JobResultCard({
             ) : (
               <Badge variant="secondary" className="shrink-0">
                 pending
+              </Badge>
+            )}
+            {isTracked && (
+              <Badge
+                variant="outline"
+                className="border-green-600 text-green-700 bg-green-50 shrink-0"
+              >
+                <Check className="mr-1 h-3 w-3" /> Tracked
               </Badge>
             )}
           </div>
@@ -794,19 +902,33 @@ function JobResultCard({
             )}
           </div>
         </div>
-        {item.job.applicationLink || item.job.jobUrl ? (
-          <a
-            href={item.job.applicationLink ?? item.job.jobUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0"
-          >
-            <Button variant="outline" size="sm">
-              View →
+        <div className="flex items-center gap-2 shrink-0">
+          {onTrack && !isTracked && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTrack();
+              }}
+            >
+              <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
+              Track
             </Button>
-          </a>
-        ) : null}
+          )}
+          {item.job.applicationLink || item.job.jobUrl ? (
+            <a
+              href={item.job.applicationLink ?? item.job.jobUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button variant="outline" size="sm">
+                View →
+              </Button>
+            </a>
+          ) : null}
+        </div>
       </button>
       {expanded && (
         <div className="mt-3 space-y-2 border-t pt-3">

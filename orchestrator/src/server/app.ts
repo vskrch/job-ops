@@ -25,6 +25,7 @@ import express from "express";
 import { apiRouter } from "./api/index";
 import { getDataDir } from "./config/dataDir";
 import { isDemoMode } from "./config/demo";
+import { mcpSseRouter } from "./mcp/index";
 import { resolveTracerRedirect } from "./services/tracer-links";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -325,6 +326,9 @@ export function createApp() {
 
   // Optional Basic Auth for write access (read-only by default)
   app.use(authGuard.middleware);
+
+  // MCP Server-Sent Events & JSON-RPC router (ADR-008)
+  app.use("/mcp", mcpSseRouter);
 
   // API routes
   app.use("/api", apiRouter);

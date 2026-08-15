@@ -15,6 +15,7 @@ import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import { getExtractorRegistry } from "@server/extractors/registry";
 import * as jobSearchRepo from "@server/repositories/job-search";
+import { getAllJobUrls } from "@server/repositories/jobs";
 import * as settingsRepo from "@server/repositories/settings";
 import type {
   CreateJobInput,
@@ -26,6 +27,8 @@ import { sendSearchResultsEmail } from "../email";
 import { getProfile } from "../profile";
 import { SearchAccumulator } from "./accumulator";
 import { computeFreshnessWindow } from "./filter";
+import { getAvailableMetaAdapters, runMetaSearchAdapter } from "./meta-search";
+import type { MetaSearchParams } from "./meta-search/types";
 import { clearSearchProgress, emitSearchProgress } from "./progress";
 import { computeSearchHash, parseSearchQuery } from "./query-parser";
 import { rankJobs } from "./ranking";
@@ -149,7 +152,7 @@ export async function executeJobSearch(
 
       // 3. Aggregate through the scheduler; ingest into one accumulator.
       const accumulator = new SearchAccumulator(parsedSpec);
-      const existingJobUrlsPromise: Promise<string[]> = Promise.resolve([]);
+      const existingJobUrlsPromise: Promise<string[]> = getAllJobUrls();
       const { runManifestTasks } = await import("./scheduler");
 
       let sourcesCompleted = 0;
@@ -216,6 +219,70 @@ export async function executeJobSearch(
           return result;
         },
       });
+
+      // 3b. Meta-search fallback: if registered extractors covered fewer
+      // than 3 sources, query external aggregators for broader coverage.
+      const MIN_SOURCE_COVERAGE = 3;
+      if (plan.tasks.length < MIN_SOURCE_COVERAGE && limits.metaSearchEnabled) {
+        const metaAdapters = await getAvailableMetaAdapters();
+        for (const adapter of metaAdapters) {
+          try {
+            const metaParams: MetaSearchParams = {
+              terms:
+                parsedSpec.roles.length > 0
+                  ? parsedSpec.roles
+                  : parsedSpec.skills.length > 0
+                    ? parsedSpec.skills
+                    : ["software engineer"],
+              location: parsedSpec.location,
+              workMode: parsedSpec.workMode,
+              maxPages: 5,
+              timeoutMs: limits.metaSearchTimeoutMs,
+            };
+
+            emitSearchProgress({
+              type: "manifest_started",
+              searchId,
+              manifestId: adapter.id,
+              displayName: adapter.displayName,
+              selectedSources: ["meta-search"],
+              sourcesTotal: plan.tasks.length + metaAdapters.length,
+            });
+
+            const metaResult = await runMetaSearchAdapter(adapter, metaParams);
+
+            emitSearchProgress({
+              type: "manifest_completed",
+              searchId,
+              manifestId: adapter.id,
+              status: metaResult.status,
+              jobsFound: metaResult.jobs.length,
+              error: metaResult.error,
+              sourcesCompleted: sourcesCompleted + 1,
+              sourcesTotal: plan.tasks.length + metaAdapters.length,
+            });
+
+            if (metaResult.jobs.length > 0) {
+              await accumulator.enqueue(() =>
+                accumulator.ingest({
+                  manifestId: adapter.id,
+                  displayName: adapter.displayName,
+                  selectedSources: ["meta-search"],
+                  jobs: metaResult.jobs,
+                  status: metaResult.status,
+                  error: metaResult.error,
+                  durationMs: metaResult.durationMs,
+                }),
+              );
+            }
+          } catch (error) {
+            logger.warn("Meta-search adapter error (non-fatal)", {
+              adapterId: adapter.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
 
       // 4. Final authoritative dedup + filter + ranking.
       await updatePhase(

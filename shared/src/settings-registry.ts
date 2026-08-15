@@ -947,6 +947,55 @@ export const settingsRegistry = {
     serialize: (value: number | null | undefined): string | null =>
       value === null || value === undefined ? null : String(value),
   },
+  // --- Search Engine Settings (ADR-008) ---
+  serpApiKey: {
+    kind: "typed" as const,
+    schema: z.string().trim().max(200),
+    default: (): string => "",
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
+  },
+  metaSearchEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "1",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  metaSearchTimeoutMs: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(1000).max(120000),
+    default: (): number => 60000,
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  searchAutoIngestEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
+  searchAutoIngestMinRelevance: {
+    kind: "typed" as const,
+    schema: z.coerce.number().int().min(0).max(100),
+    default: (): number => 70,
+    parse: parseIntOrNull,
+    serialize: (value: number | null | undefined): string | null =>
+      value === null || value === undefined ? null : String(value),
+  },
+  mcpEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): string => "0",
+    parse: parseBitBoolOrNull,
+    serialize: (value: boolean | null | undefined): string | null =>
+      value === null || value === undefined ? null : value ? "1" : "0",
+  },
 } as const;
 
 export type SettingsRegistry = typeof settingsRegistry;

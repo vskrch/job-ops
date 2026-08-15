@@ -252,15 +252,15 @@ describe("Remote Backup Service", () => {
           Contents: [
             {
               Key: "jobops/jobs_2026-01-01T00:00:00.000Z_old.db",
-              LastModified: new Date("2026-01-01T00:00:00Z"),
+              LastModified: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
             },
             {
               Key: "jobops/jobs_2026-08-01T00:00:00.000Z_new.db",
-              LastModified: new Date("2026-08-01T00:00:00Z"),
+              LastModified: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
             },
             {
               Key: "jobops/notes.txt",
-              LastModified: new Date("2025-01-01T00:00:00Z"),
+              LastModified: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
             },
           ],
         };

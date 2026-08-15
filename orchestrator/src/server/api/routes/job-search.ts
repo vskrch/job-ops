@@ -7,6 +7,8 @@
  * GET    /api/job-search/:id           — get search state + results (reconciliation)
  * GET    /api/job-search/:id/progress  — SSE progress stream
  * POST   /api/job-search/:id/resend-email — re-send the results email
+ * POST   /api/job-search/:id/import   — import search results to tracked jobs
+ * POST   /api/job-search/check-tracked — check which URLs are already tracked
  */
 
 import {
@@ -21,6 +23,7 @@ import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import * as jobSearchRepo from "@server/repositories/job-search";
+import * as jobsRepo from "@server/repositories/jobs";
 import * as settingsRepo from "@server/repositories/settings";
 import { sendSearchResultsEmail } from "@server/services/email";
 import {
@@ -32,6 +35,7 @@ import {
   SOURCE_PLAN_VERSION,
   subscribeToSearchProgress,
 } from "@server/services/job-search";
+import { importSearchJobsToTracked } from "@server/services/job-search/import";
 import type { CreateJobSearchRequest } from "@shared/types";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
@@ -252,3 +256,71 @@ jobSearchRouter.post(
     }
   },
 );
+
+/**
+ * POST /api/job-search/:id/import — Import search results to tracked jobs.
+ */
+const importSearchSchema = z.object({
+  mode: z.enum(["all", "selected", "above_threshold"]),
+  jobUrls: z.array(z.string().url()).optional(),
+  minRelevance: z.number().int().min(0).max(100).optional(),
+});
+
+jobSearchRouter.post("/:id/import", async (req: Request, res: Response) => {
+  try {
+    const search = await jobSearchRepo.getJobSearch(req.params.id);
+    if (!search) {
+      return fail(res, notFound("Search not found."));
+    }
+    if (search.status !== "completed") {
+      return fail(
+        res,
+        badRequest("Search must be completed before importing."),
+      );
+    }
+
+    const parsed = importSearchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(
+        res,
+        badRequest("Invalid request body", parsed.error.flatten().fieldErrors),
+      );
+    }
+
+    const result = await importSearchJobsToTracked(req.params.id, parsed.data);
+    ok(res, result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+  }
+});
+
+/**
+ * POST /api/job-search/check-tracked — Check which job URLs are already tracked.
+ */
+const checkTrackedSchema = z.object({
+  jobUrls: z.array(z.string()).min(1).max(1000),
+});
+
+jobSearchRouter.post("/check-tracked", async (req: Request, res: Response) => {
+  try {
+    const parsed = checkTrackedSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(
+        res,
+        badRequest("Invalid request body", parsed.error.flatten().fieldErrors),
+      );
+    }
+
+    const existingUrls = await jobsRepo.getAllJobUrls();
+    const existingSet = new Set(existingUrls);
+    const trackedUrls = parsed.data.jobUrls.filter((url) =>
+      existingSet.has(url),
+    );
+
+    ok(res, { trackedUrls });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+  }
+});

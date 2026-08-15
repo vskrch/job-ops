@@ -70,6 +70,13 @@ const MANIFEST_CAPABILITIES: Record<string, ExtractorCapability> = {
     usesSharedStorage: false,
     timeoutMs: 60_000,
   },
+  // Meta-search adapters (SerpAPI, SearXNG, etc.).
+  "meta-search": {
+    resourceGroup: "api-light",
+    maxConcurrency: 2,
+    usesSharedStorage: false,
+    timeoutMs: 60_000,
+  },
 };
 
 const DEFAULT_CAPABILITY: ExtractorCapability = {
@@ -125,18 +132,22 @@ export interface SearchLimits {
   rankingTimeoutMs: number;
   partialResultsEnabled: boolean;
   highConcurrencyEnabled: boolean;
+  metaSearchEnabled: boolean;
+  metaSearchTimeoutMs: number;
 }
 
 const DEFAULTS: SearchLimits = {
   maxActiveSearches: 4,
-  sourceConcurrency: 2,
+  sourceConcurrency: 4,
   rankingConcurrency: 2,
-  maxCandidates: 500,
-  maxRankedCandidates: 100,
-  sourceTimeoutMs: 120_000,
+  maxCandidates: 2000,
+  maxRankedCandidates: 300,
+  sourceTimeoutMs: 180_000,
   rankingTimeoutMs: 30_000,
   partialResultsEnabled: false,
   highConcurrencyEnabled: false,
+  metaSearchEnabled: true,
+  metaSearchTimeoutMs: 60_000,
 };
 
 function readInt(
@@ -254,5 +265,17 @@ export async function resolveSearchLimits(): Promise<SearchLimits> {
       DEFAULTS.partialResultsEnabled,
     ),
     highConcurrencyEnabled,
+    metaSearchEnabled: readBool(
+      settings,
+      "metaSearchEnabled",
+      DEFAULTS.metaSearchEnabled,
+    ),
+    metaSearchTimeoutMs: Math.max(
+      1000,
+      Math.min(
+        120_000,
+        readInt(settings, "metaSearchTimeoutMs", DEFAULTS.metaSearchTimeoutMs),
+      ),
+    ),
   };
 }
