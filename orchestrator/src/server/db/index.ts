@@ -22,6 +22,7 @@ if (!existsSync(dataDir)) {
 
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("busy_timeout = 10000");
 let isClosed = false;
 
 // Run migrations automatically on startup so the server never boots

@@ -220,68 +220,95 @@ export async function executeJobSearch(
         },
       });
 
-      // 3b. Meta-search fallback: if registered extractors covered fewer
-      // than 3 sources, query external aggregators for broader coverage.
-      const MIN_SOURCE_COVERAGE = 3;
-      if (plan.tasks.length < MIN_SOURCE_COVERAGE && limits.metaSearchEnabled) {
+      // 3b. Meta-search: query external aggregators, free web crawlers (DuckDuckGo),
+      // and public ATS indexes for comprehensive internet-wide coverage.
+      const shouldRunMetaSearch =
+        limits.metaSearchEnabled ||
+        accumulator.totalDiscovered() < 10 ||
+        plan.tasks.length < 3;
+
+      if (shouldRunMetaSearch) {
         const metaAdapters = await getAvailableMetaAdapters();
-        for (const adapter of metaAdapters) {
-          try {
-            const metaParams: MetaSearchParams = {
-              terms:
-                parsedSpec.roles.length > 0
-                  ? parsedSpec.roles
-                  : parsedSpec.skills.length > 0
-                    ? parsedSpec.skills
-                    : ["software engineer"],
-              location: parsedSpec.location,
-              workMode: parsedSpec.workMode,
-              maxPages: 5,
-              timeoutMs: limits.metaSearchTimeoutMs,
-            };
+        const totalSourcesWithMeta = plan.tasks.length + metaAdapters.length;
 
-            emitSearchProgress({
-              type: "manifest_started",
-              searchId,
-              manifestId: adapter.id,
-              displayName: adapter.displayName,
-              selectedSources: ["meta-search"],
-              sourcesTotal: plan.tasks.length + metaAdapters.length,
-            });
+        await Promise.allSettled(
+          metaAdapters.map(async (adapter) => {
+            try {
+              const metaParams: MetaSearchParams = {
+                terms:
+                  parsedSpec.roles.length > 0
+                    ? parsedSpec.roles
+                    : parsedSpec.skills.length > 0
+                      ? parsedSpec.skills
+                      : ["software engineer"],
+                location: parsedSpec.location,
+                workMode: parsedSpec.workMode,
+                maxPages: 5,
+                timeoutMs: limits.metaSearchTimeoutMs,
+              };
 
-            const metaResult = await runMetaSearchAdapter(adapter, metaParams);
+              emitSearchProgress({
+                type: "manifest_started",
+                searchId,
+                manifestId: adapter.id,
+                displayName: adapter.displayName,
+                selectedSources: ["meta-search"],
+                sourcesTotal: totalSourcesWithMeta,
+              });
 
-            emitSearchProgress({
-              type: "manifest_completed",
-              searchId,
-              manifestId: adapter.id,
-              status: metaResult.status,
-              jobsFound: metaResult.jobs.length,
-              error: metaResult.error,
-              sourcesCompleted: sourcesCompleted + 1,
-              sourcesTotal: plan.tasks.length + metaAdapters.length,
-            });
-
-            if (metaResult.jobs.length > 0) {
-              await accumulator.enqueue(() =>
-                accumulator.ingest({
-                  manifestId: adapter.id,
-                  displayName: adapter.displayName,
-                  selectedSources: ["meta-search"],
-                  jobs: metaResult.jobs,
-                  status: metaResult.status,
-                  error: metaResult.error,
-                  durationMs: metaResult.durationMs,
-                }),
+              const metaResult = await runMetaSearchAdapter(
+                adapter,
+                metaParams,
               );
+
+              emitSearchProgress({
+                type: "manifest_completed",
+                searchId,
+                manifestId: adapter.id,
+                status: metaResult.status,
+                jobsFound: metaResult.jobs.length,
+                error: metaResult.error,
+                sourcesCompleted: ++sourcesCompleted,
+                sourcesTotal: totalSourcesWithMeta,
+              });
+
+              if (metaResult.jobs.length > 0) {
+                await accumulator.enqueue(() => {
+                  accumulator.ingest({
+                    manifestId: adapter.id,
+                    displayName: adapter.displayName,
+                    selectedSources: ["meta-search"],
+                    jobs: metaResult.jobs,
+                    status: metaResult.status,
+                    error: metaResult.error,
+                    durationMs: metaResult.durationMs,
+                  });
+
+                  if (limits.partialResultsEnabled) {
+                    const snapshot = accumulator.snapshot();
+                    emitSearchProgress({
+                      type: "results_partial",
+                      searchId,
+                      resultVersion: snapshot.resultVersion,
+                      provisional: true,
+                      results: snapshot.items,
+                      counts: {
+                        discovered: snapshot.discovered,
+                        afterFilter: snapshot.afterFilter,
+                        duplicatesRemoved: snapshot.duplicatesRemoved,
+                      },
+                    });
+                  }
+                });
+              }
+            } catch (error) {
+              logger.warn("Meta-search adapter error (non-fatal)", {
+                adapterId: adapter.id,
+                error: error instanceof Error ? error.message : String(error),
+              });
             }
-          } catch (error) {
-            logger.warn("Meta-search adapter error (non-fatal)", {
-              adapterId: adapter.id,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
-        }
+          }),
+        );
       }
 
       // 4. Final authoritative dedup + filter + ranking.
