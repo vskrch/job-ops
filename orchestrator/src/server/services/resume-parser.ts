@@ -29,9 +29,8 @@ import type {
   ResumeProfile,
   UserProfile,
 } from "@shared/types";
-import { LlmService } from "./llm/service";
 import type { JsonSchemaDefinition } from "./llm/types";
-import { resolveLlmRuntimeSettings } from "./modelSelection";
+import { createLlmClient } from "./modelSelection";
 import { defaultV5ResumeData } from "./rxresume/schema/v5";
 
 const MAX_LLM_INPUT_CHARS = 15_000;
@@ -434,8 +433,7 @@ export function splitSummaryIntoBullets(text: string): string[] {
 export async function parseResumeProfile(
   text: string,
 ): Promise<ParsedResumeProfile> {
-  const { model } = await resolveLlmRuntimeSettings("default");
-  const llm = new LlmService();
+  const { llm, model } = await createLlmClient("default");
 
   // Runs in the background (202/poll flow): no platform router deadline, so
   // give slow LLM providers generous per-attempt and overall budgets while

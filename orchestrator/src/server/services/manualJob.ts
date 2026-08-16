@@ -4,9 +4,8 @@
 
 import { logger } from "@infra/logger";
 import type { ManualJobDraft } from "@shared/types";
-import { LlmService } from "./llm/service";
 import type { JsonSchemaDefinition } from "./llm/types";
-import { resolveLlmModel } from "./modelSelection";
+import { createLlmClient } from "./modelSelection";
 
 export interface ManualJobInferenceResult {
   job: ManualJobDraft;
@@ -94,10 +93,9 @@ const MANUAL_JOB_SCHEMA: JsonSchemaDefinition = {
 export async function inferManualJobDetails(
   jobDescription: string,
 ): Promise<ManualJobInferenceResult> {
-  const model = await resolveLlmModel();
+  const { llm, model } = await createLlmClient("default");
   const prompt = buildInferencePrompt(jobDescription);
 
-  const llm = new LlmService();
   const result = await llm.callJson<ManualJobApiResponse>({
     model,
     messages: [{ role: "user", content: prompt }],

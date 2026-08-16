@@ -4,9 +4,8 @@
 
 import { logger } from "@infra/logger";
 import type { ResumeProfile } from "@shared/types";
-import { LlmService } from "./llm/service";
 import type { JsonSchemaDefinition } from "./llm/types";
-import { resolveLlmModel } from "./modelSelection";
+import { createLlmClient } from "./modelSelection";
 import {
   getWritingLanguageLabel,
   resolveWritingOutputLanguage,
@@ -148,8 +147,8 @@ export async function generateTailoring(
   jobDescription: string,
   profile: ResumeProfile,
 ): Promise<TailoringResult> {
-  const [model, writingStyle] = await Promise.all([
-    resolveLlmModel("tailoring"),
+  const [{ llm, model }, writingStyle] = await Promise.all([
+    createLlmClient("tailoring"),
     getWritingStyle(),
   ]);
   const prompt = await buildTailoringPrompt(
@@ -158,7 +157,6 @@ export async function generateTailoring(
     writingStyle,
   );
 
-  const llm = new LlmService();
   const result = await llm.callJson<TailoredData>({
     model,
     messages: [{ role: "user", content: prompt }],

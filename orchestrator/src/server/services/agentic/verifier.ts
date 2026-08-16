@@ -1,9 +1,8 @@
 import { logger } from "@infra/logger";
 import * as agenticRepo from "@server/repositories/agentic-search";
 import type { CreateJobInput, JobVerificationStatus } from "@shared/types";
-import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
-import { resolveLlmRuntimeSettings } from "../modelSelection";
+import { createLlmClient } from "../modelSelection";
 
 const VERIFY_SCHEMA: JsonSchemaDefinition = {
   name: "job_verification",
@@ -88,8 +87,7 @@ export async function verifyJobConstraints(
 ): Promise<VerificationOutcome[]> {
   if (items.length === 0) return [];
 
-  const { model } = await resolveLlmRuntimeSettings("scoring");
-  const llm = new LlmService();
+  const { llm, model } = await createLlmClient("scoring");
 
   const constraintsText = items
     .map(

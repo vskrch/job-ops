@@ -1,6 +1,5 @@
-import { LlmService } from "@server/services/llm/service";
 import type { JsonSchemaDefinition } from "@server/services/llm/types";
-import { resolveLlmModel } from "@server/services/modelSelection";
+import { createLlmClient } from "@server/services/modelSelection";
 import {
   messageTypeFromStageTarget,
   normalizeStageTarget,
@@ -133,7 +132,6 @@ export async function classifyWithSmartRouter(args: {
   emailText: string;
   activeJobs: Array<{ id: string; company: string; title: string }>;
 }): Promise<SmartRouterResult> {
-  const model = await resolveLlmModel();
   const llmEmailText = args.emailText.slice(0, ROUTER_EMAIL_CHAR_LIMIT);
   const indexedActiveJobs = buildIndexedActiveJobs(args.activeJobs);
   const compactActiveJobsList = buildCompactActiveJobsList(indexedActiveJobs);
@@ -160,7 +158,7 @@ ${llmEmailText}`,
     },
   ];
 
-  const llm = new LlmService();
+  const { llm, model } = await createLlmClient("default");
   const result = await llm.callJson<{
     bestMatchIndex: number | null;
     confidence: number;

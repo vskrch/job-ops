@@ -1,8 +1,7 @@
 import { logger } from "@infra/logger";
 import type { AgenticGoal, ParsedSearchSpec } from "@shared/types";
-import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
-import { resolveLlmRuntimeSettings } from "../modelSelection";
+import { createLlmClient } from "../modelSelection";
 
 const COVERAGE_SCHEMA: JsonSchemaDefinition = {
   name: "coverage_evaluation",
@@ -77,8 +76,7 @@ export async function evaluateCoverage(
   resultCount: number,
   searchId: string,
 ): Promise<CoverageEvaluation> {
-  const { model } = await resolveLlmRuntimeSettings("scoring");
-  const llm = new LlmService();
+  const { llm, model } = await createLlmClient("scoring");
 
   const constraintsText =
     spec.explicitConstraints.length > 0

@@ -14,9 +14,8 @@ import {
 } from "@shared/location-support.js";
 import { getDefaultPromptTemplate } from "@shared/prompt-template-definitions.js";
 import type { ParsedSearchSpec } from "@shared/types";
-import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
-import { resolveLlmModel } from "../modelSelection";
+import { createLlmClient } from "../modelSelection";
 import { renderPromptTemplate } from "../prompt-templates";
 import { getEffectiveSettings } from "../settings";
 
@@ -296,18 +295,17 @@ export async function parseSearchQuery(
       postedWithin: { ...EMPTY_SPEC.postedWithin },
     };
 
-  const [model, settings] = await Promise.all([
-    resolveLlmModel("default"),
+  const [{ llm, model, provider }, settings] = await Promise.all([
+    createLlmClient("default"),
     getEffectiveSettings(),
   ]);
 
   const template =
-    settings.jobSearchParsePromptTemplate.value ||
+    settings.jobSearchParsePromptTemplate?.value ||
     getDefaultPromptTemplate("jobSearchParsePromptTemplate");
 
   const prompt = renderPromptTemplate(template, { userQuery: trimmed });
 
-  const llm = new LlmService();
   const result = await llm.callJson<Record<string, unknown>>({
     model,
     messages: [{ role: "user", content: prompt }],
@@ -319,6 +317,8 @@ export async function parseSearchQuery(
     logger.warn("Job search query parsing failed, using fallback", {
       error: result.error,
       queryLength: trimmed.length,
+      model,
+      provider,
     });
     return {
       ...EMPTY_SPEC,

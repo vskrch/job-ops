@@ -15,9 +15,8 @@ import { asyncPool } from "@server/utils/async-pool";
 import { CrawlEngine } from "@shared/crawl/engine.js";
 import type { CreateJobInput } from "@shared/types/jobs";
 import type { ResumeProfile } from "@shared/types/settings";
-import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
-import { resolveLlmModel } from "../modelSelection";
+import { createLlmClient } from "../modelSelection";
 import { getProfile } from "../profile";
 
 const QUERY_SYNTHESIS_SCHEMA: JsonSchemaDefinition = {
@@ -173,8 +172,7 @@ User Initial Search Terms: ${args.baseSearchTerms.join(", ")}
 
 Generate 3-6 targeted job search queries and a list of negative exclusion keywords.`;
 
-    const llmService = new LlmService();
-    const model = await resolveLlmModel();
+    const { llm: llmService, model } = await createLlmClient("default");
 
     const response = await llmService.callJson<{
       searchTerms: string[];
@@ -255,8 +253,7 @@ export async function enrichDiscoveredJobsWithLlm(args: {
     behaviorProfile: "fast",
   });
 
-  const llmService = new LlmService();
-  const model = await resolveLlmModel();
+  const { llm: llmService, model } = await createLlmClient("default");
 
   const jobsToEnrichIndices: number[] = [];
   for (let i = 0; i < args.jobs.length; i++) {

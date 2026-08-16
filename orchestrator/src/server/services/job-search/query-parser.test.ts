@@ -195,3 +195,12 @@ describe("computeAdmissionHash", () => {
     );
   });
 });
+
+describe("parseSearchQuery", () => {
+  it("returns empty spec for empty query", async () => {
+    const { parseSearchQuery } = await import("./query-parser");
+    const result = await parseSearchQuery("   ");
+    expect(result.roles).toEqual([]);
+    expect(result.interpretation).toBe("");
+  });
+});
