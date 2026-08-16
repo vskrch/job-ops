@@ -70,16 +70,26 @@ function filterJobsByRequestedCities(args: {
   const { jobs, selectedCountry, requestedCities } = args;
   if (requestedCities.length === 0) return jobs;
 
-  return jobs.filter((job) =>
-    requestedCities.some((requestedCity) => {
+  return jobs.filter((job) => {
+    // Preserve remote or global roles
+    if (
+      job.isRemote ||
+      /remote|worldwide|anywhere|global|telecommute|wfh/i.test(
+        job.location || "",
+      )
+    ) {
+      return true;
+    }
+
+    return requestedCities.some((requestedCity) => {
       const strict = shouldApplyStrictCityFilter(
         requestedCity,
         selectedCountry,
       );
       if (!strict) return true;
       return matchesRequestedCity(job.location, requestedCity);
-    }),
-  );
+    });
+  });
 }
 
 export async function discoverJobsStep(args: {

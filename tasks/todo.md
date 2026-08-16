@@ -1,23 +1,17 @@
-# Multi-Tenant Pipeline Isolation & Concurrency Overhaul Plan
+# Expand Crawling Capabilities & Add https://hnhiring.com/
 
-- [x] **Multi-Tenant Pipeline Progress Tracking (`progress.ts`)**:
-  - Partition `currentProgress`, `listeners`, `replayBuffer`, and `crawlingStatsBySource` by `userId`
-  - Ensure `updateProgress`, `getProgress`, `subscribeToProgress`, and `resetProgress` operate on user-specific state
-  - Ensure progress events are only broadcast to the user who owns the pipeline run
-- [x] **Multi-Tenant Pipeline Orchestration & Concurrency (`orchestrator.ts`)**:
-  - Scope `activeRunIdsByUserId`, `cancelRequestedByRunId`, and `cancelAllByUserId` per user
-  - Enable multiple users to run their own pipelines concurrently without blocking each other
-  - Pass `{ userId, requestId, pipelineRunId }` in `runWithRequestContext` throughout background execution
-  - Update `getPipelineStatus(userId)` and `requestPipelineCancel(runId, userId)` to be user-scoped
-- [x] **API Routes User Scoping (`pipeline.ts`)**:
-  - `GET /api/pipeline/status`: pass `userId` to `getPipelineStatus(userId)` and `getProgress(userId)`
-  - `GET /api/pipeline/progress`: pass `userId` to `subscribeToProgress(sendProgress, userId)`
-  - `POST /api/pipeline/run`: capture `userId = getCurrentUserId()` and pass to `runWithRequestContext`
-  - `POST /api/pipeline/cancel`: pass `userId` to `requestPipelineCancel(input.pipelineRunId, userId)`
-- [x] **Multi-Tenant Pipeline Tests (`multi-tenant-pipeline.test.ts`)**:
-  - Add comprehensive multi-user pipeline concurrency and isolation test validating that User A and User B can run pipelines concurrently and only receive their own progress and runs
-- [x] **CI Parity Verification**:
-  - Biome CI passed (0 errors across 819 files)
-  - TypeScript checked on shared and orchestrator (0 errors)
-  - Client bundle built successfully
-  - All 1,382 automated tests passed across 217 test files
+- [x] **Component 1: HNHiring Extractor Overhaul & https://hnhiring.com/ Integration**:
+  - [x] Implement `https://hnhiring.com/` web scraper in `extractors/hnhiring/src/run.ts` (monthly index discovery + job card parsing)
+  - [x] Rewrite Hacker News comment parser with robust multi-format delimiter matching (`|`, `-`, `—`, `•`, `/`, etc.) and field extraction (`employer`, `title`, `location`, `salary`, `applicationLink`, `isRemote`)
+  - [x] Update `extractors/hnhiring/src/manifest.ts` with higher default limits (`maxJobsPerTerm: 200`)
+  - [x] Update and expand `extractors/hnhiring/tests/run.test.ts`
+- [x] **Component 2: Pipeline Discovery Enhancements**:
+  - [x] Update `filterJobsByRequestedCities` in `orchestrator/src/server/pipeline/steps/discover-jobs.ts` to preserve remote jobs
+  - [x] Update `synthesizeCrawlTermsWithLlm` in `orchestrator/src/server/services/crawler-llm/enricher.ts` to retain all user base search terms
+- [x] **Component 3: Verification & CI Parity**:
+  - [x] Run HNHiring tests (`extractors/hnhiring/tests/run.test.ts`)
+  - [x] Run all 5 required CI-parity checks (Biome, TS shared, TS orchestrator, build:client, full test suite — 1384/1384 passed)
+- [x] **Component 4: Deployment & Live Verification**:
+  - [ ] Git commit and push to `upstream dev`
+  - [ ] Deploy to DigitalOcean (`157.245.138.16`)
+  - [ ] Live endpoint verification

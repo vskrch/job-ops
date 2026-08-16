@@ -192,11 +192,14 @@ Generate 3-6 targeted job search queries and a list of negative exclusion keywor
     });
 
     if (response.success && response.data) {
-      const searchTerms =
+      const synthesized =
         Array.isArray(response.data.searchTerms) &&
         response.data.searchTerms.length > 0
           ? response.data.searchTerms
-          : args.baseSearchTerms;
+          : [];
+      const searchTerms = Array.from(
+        new Set([...args.baseSearchTerms, ...synthesized]),
+      ).filter(Boolean);
       const negativeKeywords = Array.isArray(response.data.negativeKeywords)
         ? response.data.negativeKeywords
         : [];

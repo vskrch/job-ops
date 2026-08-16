@@ -46,7 +46,7 @@ export const manifest: ExtractorManifest = {
       : Number.NaN;
     const maxJobsPerTerm = Number.isFinite(parsedMax)
       ? Math.max(1, parsedMax)
-      : 50;
+      : 200;
 
     const result = await runHnHiring({
       selectedCountry: context.selectedCountry,
