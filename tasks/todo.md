@@ -1,8 +1,21 @@
-# True Multi-Tenancy Implementation Tracker
+# Natural Language Job Search Overhaul Plan
 
-- [x] **Database Schema & Migrations**: Add `userId` to `pipeline_schedules`, `search_schedules`, `post_application_integrations`, `post_application_sync_runs`, `post_application_messages` in `schema.ts` and `migrate.ts` <!-- id: 0 -->
-- [x] **Pipeline Schedules Multi-Tenancy**: Scope CRUD in `pipeline-schedules.ts` repo & scheduler execution in `pipeline-scheduler.ts` to `currentUserId()` <!-- id: 1 -->
-- [x] **Search Schedules Multi-Tenancy**: Scope CRUD in `search-schedules.ts` repo & scheduler execution in `search-scheduler.ts` to `currentUserId()` <!-- id: 2 -->
-- [x] **Design Resume Isolation**: Scope `designResumeDocuments` queries and upserts to `currentUserId()` in `design-resume.ts` repo <!-- id: 3 -->
-- [x] **Post-Application Integrations Isolation**: Scope integrations, sync runs, and messages to `currentUserId()` <!-- id: 4 -->
-- [x] **CI Parity & Multi-Tenant Tests**: Verify with full test suite, Biome, type checks, and client build <!-- id: 5 -->
+- [x] **Robust Rule-Based & LLM Query Parser (`query-parser.ts`)**:
+  - Add comprehensive rule-based heuristic extraction (roles, skills, location, workMode, experience, salary, postedWithin, excludeTerms)
+  - Wrap LLM client initialization and call in safe `try/catch` with automatic fallback to rule-based parser
+  - Update query parser unit tests covering both LLM and offline rule-based extraction
+- [x] **Prompt Template & Region Expansion (`prompt-template-definitions.ts`)**:
+  - Update default search prompt template to support global countries (UK, US, Canada, EU, Australia, etc.)
+- [x] **Source Runner & Term Formation Fixes (`source-runner.ts`)**:
+  - Ensure clean keyword generation from parsed spec without generic or duplicate terms
+  - Sanitize location/city passing to JobSpy and other extractors
+- [x] **Frontend JobSearchPage Wiring & URL Synchronization (`JobSearchPage.tsx`)**:
+  - Add `useSearchParams` synchronization so `?q=...` or `?id=...` immediately populates and triggers search
+  - Improve search progress notifications and partial result rendering
+- [x] **Global NL Search Affordance in Command Bar (`JobCommandBar.tsx`)**:
+  - Add "Search web for '<query>' with Natural Language" action in `Cmd+K` command bar to navigate directly to `/job-search?q=...`
+- [x] **Comprehensive Verification & CI Parity**:
+  - Run full test suite (1,380 tests passed across 216 test files)
+  - Biome CI passed (0 errors across 818 files)
+  - TypeScript checks passed (`check:types:shared`, `check:types`)
+  - Client bundle build passed (`build:client`)

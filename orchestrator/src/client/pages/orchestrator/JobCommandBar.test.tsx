@@ -1,8 +1,13 @@
 import { createJob } from "@shared/testing/factories.js";
 import type { Job } from "@shared/types.js";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { JobCommandBar } from "./JobCommandBar";
+
+const render = (ui: React.ReactElement) =>
+  rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 

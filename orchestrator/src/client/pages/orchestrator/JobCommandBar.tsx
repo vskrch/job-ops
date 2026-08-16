@@ -1,7 +1,10 @@
 import { useHotkeys } from "@client/hooks/useHotkeys";
 import type { JobListItem } from "@shared/types.js";
+import { Sparkles } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
   CommandEmpty,
@@ -32,6 +35,7 @@ import { JobRowContent } from "./JobRowContent";
 interface JobCommandBarProps {
   jobs: JobListItem[];
   onSelectJob: (tab: FilterTab, jobId: string) => void;
+  onNavigate?: (path: string) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   enabled?: boolean;
@@ -40,10 +44,23 @@ interface JobCommandBarProps {
 export const JobCommandBar: React.FC<JobCommandBarProps> = ({
   jobs,
   onSelectJob,
+  onNavigate,
   open,
   onOpenChange,
   enabled = true,
 }) => {
+  const routerNavigate = useNavigate();
+
+  const navigateTo = useCallback(
+    (path: string) => {
+      if (onNavigate) {
+        onNavigate(path);
+      } else {
+        routerNavigate(path);
+      }
+    },
+    [onNavigate, routerNavigate],
+  );
   const lockDialogAccentClass: Record<StatusLock, string> = {
     ready: "border-emerald-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]",
     discovered: "border-sky-500/50 shadow-[0_0_0_1px_rgba(14,165,233,0.15)]",
@@ -181,7 +198,29 @@ export const JobCommandBar: React.FC<JobCommandBarProps> = ({
         status. Backspace on empty search clears the lock.
       </div>
       <CommandList className="max-h-[65vh]">
-        <CommandEmpty>No jobs found.</CommandEmpty>
+        <CommandEmpty>
+          <div className="py-2 text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              No matching tracked jobs found.
+            </p>
+            {normalizedQuery.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-xs mt-1"
+                onClick={() => {
+                  closeDialog();
+                  navigateTo(
+                    `/job-search?q=${encodeURIComponent(query.trim())}`,
+                  );
+                }}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Search all job sources for "{query.trim()}"
+              </Button>
+            )}
+          </div>
+        </CommandEmpty>
         {!activeLock && (
           <JobCommandBarLockSuggestions
             suggestions={lockSuggestions}
@@ -222,6 +261,40 @@ export const JobCommandBar: React.FC<JobCommandBarProps> = ({
             </div>
           );
         })}
+        {!activeLock && normalizedQuery.length > 2 && (
+          <div>
+            {scopedJobs.length > 0 && <CommandSeparator />}
+            <CommandGroup heading="Web & Natural Language Search">
+              <CommandItem
+                value={`__nl_search__ ${query}`}
+                keywords={[
+                  "search",
+                  "web",
+                  "natural language",
+                  "online",
+                  query,
+                ]}
+                onSelect={() => {
+                  closeDialog();
+                  navigateTo(
+                    `/job-search?q=${encodeURIComponent(query.trim())}`,
+                  );
+                }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 truncate">
+                  <span className="text-muted-foreground">
+                    Search web with Natural Language for:{" "}
+                  </span>
+                  <span className="font-medium text-foreground">
+                    "{query.trim()}"
+                  </span>
+                </div>
+              </CommandItem>
+            </CommandGroup>
+          </div>
+        )}
       </CommandList>
     </CommandDialog>
   );

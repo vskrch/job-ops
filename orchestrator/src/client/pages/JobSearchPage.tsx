@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,9 +58,14 @@ interface ProvisionalCounts {
 }
 
 export const JobSearchPage: React.FC = () => {
-  const [query, setQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") || searchParams.get("query") || "";
+  const initialSearchId =
+    searchParams.get("id") || searchParams.get("searchId");
+
+  const [query, setQuery] = useState(initialQuery);
   const [phase, setPhase] = useState<SearchPhase>("idle");
-  const [searchId, setSearchId] = useState<string | null>(null);
+  const [searchId, setSearchId] = useState<string | null>(initialSearchId);
   const [parsedSpec, setParsedSpec] = useState<ParsedSearchSpec | null>(null);
   const [cached, setCached] = useState(false);
   const [search, setSearch] = useState<JobSearch | null>(null);
@@ -84,6 +90,7 @@ export const JobSearchPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const initialSearchTriggeredRef = useRef(false);
 
   const unsubscribeProgress = useCallback(() => {
     if (unsubscribeRef.current) {
@@ -201,61 +208,107 @@ export const JobSearchPage: React.FC = () => {
     [unsubscribeProgress],
   );
 
-  const handleSearch = useCallback(async () => {
-    const trimmed = query.trim();
-    if (!trimmed) return;
+  const handleSearch = useCallback(
+    async (overrideQuery?: string) => {
+      const targetQuery =
+        typeof overrideQuery === "string" ? overrideQuery : query;
+      const trimmed = targetQuery.trim();
+      if (!trimmed) return;
 
-    setPhase("parsing");
-    setError(null);
-    setErrorKind(null);
-    setParsedSpec(null);
-    setSearch(null);
-    setCurrentPage(1);
-    setProvisionalResults([]);
-    setProvisionalCounts(null);
-    setSourceStatuses([]);
-    setSearchId(null);
-    setProgressMessage("Interpreting your search request...");
+      setQuery(trimmed);
+      setSearchParams({ q: trimmed });
+      setPhase("parsing");
+      setError(null);
+      setErrorKind(null);
+      setParsedSpec(null);
+      setSearch(null);
+      setCurrentPage(1);
+      setProvisionalResults([]);
+      setProvisionalCounts(null);
+      setSourceStatuses([]);
+      setSearchId(null);
+      setProgressMessage("Interpreting your search request...");
 
-    try {
-      const response = await api.createJobSearch({ query: trimmed });
-      setSearchId(response.searchId);
-      setParsedSpec(response.parsedSpec);
-      setCached(response.cached);
+      try {
+        const response = await api.createJobSearch({ query: trimmed });
+        setSearchId(response.searchId);
+        setParsedSpec(response.parsedSpec);
+        setCached(response.cached);
 
-      if (response.status === "completed") {
-        const result = await api.getJobSearch(response.searchId);
-        setSearch(result);
-        setPhase("completed");
-        return;
-      }
+        if (response.status === "completed") {
+          const result = await api.getJobSearch(response.searchId);
+          setSearch(result);
+          setPhase("completed");
+          return;
+        }
 
-      setPhase("searching");
-      setProgressMessage("Starting search across job sources...");
+        setPhase("searching");
+        setProgressMessage("Starting search across job sources...");
 
-      // SSE is a notification channel, not the source of truth: reconcile
-      // with GET in case parsing already finished before we subscribed.
-      api
-        .getJobSearch(response.searchId)
-        .then((current) => {
-          if (current.parsedSpec) setParsedSpec(current.parsedSpec);
-        })
-        .catch(() => {});
+        // SSE is a notification channel, not the source of truth: reconcile
+        // with GET in case parsing already finished before we subscribed.
+        api
+          .getJobSearch(response.searchId)
+          .then((current) => {
+            if (current.parsedSpec) setParsedSpec(current.parsedSpec);
+          })
+          .catch(() => {});
 
-      unsubscribeRef.current = api.subscribeToJobSearchProgress(
-        response.searchId,
-        {
-          onMessage: (event: JobSearchProgressEvent) => {
-            handleProgressEvent(event);
+        unsubscribeRef.current = api.subscribeToJobSearchProgress(
+          response.searchId,
+          {
+            onMessage: (event: JobSearchProgressEvent) => {
+              handleProgressEvent(event);
+            },
           },
-        },
-      );
-    } catch (err) {
-      setErrorKind("search");
-      setError(err instanceof Error ? err.message : "Failed to start search");
-      setPhase("failed");
+        );
+      } catch (err) {
+        setErrorKind("search");
+        setError(err instanceof Error ? err.message : "Failed to start search");
+        setPhase("failed");
+      }
+    },
+    [query, handleProgressEvent, setSearchParams],
+  );
+
+  // Handle URL query or search ID on initial mount
+  useEffect(() => {
+    if (initialSearchTriggeredRef.current) return;
+    initialSearchTriggeredRef.current = true;
+
+    if (initialSearchId) {
+      setPhase("searching");
+      setProgressMessage("Loading search results...");
+      api
+        .getJobSearch(initialSearchId)
+        .then((s) => {
+          setSearch(s);
+          if (s.parsedSpec) setParsedSpec(s.parsedSpec);
+          if (s.originalQuery) setQuery(s.originalQuery);
+          if (s.status === "completed") {
+            setPhase("completed");
+          } else if (s.status === "failed") {
+            setPhase("failed");
+            setError(s.errorMessage || "Search failed");
+          } else {
+            setPhase("searching");
+            unsubscribeRef.current = api.subscribeToJobSearchProgress(s.id, {
+              onMessage: (event: JobSearchProgressEvent) => {
+                handleProgressEvent(event);
+              },
+            });
+          }
+        })
+        .catch((err) => {
+          setError(
+            err instanceof Error ? err.message : "Failed to load search",
+          );
+          setPhase("failed");
+        });
+    } else if (initialQuery) {
+      handleSearch(initialQuery);
     }
-  }, [query, handleProgressEvent]);
+  }, [initialSearchId, initialQuery, handleSearch, handleProgressEvent]);
 
   const handleResendEmail = useCallback(async () => {
     if (!searchId) return;
@@ -273,9 +326,13 @@ export const JobSearchPage: React.FC = () => {
     }
   }, [searchId]);
 
-  const handleExampleQuery = useCallback((q: string) => {
-    setQuery(q);
-  }, []);
+  const handleExampleQuery = useCallback(
+    (q: string) => {
+      setQuery(q);
+      handleSearch(q);
+    },
+    [handleSearch],
+  );
 
   const results = search?.results;
 
@@ -396,7 +453,7 @@ export const JobSearchPage: React.FC = () => {
                   ))}
                 </div>
                 <Button
-                  onClick={handleSearch}
+                  onClick={() => handleSearch()}
                   disabled={!query.trim() || isSearching}
                 >
                   {isSearching ? (

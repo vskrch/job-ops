@@ -196,11 +196,83 @@ describe("computeAdmissionHash", () => {
   });
 });
 
-describe("parseSearchQuery", () => {
+describe("parseSearchQuery & extractRuleBasedSearchSpec", () => {
   it("returns empty spec for empty query", async () => {
     const { parseSearchQuery } = await import("./query-parser");
     const result = await parseSearchQuery("   ");
     expect(result.roles).toEqual([]);
     expect(result.interpretation).toBe("");
+  });
+
+  it("accurately extracts roles, country, remote mode, experience, and freshness offline", async () => {
+    const { extractRuleBasedSearchSpec } = await import("./query-parser");
+    const spec = extractRuleBasedSearchSpec(
+      "Data Engineer jobs in Canada, remote, 4-6 years experience, last 7 days",
+    );
+
+    expect(spec.roles).toContain("data engineer");
+    expect(spec.location.country).toBe("canada");
+    expect(spec.workMode).toBe("remote");
+    expect(spec.experience.minYears).toBe(4);
+    expect(spec.experience.maxYears).toBe(6);
+    expect(spec.postedWithin).toEqual({ value: 7, unit: "days" });
+  });
+
+  it("extracts seniority, skills, city, hybrid mode, and freshness", async () => {
+    const { extractRuleBasedSearchSpec } = await import("./query-parser");
+    const spec = extractRuleBasedSearchSpec(
+      "Senior Python developer jobs in Toronto, remote or hybrid, posted in the last 7 days",
+    );
+
+    expect(spec.roles).toContain("python developer");
+    expect(spec.seniority).toBe("senior");
+    expect(spec.skills).toContain("python");
+    expect(spec.location.cities).toContain("Toronto");
+    expect(spec.location.country).toBe("canada");
+    expect(spec.workMode).toBe("hybrid");
+    expect(spec.postedWithin).toEqual({ value: 7, unit: "days" });
+  });
+
+  it("extracts salary amount and currency, 24h freshness, and city", async () => {
+    const { extractRuleBasedSearchSpec } = await import("./query-parser");
+    const spec = extractRuleBasedSearchSpec(
+      "Find backend engineering jobs in Vancouver paying over CAD 150k, posted in the last 24 hours",
+    );
+
+    expect(spec.roles).toContain("backend engineer");
+    expect(spec.location.cities).toContain("Vancouver");
+    expect(spec.location.country).toBe("canada");
+    expect(spec.salary.min).toBe(150000);
+    expect(spec.salary.currency).toBe("CAD");
+    expect(spec.postedWithin).toEqual({ value: 24, unit: "hours" });
+  });
+
+  it("extracts 5+ years experience and ML roles across Canada", async () => {
+    const { extractRuleBasedSearchSpec } = await import("./query-parser");
+    const spec = extractRuleBasedSearchSpec(
+      "Remote machine-learning engineer roles across Canada requiring 5+ years of experience",
+    );
+
+    expect(spec.roles).toContain("machine learning engineer");
+    expect(spec.workMode).toBe("remote");
+    expect(spec.location.country).toBe("canada");
+    expect(spec.experience.minYears).toBe(5);
+    expect(spec.experience.maxYears).toBeNull();
+  });
+
+  it("extracts London UK location, GBP currency, exclude terms, and skills", async () => {
+    const { extractRuleBasedSearchSpec } = await import("./query-parser");
+    const spec = extractRuleBasedSearchSpec(
+      "Full stack React and TypeScript developer in London, £80k, exclude Java",
+    );
+
+    expect(spec.roles).toContain("full stack developer");
+    expect(spec.skills).toContain("react");
+    expect(spec.skills).toContain("typescript");
+    expect(spec.location.cities).toContain("London");
+    expect(spec.location.country).toBe("united kingdom");
+    expect(spec.salary.min).toBe(80000);
+    expect(spec.salary.currency).toBe("GBP");
+    expect(spec.excludeTerms).toContain("java");
   });
 });

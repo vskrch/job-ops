@@ -77,12 +77,8 @@ export async function runManifestTask(
       : null;
     if (countryKey) {
       filteredSettings.jobspyCountryIndeed = countryKey;
-      if (!spec.location.cities.length) {
-        filteredSettings.searchCities = countryKey;
-      } else {
-        filteredSettings.searchCities = spec.location.cities.join("|");
-      }
-    } else if (spec.location.cities.length > 0) {
+    }
+    if (spec.location.cities.length > 0) {
       filteredSettings.searchCities = spec.location.cities.join("|");
     }
 
