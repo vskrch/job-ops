@@ -34,6 +34,13 @@ export const apiRouter = Router();
 const authLimiter = rateLimitMiddleware({ max: 10, windowMs: 60_000 });
 apiRouter.use("/auth/login", authLimiter);
 apiRouter.use("/auth/register", authLimiter);
+// Anti mail-bombing / token-guessing on the password reset flow:
+// forgot-password shares the credential limiter; verify/reset get a
+// separate, time-boxed budget (20 requests / 10 minutes / IP).
+const resetLimiter = rateLimitMiddleware({ max: 20, windowMs: 600_000 });
+apiRouter.use("/auth/forgot-password", authLimiter);
+apiRouter.use("/auth/verify-reset-token", resetLimiter);
+apiRouter.use("/auth/reset-password", resetLimiter);
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/jobs", jobsRouter);

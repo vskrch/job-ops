@@ -9,8 +9,9 @@ import {
 import { asyncRoute, fail, ok, okWithMeta } from "@infra/http";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
-import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
+import { sanitizeWebhookPayload } from "@infra/sanitize";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
+import { postWebhook } from "@infra/webhook";
 import { isDemoMode, sendDemoBlocked } from "@server/config/demo";
 import {
   generateFinalPdf,
@@ -76,44 +77,33 @@ async function notifyJobCompleteWebhook(job: Job) {
   ).trim();
   if (!webhookUrl) return;
 
-  try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    const secret = process.env.WEBHOOK_SECRET;
-    if (secret) headers.Authorization = `Bearer ${secret}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const secret = process.env.WEBHOOK_SECRET;
+  if (secret) headers.Authorization = `Bearer ${secret}`;
 
-    const payload = sanitizeWebhookPayload({
-      event: "job.completed",
-      sentAt: new Date().toISOString(),
-      job: {
-        id: job.id,
-        source: job.source,
-        title: job.title,
-        employer: job.employer,
-        status: job.status,
-        suitabilityScore: job.suitabilityScore,
-        sponsorMatchScore: job.sponsorMatchScore,
-      },
-    });
+  const payload = sanitizeWebhookPayload({
+    event: "job.completed",
+    sentAt: new Date().toISOString(),
+    job: {
+      id: job.id,
+      source: job.source,
+      title: job.title,
+      employer: job.employer,
+      status: job.status,
+      suitabilityScore: job.suitabilityScore,
+      sponsorMatchScore: job.sponsorMatchScore,
+    },
+  });
 
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const rawBody = await response.text().catch(() => "");
-      logger.warn("Job complete webhook POST failed", {
-        status: response.status,
-        response: redactString(rawBody),
-        jobId: job.id,
-      });
-    }
-  } catch (error) {
-    logger.warn("Job complete webhook POST failed", { jobId: job.id, error });
-  }
+  await postWebhook(
+    webhookUrl,
+    payload,
+    headers,
+    { jobId: job.id },
+    "Job complete webhook",
+  );
 }
 
 /**
@@ -556,7 +546,7 @@ jobsRouter.get("/", async (req: Request, res: Response) => {
         : new AppError({
             status: 500,
             code: "INTERNAL_ERROR",
-            message: error instanceof Error ? error.message : "Unknown error",
+            message: "Internal server error",
           });
     fail(res, err);
   }
@@ -604,7 +594,7 @@ jobsRouter.get("/revision", async (req: Request, res: Response) => {
         : new AppError({
             status: 500,
             code: "INTERNAL_ERROR",
-            message: error instanceof Error ? error.message : "Unknown error",
+            message: "Internal server error",
           });
     fail(res, err);
   }
@@ -665,7 +655,7 @@ jobsRouter.post("/actions", async (req: Request, res: Response) => {
           : new AppError({
               status: 500,
               code: "INTERNAL_ERROR",
-              message: error instanceof Error ? error.message : "Unknown error",
+              message: "Internal server error",
             });
 
     logger.error("Job action failed", {
@@ -824,7 +814,7 @@ jobsRouter.post("/actions/stream", async (req: Request, res: Response) => {
         : new AppError({
             status: 500,
             code: "INTERNAL_ERROR",
-            message: error instanceof Error ? error.message : "Unknown error",
+            message: "Internal server error",
           });
 
     logger.error("Job action stream failed", {
@@ -1114,8 +1104,7 @@ jobsRouter.patch("/:id", async (req: Request, res: Response) => {
             : new AppError({
                 status: 500,
                 code: "INTERNAL_ERROR",
-                message:
-                  error instanceof Error ? error.message : "Unknown error",
+                message: "Internal server error",
               });
 
     logger.error("Job update failed", {

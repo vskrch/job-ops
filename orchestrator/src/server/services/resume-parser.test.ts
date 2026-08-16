@@ -16,6 +16,16 @@ vi.mock("./llm/service", () => ({
 
 vi.mock("./modelSelection", () => ({
   resolveLlmRuntimeSettings: vi.fn(async () => ({ model: "test-model" })),
+  createLlmClient: vi.fn(async () => {
+    const { LlmService } = await import("./llm/service");
+    return {
+      llm: new LlmService(),
+      model: "test-model",
+      provider: "openai",
+      baseUrl: "https://api.openai.com",
+      apiKey: "test-key",
+    };
+  }),
 }));
 
 // The PDF text extractor runs as a child process; fake its execFile plumbing.

@@ -74,8 +74,7 @@ authRouter.post(
   "/forgot-password",
   asyncRoute(async (req: Request, res: Response) => {
     const { email } = req.body || {};
-    const origin = req.get("origin") || req.get("referer");
-    const result = await createPasswordResetToken({ email, origin });
+    const result = await createPasswordResetToken({ email });
     ok(res, {
       message:
         "If an account with that email exists, password reset instructions have been generated.",

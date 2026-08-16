@@ -226,18 +226,34 @@ function matchesSalary(
   }
 
   // Try parsing the salary string.
+  // Handles ranges ("$85k - $110k"), K/M suffixes ("85k", "1.2m"), and
+  // comma separators. The job's MAX figure decides the lower-bound check and
+  // its MIN figure decides the upper-bound check, so a "$85k-$110k" range
+  // matches a user floor of $100k (only the ceiling exceeds it).
   const salaryStr = normalize(job.salary);
   if (salaryStr) {
-    const numbers = salaryStr.match(/[\d,]+(?:\.\d+)?/g);
-    if (numbers && numbers.length > 0) {
-      const firstNum = Number.parseFloat(numbers[0].replace(/,/g, ""));
-      if (Number.isFinite(firstNum)) {
-        if (min !== null && firstNum < min)
-          return { matches: false, verified: true };
-        if (max !== null && firstNum > max)
-          return { matches: false, verified: true };
-        return { matches: true, verified: true };
-      }
+    const rawNumbers =
+      salaryStr.match(/([\d,]+(?:\.\d+)?)\s*[kK]?[mM]?/g) ?? [];
+    const parsed = rawNumbers
+      .map((raw) => {
+        const match = raw.match(/([\d,]+(?:\.\d+)?)\s*([kKmM])?/);
+        if (!match) return null;
+        const value = Number.parseFloat(match[1].replace(/,/g, ""));
+        if (!Number.isFinite(value)) return null;
+        const suffix = match[2]?.toLowerCase();
+        return suffix === "k"
+          ? value * 1_000
+          : suffix === "m"
+            ? value * 1_000_000
+            : value;
+      })
+      .filter((n): n is number => n !== null);
+    if (parsed.length > 0) {
+      const lo = Math.min(...parsed);
+      const hi = Math.max(...parsed);
+      if (min !== null && hi < min) return { matches: false, verified: true };
+      if (max !== null && lo > max) return { matches: false, verified: true };
+      return { matches: true, verified: true };
     }
   }
 

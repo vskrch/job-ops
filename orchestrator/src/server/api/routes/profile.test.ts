@@ -95,7 +95,11 @@ describe.sequential("Profile API routes", () => {
 
       expect(res.ok).toBe(false);
       expect(body.ok).toBe(false);
-      expect(body.error.message).toContain("Base resume not configured");
+      // Unknown service errors are genericized (S7 security sweep). The real
+      // service throws an AppError (conflict) with a user-facing message,
+      // which passes through — a plain Error mock cannot cross the test
+      // server's module reset boundary.
+      expect(body.error.message).toBe("Internal server error");
     });
 
     it("returns demo project catalog in demo mode", async () => {
@@ -154,7 +158,9 @@ describe.sequential("Profile API routes", () => {
 
       expect(res.ok).toBe(false);
       expect(body.ok).toBe(false);
-      expect(body.error.message).toContain("Base resume not configured");
+      // Genericized: only AppError messages from the service graph pass
+      // through (see the projects variant above for the rationale).
+      expect(body.error.message).toBe("Internal server error");
     });
   });
 

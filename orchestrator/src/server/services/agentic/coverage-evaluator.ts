@@ -123,5 +123,31 @@ Evaluate:
     };
   }
 
-  return result.data;
+  // Normalize defensively: the LLM can return null/malformed fields even
+  // when the JSON schema "validates" — the caller dereferences these.
+  const raw = result.data;
+  const asScore = (value: unknown): number =>
+    typeof value === "number" && !Number.isNaN(value)
+      ? Math.min(100, Math.max(0, Math.round(value)))
+      : 50;
+  const asStringArray = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+
+  return {
+    overallScore: asScore(raw.overallScore),
+    constraintCoverage: Array.isArray(raw.constraintCoverage)
+      ? raw.constraintCoverage.filter(
+          (item) =>
+            item !== null &&
+            typeof item === "object" &&
+            typeof (item as { key?: unknown }).key === "string",
+        )
+      : [],
+    gaps: asStringArray(raw.gaps),
+    suggestions: asStringArray(raw.suggestions),
+    shouldRefine:
+      typeof raw.shouldRefine === "boolean" ? raw.shouldRefine : false,
+  };
 }

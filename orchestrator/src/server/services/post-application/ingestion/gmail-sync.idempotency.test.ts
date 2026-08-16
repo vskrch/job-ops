@@ -65,6 +65,17 @@ vi.mock("@server/services/modelSelection", () => ({
     baseUrl: "https://api.openai.com",
     apiKey: "test-key",
   }),
+  createLlmClient: vi.fn(async () => {
+    return {
+      llm: {
+        callJson: () => llmCallJson(),
+      },
+      model: "gpt-4o",
+      provider: "openai",
+      baseUrl: "https://api.openai.com",
+      apiKey: "test-key",
+    };
+  }),
 }));
 
 const llmCallJson = vi.fn().mockResolvedValue({

@@ -197,9 +197,33 @@ export async function changeUserPassword(
   return { success: true };
 }
 
+/**
+ * Resolve the public base URL for password reset links.
+ *
+ * Derives from the server-side JOBOPS_PUBLIC_BASE_URL env var only — never
+ * from client-supplied headers (Origin/Referer/Host), which would let an
+ * attacker host the reset link and steal the token.
+ */
+export function resolvePublicBaseUrl(): string {
+  const configured = process.env.JOBOPS_PUBLIC_BASE_URL?.trim();
+  if (configured) {
+    try {
+      const parsed = new URL(configured);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.origin;
+      }
+    } catch {
+      // fall through to default
+    }
+    logger.warn(
+      "JOBOPS_PUBLIC_BASE_URL is not a valid http(s) URL; falling back to localhost default",
+    );
+  }
+  return "http://localhost:3001";
+}
+
 export async function createPasswordResetToken(args: {
   email: string;
-  origin?: string;
 }): Promise<{
   success: boolean;
   emailSent: boolean;
@@ -246,11 +270,9 @@ export async function createPasswordResetToken(args: {
     createdAt: now.toISOString(),
   });
 
-  const baseUrl =
-    args.origin ||
-    process.env.JOBOPS_PUBLIC_BASE_URL ||
-    "http://localhost:3001";
-  const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`;
+  // Base URL comes from server config only — request headers are never
+  // trusted for building reset links (host-header injection / takeover).
+  const resetUrl = `${resolvePublicBaseUrl()}/reset-password?token=${rawToken}`;
 
   let emailSent = false;
   if (isEmailConfigured()) {
@@ -259,7 +281,7 @@ export async function createPasswordResetToken(args: {
   } else {
     logger.info("Password reset requested (SMTP not configured)", {
       email: normalizedEmail,
-      resetUrl,
+      emailSent: false,
     });
   }
 
@@ -267,7 +289,10 @@ export async function createPasswordResetToken(args: {
   return {
     success: true,
     emailSent,
-    ...(isDev || !emailSent ? { devToken: rawToken, resetUrl } : {}),
+    // The raw token is exposed to the caller ONLY in non-production
+    // environments (e.g. local self-hosting without SMTP). In production
+    // the token travels exclusively through the reset email.
+    ...(isDev ? { devToken: rawToken, resetUrl } : {}),
   };
 }
 

@@ -12,9 +12,9 @@
  */
 
 import {
-  AppError,
   badRequest,
   conflict,
+  internalError,
   notFound,
   toAppError,
 } from "@infra/errors";
@@ -140,12 +140,8 @@ jobSearchRouter.post("/", async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
     logger.error("Failed to create job search", { error });
-    return fail(
-      res,
-      new AppError({ status: 500, code: "INTERNAL_ERROR", message }),
-    );
+    return fail(res, internalError(error));
   }
 });
 
@@ -157,8 +153,7 @@ jobSearchRouter.get("/", async (_req: Request, res: Response) => {
     const searches = await jobSearchRepo.getRecentJobSearches(20);
     ok(res, searches);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -173,8 +168,7 @@ jobSearchRouter.get("/:id", async (req: Request, res: Response) => {
     }
     ok(res, search);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -251,8 +245,7 @@ jobSearchRouter.post(
         ok(res, { emailStatus: "failed" as const, error: emailResult.error });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+      fail(res, internalError(error));
     }
   },
 );
@@ -290,8 +283,7 @@ jobSearchRouter.post("/:id/import", async (req: Request, res: Response) => {
     const result = await importSearchJobsToTracked(req.params.id, parsed.data);
     ok(res, result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -320,7 +312,6 @@ jobSearchRouter.post("/check-tracked", async (req: Request, res: Response) => {
 
     ok(res, { trackedUrls });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });

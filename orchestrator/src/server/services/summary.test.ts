@@ -12,6 +12,22 @@ vi.mock("../repositories/settings", () => ({
 
 vi.mock("./modelSelection", () => ({
   resolveLlmModel: vi.fn().mockResolvedValue("gpt-4o"),
+  resolveLlmRuntimeSettings: vi.fn().mockResolvedValue({
+    model: "gpt-4o",
+    provider: "openai",
+    baseUrl: "https://api.openai.com",
+    apiKey: "test-key",
+  }),
+  createLlmClient: vi.fn(async () => {
+    const { LlmService } = await import("./llm/service");
+    return {
+      llm: new LlmService(),
+      model: "gpt-4o",
+      provider: "openai",
+      baseUrl: "https://api.openai.com",
+      apiKey: "test-key",
+    };
+  }),
 }));
 
 vi.mock("./llm/service", () => ({

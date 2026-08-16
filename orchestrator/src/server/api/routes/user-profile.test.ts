@@ -178,7 +178,10 @@ describe("User profile API routes", () => {
       error?: { code: string; message: string };
     };
     expect(data.status).toBe("failed");
-    expect(data.error?.message).toContain("Could not parse the PDF");
+    // Unknown service errors are genericized (S7 security sweep): only
+    // deliberate AppError messages from the parser pass through, and this
+    // mock can't fabricate those across the test server's module reset.
+    expect(data.error?.message).toBe("Internal server error");
   });
 
   it("returns 404 for an unknown resume import task", async () => {

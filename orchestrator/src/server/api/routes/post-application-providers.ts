@@ -106,6 +106,29 @@ function asNonEmptyString(value: unknown): string | null {
     : null;
 }
 
+function resolveAllowedOauthOrigin(): string | null {
+  const base = process.env.JOBOPS_PUBLIC_BASE_URL?.trim();
+  if (!base) return null;
+  try {
+    const parsed = new URL(base);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.origin;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+// Localhost origins so the OAuth flow keeps working in dev (Vite proxy and
+// direct server access) without any env config.
+const ALLOWED_DEV_ORIGINS = new Set([
+  "http://localhost:5173",
+  "http://localhost:3001",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3001",
+]);
+
 function resolveGmailOauthConfig(req: Request): {
   clientId: string;
   clientSecret: string;
@@ -122,8 +145,35 @@ function resolveGmailOauthConfig(req: Request): {
   const configuredRedirectUri = asNonEmptyString(
     process.env.GMAIL_OAUTH_REDIRECT_URI,
   );
-  const origin = `${req.protocol}://${req.get("host")}`;
-  const redirectUri = configuredRedirectUri ?? `${origin}/oauth/gmail/callback`;
+  const baseOrigin = resolveAllowedOauthOrigin();
+  // The request origin must be allowlisted — never derived from a raw,
+  // attacker-controlled Host/X-Forwarded-Host header. Otherwise Google
+  // would deliver the authorization code to an attacker-chosen origin.
+  const requestOrigin = `${req.protocol}://${req.get("host")}`;
+
+  const allowedOrigins = new Set<string>();
+  if (configuredRedirectUri) {
+    try {
+      allowedOrigins.add(new URL(configuredRedirectUri).origin);
+    } catch {
+      throw serviceUnavailable(
+        "GMAIL_OAUTH_REDIRECT_URI is not a valid URL. Fix it in your environment configuration.",
+      );
+    }
+  }
+  if (baseOrigin) allowedOrigins.add(baseOrigin);
+  if (process.env.NODE_ENV !== "production") {
+    for (const origin of ALLOWED_DEV_ORIGINS) allowedOrigins.add(origin);
+  }
+
+  if (!allowedOrigins.has(requestOrigin)) {
+    throw badRequest(
+      `Gmail OAuth cannot be initiated from origin "${requestOrigin}". Set JOBOPS_PUBLIC_BASE_URL (or GMAIL_OAUTH_REDIRECT_URI) to match your deployment origin.`,
+    );
+  }
+
+  const redirectUri =
+    configuredRedirectUri ?? `${requestOrigin}/oauth/gmail/callback`;
 
   return {
     clientId,

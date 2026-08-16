@@ -321,6 +321,10 @@ export const SearchSchedulesCard: React.FC = () => {
   );
 
   const handleDelete = useCallback(async (id: string) => {
+    const confirmed = window.confirm(
+      "Delete this search schedule? This action cannot be undone.",
+    );
+    if (!confirmed) return;
     try {
       const updated = await api.deleteSearchSchedule(id);
       setSchedules(updated);

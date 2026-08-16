@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
+import { AppError } from "@infra/errors";
 import { logger } from "@infra/logger";
 import { getDataDir } from "@server/config/dataDir";
 import { createScheduler } from "@server/utils/scheduler";
@@ -155,7 +156,14 @@ export async function createBackup(type: "auto" | "manual"): Promise<string> {
   let reservedHandle: FileHandle | null = null;
 
   if (!fs.existsSync(dbPath)) {
-    throw new Error(`Database file not found: ${dbPath}`);
+    // Keep the absolute path server-side (logs/stack) — the client only needs
+    // the actionable condition, not the server's filesystem layout.
+    throw new AppError({
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Database file not found",
+      cause: new Error(`Database file not found: ${dbPath}`),
+    });
   }
 
   const tryReserve = async (

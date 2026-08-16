@@ -206,6 +206,13 @@ export const GhostwriterPanel: React.FC<GhostwriterPanelProps> = ({ job }) => {
         const message =
           error instanceof Error ? error.message : "Failed to send message";
         toast.error(message);
+        // Roll back the optimistic message: it never reached the server, and
+        // leaving it visible would let the user believe it was sent.
+        try {
+          await loadMessages();
+        } catch {
+          // List refresh is best-effort; the toast already reported the failure.
+        }
       } finally {
         streamAbortRef.current = null;
         setIsStreaming(false);
@@ -266,6 +273,13 @@ export const GhostwriterPanel: React.FC<GhostwriterPanelProps> = ({ job }) => {
             ? error.message
             : "Failed to regenerate response";
         toast.error(message);
+        // Roll back the optimistic truncation: the branch was removed from
+        // view before the request succeeded.
+        try {
+          await loadMessages();
+        } catch {
+          // List refresh is best-effort; the toast already reported the failure.
+        }
       } finally {
         streamAbortRef.current = null;
         setIsStreaming(false);
@@ -325,6 +339,12 @@ export const GhostwriterPanel: React.FC<GhostwriterPanelProps> = ({ job }) => {
         const message =
           error instanceof Error ? error.message : "Failed to edit message";
         toast.error(message);
+        // Roll back the optimistic truncation of the edited branch.
+        try {
+          await loadMessages();
+        } catch {
+          // List refresh is best-effort; the toast already reported the failure.
+        }
       } finally {
         streamAbortRef.current = null;
         setIsStreaming(false);

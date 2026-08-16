@@ -133,8 +133,20 @@ export async function verifyJobConstraints(
     }));
   }
 
-  const outcomes = result.data.results
-    .filter((r) => items.some((i) => i.constraintKey === r.constraintKey))
+  // Normalize defensively: the LLM can return null/malformed arrays even
+  // when the JSON schema "validates" — downstream code iterates these.
+  const rawResults = Array.isArray(result.data?.results)
+    ? result.data.results
+    : [];
+
+  const outcomes = rawResults
+    .filter(
+      (r) =>
+        r !== null &&
+        typeof r === "object" &&
+        typeof r.constraintKey === "string" &&
+        items.some((i) => i.constraintKey === r.constraintKey),
+    )
     .map((r) => ({
       constraintKey: r.constraintKey,
       status: (r.status === "confirmed"
@@ -142,8 +154,11 @@ export async function verifyJobConstraints(
         : r.status === "disputed"
           ? "contradicted"
           : "unknown") as JobVerificationStatus,
-      confidence: r.confidence,
-      evidence: r.evidence,
+      confidence:
+        typeof r.confidence === "number" && !Number.isNaN(r.confidence)
+          ? Math.min(1, Math.max(0, r.confidence))
+          : 0,
+      evidence: typeof r.evidence === "string" ? r.evidence.slice(0, 500) : "",
     }));
 
   for (const outcome of outcomes) {

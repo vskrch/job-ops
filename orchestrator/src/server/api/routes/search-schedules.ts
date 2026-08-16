@@ -8,7 +8,7 @@
  * POST   /api/search-schedules/:id/run  — trigger a schedule manually
  */
 
-import { AppError, badRequest, notFound } from "@infra/errors";
+import { AppError, badRequest, internalError, notFound } from "@infra/errors";
 import { fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
 import { isDemoMode } from "@server/config/demo";
@@ -45,8 +45,7 @@ searchSchedulesRouter.get("/", async (_req: Request, res: Response) => {
     const schedules = await getSearchSchedules();
     ok(res, schedules);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -93,8 +92,7 @@ searchSchedulesRouter.post("/", async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -155,8 +153,7 @@ searchSchedulesRouter.put("/:id", async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -182,8 +179,7 @@ searchSchedulesRouter.delete("/:id", async (req: Request, res: Response) => {
     const schedules = await getSearchSchedules();
     ok(res, schedules);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });
 
@@ -238,7 +234,6 @@ searchSchedulesRouter.post("/:id/run", async (req: Request, res: Response) => {
       resultsCount: result.resultsCount,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    fail(res, new AppError({ status: 500, code: "INTERNAL_ERROR", message }));
+    fail(res, internalError(error));
   }
 });

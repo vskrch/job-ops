@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
 import type {
   ApplicationStage,
@@ -40,6 +41,40 @@ const INTERVIEW_STAGES = new Set<ApplicationStage>([
   "technical_interview",
   "onsite",
 ]);
+
+// Relative stage order for regression detection. Parallel first-round stages
+// (assessment / recruiter_screen) share a rank so lateral moves are allowed.
+const STAGE_ORDER: Record<ApplicationStage, number> = {
+  applied: 0,
+  assessment: 1,
+  recruiter_screen: 1,
+  hiring_manager_screen: 2,
+  technical_interview: 3,
+  onsite: 4,
+  offer: 5,
+  closed: 6,
+};
+
+/**
+ * A transition regresses when it moves to an earlier stage than the current
+ * one (e.g. "applied" after "offer"). Email-driven transitions are exempted
+ * from regressing: an out-of-order email must never clobber real progress.
+ */
+function isRegression(
+  fromStage: ApplicationStage | null,
+  toStage: ApplicationStage,
+): boolean {
+  return (
+    fromStage !== null &&
+    toStage !== fromStage &&
+    STAGE_ORDER[toStage] < STAGE_ORDER[fromStage]
+  );
+}
+
+function isSystemTransition(metadata: StageEventMetadata | null): boolean {
+  if (metadata?.actor === "system") return true;
+  return metadata?.reasonCode?.startsWith("post_application_") ?? false;
+}
 
 export const stageEventMetadataSchema = z
   .object({
@@ -139,6 +174,37 @@ export function transitionStage(
       (lastEvent?.toStage as ApplicationStage | undefined) ?? null;
     const finalToStage =
       toStage === "no_change" ? (fromStage ?? "applied") : toStage;
+
+    // Monotonic guard for automated transitions: a system-sourced stage
+    // change that would regress the application (out-of-order email: a late
+    // "applied"/"update" email arriving after the offer, the recruiter_screen
+    // round-trip from a generic update, etc.) is suppressed instead of
+    // clobbering real progress. The email-to-job match is still persisted;
+    // only the stage move is skipped. A virtual event is returned so callers
+    // that expect a StageEvent id keep working.
+    if (
+      isSystemTransition(parsedMetadata) &&
+      isRegression(fromStage, finalToStage)
+    ) {
+      logger.info("Suppressed regressing automated stage transition", {
+        applicationId,
+        fromStage,
+        attemptedStage: finalToStage,
+        reasonCode: parsedMetadata?.reasonCode ?? null,
+      });
+      return {
+        id: randomUUID(),
+        applicationId,
+        title: parsedMetadata?.eventLabel ?? finalToStage,
+        groupId: parsedMetadata?.groupId ?? null,
+        fromStage,
+        toStage: finalToStage,
+        occurredAt: timestamp,
+        metadata: parsedMetadata,
+        outcome: null,
+      };
+    }
+
     const eventId = randomUUID();
     const isNoteEvent = parsedMetadata?.eventType === "note";
 
@@ -169,6 +235,14 @@ export function transitionStage(
 
       if (finalToStage === "closed") {
         updates.closedAt = timestamp;
+      }
+
+      // Re-opening: moving back to an active stage (user drag, manual stage
+      // change) must clear the stale closed state, otherwise the job keeps
+      // its old outcome/closedAt and disappears from active views forever.
+      if (outcome == null && !isClosingStage(finalToStage)) {
+        updates.outcome = null;
+        updates.closedAt = null;
       }
     }
 

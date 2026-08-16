@@ -81,7 +81,17 @@ export const OrchestratorPage: React.FC = () => {
   }, []);
 
   const activeTab = useMemo(() => {
-    const validTabs: FilterTab[] = ["ready", "discovered", "applied", "all"];
+    // Must mirror the URL-sync allowlist below: tabs like skipped/expired are
+    // first-class here (tab bar, filter branches, empty states) and were
+    // silently degraded to the "ready" tab when opened directly.
+    const validTabs: FilterTab[] = [
+      "ready",
+      "discovered",
+      "applied",
+      "skipped",
+      "expired",
+      "all",
+    ];
     if (tab && validTabs.includes(tab as FilterTab)) {
       return tab as FilterTab;
     }
@@ -451,7 +461,6 @@ export const OrchestratorPage: React.FC = () => {
         onNavOpenChange={setNavOpen}
         isPipelineRunning={isPipelineRunning}
         isCancelling={isCancelling}
-        pipelineSources={pipelineSources}
         onOpenAutomaticRun={() => openRunMode("automatic")}
         onCancelPipeline={handleCancelPipeline}
       />

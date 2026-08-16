@@ -46,7 +46,7 @@ describe("orchestrator utils", () => {
     }
   });
 
-  it("counts processing jobs in ready and discovered tabs", () => {
+  it("counts processing jobs only in the discovered tab", () => {
     const jobs = [
       createJob({ id: "ready", status: "ready", closedAt: null }),
       createJob({ id: "processing", status: "processing", closedAt: null }),
@@ -54,8 +54,10 @@ describe("orchestrator utils", () => {
       createJob({ id: "applied", status: "applied", closedAt: null }),
     ];
 
+    // Processing jobs follow the discovered-tab filter (their first state);
+    // they must NOT double-count into ready.
     expect(getJobCounts(jobs)).toEqual({
-      ready: 2,
+      ready: 1,
       discovered: 2,
       applied: 1,
       in_progress: 0,

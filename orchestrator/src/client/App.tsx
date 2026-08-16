@@ -4,7 +4,7 @@
 
 import { SearchX, X } from "lucide-react";
 import React, { lazy, Suspense, useRef, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,13 @@ const NotFoundPage: React.FC = () => (
       The page you're looking for doesn't exist or may have moved.
     </p>
     <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+      {/* Router Links, not raw anchors: raw hrefs force a full page reload
+          and lose SPA navigation state. */}
       <Button asChild>
-        <a href="/jobs/ready">Back to orchestrator</a>
+        <Link to="/jobs/ready">Back to orchestrator</Link>
       </Button>
       <Button asChild variant="outline">
-        <a href="/job-search">Search jobs</a>
+        <Link to="/job-search">Search jobs</Link>
       </Button>
     </div>
   </main>

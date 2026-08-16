@@ -1,5 +1,4 @@
 import { PageHeader, StatusIndicator } from "@client/components/layout";
-import type { JobSource } from "@shared/types.js";
 import { Loader2, Play, Square } from "lucide-react";
 import type React from "react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,6 @@ interface OrchestratorHeaderProps {
   onNavOpenChange: (open: boolean) => void;
   isPipelineRunning: boolean;
   isCancelling: boolean;
-  pipelineSources: JobSource[];
   onOpenAutomaticRun: () => void;
   onCancelPipeline: () => void;
 }
@@ -19,7 +17,6 @@ export const OrchestratorHeader: React.FC<OrchestratorHeaderProps> = ({
   onNavOpenChange,
   isPipelineRunning,
   isCancelling,
-  pipelineSources,
   onOpenAutomaticRun,
   onCancelPipeline,
 }) => {
@@ -37,7 +34,7 @@ export const OrchestratorHeader: React.FC<OrchestratorHeaderProps> = ({
         <Square className="h-4 w-4" />
       )}
       <span className="hidden sm:inline">
-        {isCancelling ? `Cancelling (${pipelineSources.length})` : `Cancel run`}
+        {isCancelling ? `Cancelling run…` : `Cancel run`}
       </span>
     </Button>
   ) : (

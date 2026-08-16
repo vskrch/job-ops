@@ -1569,10 +1569,12 @@ export async function createBlankDesignResume(): Promise<DesignResumeDocument> {
 
 export async function updateDesignResume(
   input: DesignResumePatchRequest,
+  init?: RequestInit,
 ): Promise<DesignResumeDocument> {
   return fetchApi<DesignResumeDocument>("/design-resume", {
     method: "PATCH",
     body: JSON.stringify(input),
+    ...init,
   });
 }
 

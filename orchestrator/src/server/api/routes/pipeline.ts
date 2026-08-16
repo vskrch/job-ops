@@ -61,12 +61,16 @@ pipelineRouter.get("/status", async (_req: Request, res: Response) => {
     };
     ok(res, data);
   } catch (error) {
+    logger.error("Failed to get pipeline status", {
+      route: "/api/pipeline/status",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -80,12 +84,16 @@ pipelineRouter.get("/schedules", async (_req: Request, res: Response) => {
     const schedules = await getPipelineSchedules();
     ok(res, schedules);
   } catch (error) {
+    logger.error("Failed to list pipeline schedules", {
+      route: "/api/pipeline/schedules",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -154,12 +162,16 @@ pipelineRouter.post("/schedules", async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
     }
+    logger.error("Failed to create pipeline schedule", {
+      route: "/api/pipeline/schedules",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -233,12 +245,16 @@ pipelineRouter.put("/schedules/:id", async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
     }
+    logger.error("Failed to update pipeline schedule", {
+      route: "/api/pipeline/schedules",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -264,12 +280,16 @@ pipelineRouter.delete("/schedules/:id", async (req: Request, res: Response) => {
     const schedules = await getPipelineSchedules();
     ok(res, schedules);
   } catch (error) {
+    logger.error("Failed to delete pipeline schedule", {
+      route: "/api/pipeline/schedules",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -311,12 +331,16 @@ pipelineRouter.get("/runs", async (_req: Request, res: Response) => {
     const runs = await pipelineRepo.getRecentPipelineRuns(20);
     ok(res, runs);
   } catch (error) {
+    logger.error("Failed to list pipeline runs", {
+      route: "/api/pipeline/runs",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -395,12 +419,16 @@ pipelineRouter.post("/run", async (req: Request, res: Response) => {
     if (error instanceof Error && error.name === "AbortError") {
       return fail(res, requestTimeout("Request timed out"));
     }
+    logger.error("Failed to start pipeline run", {
+      route: "/api/pipeline/run",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }
@@ -440,12 +468,16 @@ pipelineRouter.post("/cancel", async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return fail(res, badRequest(error.message, error.flatten()));
     }
+    logger.error("Failed to request pipeline cancellation", {
+      route: "/api/pipeline/cancel",
+      error,
+    });
     fail(
       res,
       new AppError({
         status: 500,
         code: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "Internal server error",
       }),
     );
   }

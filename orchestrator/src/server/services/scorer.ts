@@ -180,13 +180,7 @@ export async function scoreJobSuitability(
   const clampedScore = Math.min(100, Math.max(0, Math.round(score)));
   const clampedReason = reason || "No explanation provided";
   const validGrades = ["A", "B", "C", "D", "F"];
-  const clampedGrade = validGrades.includes(grade)
-    ? grade
-    : scoreToGrade(clampedScore);
   const validVerdicts = ["apply", "maybe", "skip"];
-  const clampedVerdict = validVerdicts.includes(verdict)
-    ? verdict
-    : scoreToVerdict(clampedScore);
   const cleanTopProject = topProject?.trim() || null;
 
   // Apply salary penalty if enabled
@@ -194,6 +188,16 @@ export async function scoreJobSuitability(
     penalizeMissingSalary: settings.penalizeMissingSalary.value,
     missingSalaryPenalty: settings.missingSalaryPenalty.value,
   });
+
+  // Grade/verdict must be derived from the FINAL (post-penalty) score so the
+  // displayed grade matches the returned numeric score. Using the pre-penalty
+  // score here made AI-computed results diverge from the mock-scoring path.
+  const clampedGrade = validGrades.includes(grade)
+    ? grade
+    : scoreToGrade(penaltyResult.score);
+  const clampedVerdict = validVerdicts.includes(verdict)
+    ? verdict
+    : scoreToVerdict(penaltyResult.score);
 
   return {
     score: penaltyResult.score,

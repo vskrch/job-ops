@@ -185,21 +185,19 @@ export const getJobCounts = (
     all: jobs.length,
   };
 
+  // Counts must mirror the per-tab status filters in useFilteredJobs and the
+  // tab definitions in constants.ts. The old logic double-counted
+  // "processing" jobs into both Ready and Discovered badges, and excluded
+  // closed jobs from every badge even though tab lists show them unless
+  // filtered out on the "all" tab.
   for (const job of jobs) {
-    if (job.closedAt != null) continue;
-    if (job.status === "in_progress") {
-      byTab.in_progress += 1;
-      continue;
-    }
-    if (job.status === "ready" || job.status === "processing") byTab.ready += 1;
-    if (job.status === "applied") byTab.applied += 1;
-    if (job.status === "discovered" || job.status === "processing")
+    if (job.status === "ready") byTab.ready += 1;
+    else if (job.status === "discovered" || job.status === "processing")
       byTab.discovered += 1;
-  }
-
-  for (const job of jobs) {
-    if (job.status === "skipped") byTab.skipped += 1;
-    if (job.status === "expired") byTab.expired += 1;
+    else if (job.status === "applied") byTab.applied += 1;
+    else if (job.status === "in_progress") byTab.in_progress += 1;
+    else if (job.status === "skipped") byTab.skipped += 1;
+    else if (job.status === "expired") byTab.expired += 1;
   }
 
   return byTab;

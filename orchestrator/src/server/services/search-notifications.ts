@@ -8,6 +8,7 @@
 
 import { logger } from "@infra/logger";
 import { redactString, sanitizeWebhookPayload } from "@infra/sanitize";
+import { postWebhook } from "@infra/webhook";
 import * as settingsRepo from "@server/repositories/settings";
 import type { JobSearch, JobSearchResultItem } from "@shared/types";
 
@@ -102,7 +103,7 @@ async function sendWebhookNotification(
       relevanceScore: item.relevanceScore,
     }));
 
-    const sanitizedPayload = sanitizeWebhookPayload({
+    const payload = sanitizeWebhookPayload({
       event: "search.scheduled_complete",
       sentAt: new Date().toISOString(),
       scheduleId: ctx.scheduleId,
@@ -114,20 +115,15 @@ async function sendWebhookNotification(
       resultsUrl: `${getPublicBaseUrl()}/job-search/${ctx.searchId}`,
     });
 
-    const response = await fetch(webhookUrl, {
-      method: "POST",
+    const result = await postWebhook(
+      webhookUrl,
+      payload,
       headers,
-      body: JSON.stringify(sanitizedPayload),
-    });
+      { ...notifyLog },
+      "Scheduled-search webhook",
+    );
 
-    if (!response.ok) {
-      const responseText = await response.text().catch(() => "");
-      logger.warn("Scheduled-search webhook POST failed", {
-        ...notifyLog,
-        status: response.status,
-        error: redactString(responseText),
-      });
-    } else {
+    if (result.ok) {
       logger.info("Scheduled-search webhook sent", notifyLog);
     }
   } catch (error) {
@@ -208,6 +204,7 @@ async function sendTelegramNotification(
         parse_mode: "MarkdownV2",
         disable_web_page_preview: true,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {

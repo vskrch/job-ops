@@ -99,6 +99,22 @@ export function upstreamError(message: string, details?: unknown): AppError {
   });
 }
 
+/**
+ * Internal (500) error that never surfaces raw implementation details.
+ * The underlying cause is kept in `cause` (server-side logs only) and an
+ * optional sanitized fingerprint can travel in `details`, which is
+ * sanitized by the response layer before being returned.
+ */
+export function internalError(cause?: unknown, details?: unknown): AppError {
+  return new AppError({
+    status: 500,
+    code: "INTERNAL_ERROR",
+    message: "Internal server error",
+    ...(cause !== undefined ? { cause } : {}),
+    ...(details !== undefined ? { details } : {}),
+  });
+}
+
 export function serviceUnavailable(message: string): AppError {
   return new AppError({ status: 503, code: "SERVICE_UNAVAILABLE", message });
 }
@@ -127,10 +143,12 @@ export function toAppError(error: unknown): AppError {
     return requestTimeout("Request timed out");
   }
   if (error instanceof Error) {
+    // Do not forward raw internal error messages (DB/SQL/file-path details)
+    // to clients. Keep the cause for server-side logs only.
     return new AppError({
       status: 500,
       code: "INTERNAL_ERROR",
-      message: error.message || "Internal server error",
+      message: "Internal server error",
       cause: error,
     });
   }

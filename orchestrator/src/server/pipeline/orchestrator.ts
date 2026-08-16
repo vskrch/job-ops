@@ -234,193 +234,207 @@ export async function runPipeline(
   }
 
   activePipelineRuns++;
-  let pipelineRunId = "pending";
-  activeRunIds.add(pipelineRunId);
+  let pipelineRunId: string | null = null;
+  const pendingId = "pending";
+  activeRunIds.add(pendingId);
   resetProgress();
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-  // Resolve excluded runs from the persisted setting (set via Run > Advanced).
-  const excludeRunIds = await resolveExcludeRunIds();
-  const effectiveConfig: PipelineConfig = {
-    ...mergedConfig,
-    excludeRunIds,
-  };
+  try {
+    const mergedConfig = { ...DEFAULT_CONFIG, ...config };
 
-  // Snapshot the effective run configuration for the run history UI.
-  const configSnapshot = await buildRunConfigSnapshot(effectiveConfig);
-
-  const pipelineRun = await pipelineRepo.createPipelineRun(configSnapshot);
-  pipelineRunId = pipelineRun.id;
-  activeRunIds.delete("pending");
-  activeRunIds.add(pipelineRun.id);
-
-  return runWithRequestContext({ pipelineRunId: pipelineRun.id }, async () => {
-    const pipelineLogger = logger.child({ pipelineRunId: pipelineRun.id });
-    let jobsDiscovered = 0;
-    let jobsProcessed = 0;
-    pipelineLogger.info("Starting pipeline run", {
-      topN: effectiveConfig.topN,
-      minSuitabilityScore: effectiveConfig.minSuitabilityScore,
-      sources: effectiveConfig.sources,
+    // Resolve excluded runs from the persisted setting (set via Run > Advanced).
+    const excludeRunIds = await resolveExcludeRunIds();
+    const effectiveConfig: PipelineConfig = {
+      ...mergedConfig,
       excludeRunIds,
-      activeRunCount: activePipelineRuns,
-    });
-
-    const stepStartTimes = new Map<string, number>();
-    const startStep = (name: string): void => {
-      stepStartTimes.set(name, Date.now());
-      pipelineLogger.debug("Pipeline step started", { step: name });
-    };
-    const finishStep = (
-      name: string,
-      extra: Record<string, unknown> = {},
-    ): void => {
-      pipelineLogger.debug("Pipeline step completed", {
-        step: name,
-        durationMs: Date.now() - (stepStartTimes.get(name) ?? Date.now()),
-        ...extra,
-      });
     };
 
-    try {
-      ensureNotCancelled(pipelineRun.id);
-      startStep("load-profile");
-      const profile = await loadProfileStep();
-      finishStep("load-profile");
+    // Snapshot the effective run configuration for the run history UI.
+    const configSnapshot = await buildRunConfigSnapshot(effectiveConfig);
 
-      ensureNotCancelled(pipelineRun.id);
-      startStep("discover-jobs");
-      const { discoveredJobs } = await discoverJobsStep({
-        mergedConfig: effectiveConfig,
-        shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
-      });
-      finishStep("discover-jobs", { discovered: discoveredJobs.length });
+    // If any pre-flight step throws (createPipelineRun included), the outer
+    // finally still releases the slot — a leak would permanently brick all
+    // future runs once maxConcurrentPipelines failures accumulate.
+    const pipelineRun = await pipelineRepo.createPipelineRun(configSnapshot);
+    pipelineRunId = pipelineRun.id;
+    activeRunIds.delete(pendingId);
+    activeRunIds.add(pipelineRun.id);
 
-      ensureNotCancelled(pipelineRun.id);
-      startStep("import-jobs");
-      const { created } = await importJobsStep({
-        discoveredJobs,
-        runId: pipelineRun.id,
-      });
-      jobsDiscovered = created;
-      finishStep("import-jobs", { created });
-
-      await pipelineRepo.updatePipelineRun(pipelineRun.id, {
-        jobsDiscovered: created,
-      });
-
-      ensureNotCancelled(pipelineRun.id);
-      startStep("score-jobs");
-      const { unprocessedJobs, scoredJobs } = await scoreJobsStep({
-        profile,
-        excludeRunIds,
-        shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
-      });
-      finishStep("score-jobs", {
-        scored: scoredJobs.length,
-        unprocessed: unprocessedJobs.length,
-      });
-
-      ensureNotCancelled(pipelineRun.id);
-      startStep("select-jobs");
-      const jobsToProcess = selectJobsStep({
-        scoredJobs,
-        mergedConfig: effectiveConfig,
-      });
-      finishStep("select-jobs", { selected: jobsToProcess.length });
-
-      pipelineLogger.info("Selected jobs for processing", {
-        candidates: jobsToProcess.length,
-      });
-
-      startStep("process-jobs");
-      const { processedCount } = await processJobsStep({
-        jobsToProcess,
-        processJob,
-        shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
-      });
-      jobsProcessed = processedCount;
-      finishStep("process-jobs", { processed: processedCount });
-
-      await pipelineRepo.updatePipelineRun(pipelineRun.id, {
-        status: "completed",
-        completedAt: new Date().toISOString(),
-        jobsProcessed: processedCount,
-      });
-
-      progressHelpers.complete(created, processedCount);
-      pipelineLogger.info("Pipeline run completed", {
-        jobsDiscovered: created,
-        jobsProcessed: processedCount,
-      });
-
-      await notifyPipelineWebhookStep("pipeline.completed", {
-        pipelineRunId: pipelineRun.id,
-        jobsDiscovered: created,
-        jobsScored: unprocessedJobs.length,
-        jobsProcessed: processedCount,
-      });
-
-      return {
-        success: true,
-        jobsDiscovered: created,
-        jobsProcessed: processedCount,
-      };
-    } catch (error) {
-      if (error instanceof PipelineCancelledError) {
-        const message = "Cancelled by user request";
-        await pipelineRepo.updatePipelineRun(pipelineRun.id, {
-          status: "cancelled",
-          completedAt: new Date().toISOString(),
-          jobsDiscovered,
-          jobsProcessed,
-          errorMessage: message,
+    return await runWithRequestContext(
+      { pipelineRunId: pipelineRun.id },
+      async () => {
+        const pipelineLogger = logger.child({ pipelineRunId: pipelineRun.id });
+        let jobsDiscovered = 0;
+        let jobsProcessed = 0;
+        pipelineLogger.info("Starting pipeline run", {
+          topN: effectiveConfig.topN,
+          minSuitabilityScore: effectiveConfig.minSuitabilityScore,
+          sources: effectiveConfig.sources,
+          excludeRunIds,
+          activeRunCount: activePipelineRuns,
         });
-        progressHelpers.cancelled(message);
-        pipelineLogger.info("Pipeline run cancelled", {
-          jobsDiscovered,
-          jobsProcessed,
-        });
-        return {
-          success: false,
-          jobsDiscovered,
-          jobsProcessed,
-          error: message,
+
+        const stepStartTimes = new Map<string, number>();
+        const startStep = (name: string): void => {
+          stepStartTimes.set(name, Date.now());
+          pipelineLogger.debug("Pipeline step started", { step: name });
         };
-      }
+        const finishStep = (
+          name: string,
+          extra: Record<string, unknown> = {},
+        ): void => {
+          pipelineLogger.debug("Pipeline step completed", {
+            step: name,
+            durationMs: Date.now() - (stepStartTimes.get(name) ?? Date.now()),
+            ...extra,
+          });
+        };
 
-      const message = error instanceof Error ? error.message : "Unknown error";
+        try {
+          ensureNotCancelled(pipelineRun.id);
+          startStep("load-profile");
+          const profile = await loadProfileStep();
+          finishStep("load-profile");
 
-      await pipelineRepo.updatePipelineRun(pipelineRun.id, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
-        errorMessage: message,
-      });
+          ensureNotCancelled(pipelineRun.id);
+          startStep("discover-jobs");
+          const { discoveredJobs } = await discoverJobsStep({
+            mergedConfig: effectiveConfig,
+            shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
+          });
+          finishStep("discover-jobs", { discovered: discoveredJobs.length });
 
-      progressHelpers.failed(message);
-      pipelineLogger.error("Pipeline run failed", error);
+          ensureNotCancelled(pipelineRun.id);
+          startStep("import-jobs");
+          const { created } = await importJobsStep({
+            discoveredJobs,
+            runId: pipelineRun.id,
+          });
+          jobsDiscovered = created;
+          finishStep("import-jobs", { created });
 
-      await notifyPipelineWebhookStep("pipeline.failed", {
-        pipelineRunId: pipelineRun.id,
-        error: message,
-      });
+          await pipelineRepo.updatePipelineRun(pipelineRun.id, {
+            jobsDiscovered: created,
+          });
 
-      return {
-        success: false,
-        jobsDiscovered,
-        jobsProcessed,
-        error: message,
-      };
-    } finally {
-      activePipelineRuns = Math.max(0, activePipelineRuns - 1);
-      activeRunIds.delete(pipelineRun.id);
-      cancelRequestedByRunId.delete(pipelineRun.id);
-      // Reset the global "cancel all" flag once the last active run finishes.
-      if (activePipelineRuns === 0) {
-        cancelAllRequested = false;
-      }
+          ensureNotCancelled(pipelineRun.id);
+          startStep("score-jobs");
+          const { unprocessedJobs, scoredJobs } = await scoreJobsStep({
+            profile,
+            excludeRunIds,
+            shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
+          });
+          finishStep("score-jobs", {
+            scored: scoredJobs.length,
+            unprocessed: unprocessedJobs.length,
+          });
+
+          ensureNotCancelled(pipelineRun.id);
+          startStep("select-jobs");
+          const jobsToProcess = selectJobsStep({
+            scoredJobs,
+            mergedConfig: effectiveConfig,
+          });
+          finishStep("select-jobs", { selected: jobsToProcess.length });
+
+          pipelineLogger.info("Selected jobs for processing", {
+            candidates: jobsToProcess.length,
+          });
+
+          startStep("process-jobs");
+          const { processedCount } = await processJobsStep({
+            jobsToProcess,
+            processJob,
+            shouldCancel: () => cancelRequestedByRunId.has(pipelineRun.id),
+          });
+          jobsProcessed = processedCount;
+          finishStep("process-jobs", { processed: processedCount });
+
+          await pipelineRepo.updatePipelineRun(pipelineRun.id, {
+            status: "completed",
+            completedAt: new Date().toISOString(),
+            jobsProcessed: processedCount,
+          });
+
+          progressHelpers.complete(created, processedCount);
+          pipelineLogger.info("Pipeline run completed", {
+            jobsDiscovered: created,
+            jobsProcessed: processedCount,
+          });
+
+          await notifyPipelineWebhookStep("pipeline.completed", {
+            pipelineRunId: pipelineRun.id,
+            jobsDiscovered: created,
+            jobsScored: unprocessedJobs.length,
+            jobsProcessed: processedCount,
+          });
+
+          return {
+            success: true,
+            jobsDiscovered: created,
+            jobsProcessed: processedCount,
+          };
+        } catch (error) {
+          if (error instanceof PipelineCancelledError) {
+            const message = "Cancelled by user request";
+            await pipelineRepo.updatePipelineRun(pipelineRun.id, {
+              status: "cancelled",
+              completedAt: new Date().toISOString(),
+              jobsDiscovered,
+              jobsProcessed,
+              errorMessage: message,
+            });
+            progressHelpers.cancelled(message);
+            pipelineLogger.info("Pipeline run cancelled", {
+              jobsDiscovered,
+              jobsProcessed,
+            });
+            return {
+              success: false,
+              jobsDiscovered,
+              jobsProcessed,
+              error: message,
+            };
+          }
+
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+
+          await pipelineRepo.updatePipelineRun(pipelineRun.id, {
+            status: "failed",
+            completedAt: new Date().toISOString(),
+            errorMessage: message,
+          });
+
+          progressHelpers.failed(message);
+          pipelineLogger.error("Pipeline run failed", error);
+
+          await notifyPipelineWebhookStep("pipeline.failed", {
+            pipelineRunId: pipelineRun.id,
+            error: message,
+          });
+
+          return {
+            success: false,
+            jobsDiscovered,
+            jobsProcessed,
+            error: message,
+          };
+        }
+      },
+    );
+  } finally {
+    activePipelineRuns = Math.max(0, activePipelineRuns - 1);
+    if (pipelineRunId) {
+      activeRunIds.delete(pipelineRunId);
+      cancelRequestedByRunId.delete(pipelineRunId);
     }
-  });
+    activeRunIds.delete(pendingId);
+    // Reset the global "cancel all" flag once the last active run finishes.
+    if (activePipelineRuns === 0) {
+      cancelAllRequested = false;
+    }
+  }
 }
 
 export type ProcessJobOptions = {

@@ -21,6 +21,7 @@ import {
   BookmarkPlus,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Download,
   Loader2,
@@ -70,6 +71,11 @@ export const JobSearchPage: React.FC = () => {
     [],
   );
   const [error, setError] = useState<string | null>(null);
+  // The error banner title must reflect what actually failed: a resend/import
+  // failure labeled "Search Failed" hides the real problem.
+  const [errorKind, setErrorKind] = useState<
+    "search" | "email" | "track" | "import" | null
+  >(null);
   const [trackedUrls, setTrackedUrls] = useState<Set<string>>(new Set());
   const [importingAll, setImportingAll] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
@@ -162,6 +168,7 @@ export const JobSearchPage: React.FC = () => {
           break;
         case "failed":
           setPhase("failed");
+          setErrorKind("search");
           setError(event.error);
           unsubscribeProgress();
           break;
@@ -196,6 +203,7 @@ export const JobSearchPage: React.FC = () => {
 
     setPhase("parsing");
     setError(null);
+    setErrorKind(null);
     setParsedSpec(null);
     setSearch(null);
     setProvisionalResults([]);
@@ -238,6 +246,7 @@ export const JobSearchPage: React.FC = () => {
         },
       );
     } catch (err) {
+      setErrorKind("search");
       setError(err instanceof Error ? err.message : "Failed to start search");
       setPhase("failed");
     }
@@ -250,7 +259,12 @@ export const JobSearchPage: React.FC = () => {
       const updated = await api.getJobSearch(searchId);
       setSearch(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to resend email");
+      setErrorKind("email");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to resend the results email",
+      );
     }
   }, [searchId]);
 
@@ -284,7 +298,12 @@ export const JobSearchPage: React.FC = () => {
         setImportFeedback("Job successfully saved to Tracked Applications!");
         setTimeout(() => setImportFeedback(null), 4000);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to track job");
+        setErrorKind("track");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to save this job to Tracked Applications",
+        );
       }
     },
     [searchId],
@@ -309,6 +328,7 @@ export const JobSearchPage: React.FC = () => {
       );
       setTimeout(() => setImportFeedback(null), 5000);
     } catch (err) {
+      setErrorKind("import");
       setError(err instanceof Error ? err.message : "Failed to import jobs");
     } finally {
       setImportingAll(false);
@@ -394,7 +414,15 @@ export const JobSearchPage: React.FC = () => {
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Search Failed</AlertTitle>
+              <AlertTitle>
+                {errorKind === "email"
+                  ? "Failed to resend the results email"
+                  : errorKind === "track"
+                    ? "Failed to save job"
+                    : errorKind === "import"
+                      ? "Failed to import jobs"
+                      : "Search Failed"}
+              </AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -848,11 +876,10 @@ function JobResultCard({
 
   return (
     <div className="rounded-lg border p-4 transition-colors hover:bg-muted/50">
-      <button
-        type="button"
-        className="flex w-full items-start justify-between gap-4 text-left"
-        onClick={() => setExpanded(!expanded)}
-      >
+      {/* Header is a plain div: action buttons live beside it, not inside it.
+          Nested interactive elements (button-in-button, anchor-in-button)
+          break clicks, focus order, and assistive-tech semantics. */}
+      <div className="flex w-full items-start justify-between gap-4 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-muted-foreground">
@@ -904,31 +931,36 @@ function JobResultCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {onTrack && !isTracked && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTrack();
-              }}
-            >
+            <Button variant="outline" size="sm" onClick={onTrack}>
               <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
               Track
             </Button>
           )}
           {item.job.applicationLink || item.job.jobUrl ? (
-            <a
-              href={item.job.applicationLink ?? item.job.jobUrl}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Button variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm">
+              <a
+                href={item.job.applicationLink ?? item.job.jobUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
                 View →
-              </Button>
-            </a>
+              </a>
+            </Button>
           ) : null}
         </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${
+            expanded ? "rotate-180" : ""
+          }`}
+        />
+        {expanded ? "Show fewer details" : "Show details"}
       </button>
       {expanded && (
         <div className="mt-3 space-y-2 border-t pt-3">

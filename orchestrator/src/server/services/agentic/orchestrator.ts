@@ -67,10 +67,14 @@ const TOP_JOBS_TO_VERIFY = 10;
 const MAX_RANKED_JOBS = 50;
 
 // ADR §7: concurrent agentic searches are capped in-process (env-overridable).
-const MAX_CONCURRENT_AGENTIC_SEARCHES = Number.parseInt(
+const ENV_AGENTIC_CONCURRENCY = Number.parseInt(
   process.env.AGENTIC_SEARCH_CONCURRENCY ?? "2",
   10,
 );
+const MAX_CONCURRENT_AGENTIC_SEARCHES =
+  Number.isInteger(ENV_AGENTIC_CONCURRENCY) && ENV_AGENTIC_CONCURRENCY >= 1
+    ? ENV_AGENTIC_CONCURRENCY
+    : 2;
 let activeAgenticSlots = 0;
 const agenticSlotWaiters: Array<() => void> = [];
 
@@ -259,7 +263,7 @@ function buildVerificationItems(
     });
   if (spec.workMode !== "any")
     items.push({
-      constraintKey: "work_mode",
+      constraintKey: "workMode",
       expectedValue: spec.workMode,
       hard: true,
     });
@@ -284,7 +288,7 @@ function buildVerificationItems(
     });
   if (spec.excludeTerms.length > 0)
     items.push({
-      constraintKey: "exclude_terms",
+      constraintKey: "excludeTerms",
       expectedValue: spec.excludeTerms,
       hard: true,
     });
@@ -376,8 +380,9 @@ async function runAgenticLoop(
     const sourceStatuses: SearchSourceStatus[] = [];
 
     while (iteration < limits.maxIterations) {
-      iteration += 1;
-      budget.incrementIteration();
+      // Budget must be checked BEFORE claiming the iteration slot: with
+      // maxIterations: 1 the old order (increment then check) aborted before
+      // the first search ever ran, yielding zero results.
       const budgetCheck = budget.canContinue();
       if (!budgetCheck.ok) {
         logger.info("Budget exhausted, stopping iterations", {
@@ -386,6 +391,8 @@ async function runAgenticLoop(
         });
         break;
       }
+      iteration += 1;
+      budget.incrementIteration();
 
       if (await isSearchCancelled(searchId)) {
         logger.info("Agentic search cancelled, stopping", { searchId });
@@ -637,7 +644,6 @@ async function runAgenticLoop(
       });
 
       let jobsVerified = 0;
-      let verificationLlmCalls = 0;
       for (const candidate of unverifiedCandidates) {
         const budgetCheck = budget.canContinue();
         if (!budgetCheck.ok) {
@@ -654,14 +660,18 @@ async function runAgenticLoop(
           break;
         }
 
+        // Charge the estimate per verification call (not once for the whole
+        // batch): the old post-loop recordLlmCall(batchSize, ...) only ever
+        // incremented llmCalls by 1 and added a phantom charge even when the
+        // loop broke before any verification ran.
         budget.recordVerificationCall();
+        budget.recordLlmCall(0, 0.005);
         const verifyStart = Date.now();
         const outcomes = await verifyJobConstraints(
           candidate.job,
           searchId,
           verificationItems,
         );
-        verificationLlmCalls += 1;
         await recordToolCall({
           searchId,
           toolName: "verify_job",
@@ -689,7 +699,6 @@ async function runAgenticLoop(
           jobsVerified,
         });
       }
-      budget.recordLlmCall(verificationLlmCalls, 0.005);
     }
 
     if (await isSearchCancelled(searchId)) {

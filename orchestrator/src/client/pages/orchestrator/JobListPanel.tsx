@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { FilterTab } from "./constants";
-import { defaultStatusToken, emptyStateCopy, statusTokens } from "./constants";
+import { emptyStateCopy } from "./constants";
 import { JobRowContent } from "./JobRowContent";
 
 interface EmptyStateAction {
@@ -123,7 +123,6 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
         {activeJobs.map((job) => {
           const isSelected = job.id === selectedJobId;
           const isChecked = selectedJobIds.has(job.id);
-          const statusToken = statusTokens[job.status] ?? defaultStatusToken;
           return (
             <div
               key={job.id}
@@ -140,16 +139,6 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
               )}
             >
               <div className="relative h-4 w-4 shrink-0">
-                <span
-                  className={cn(
-                    "absolute inset-0 m-auto h-2 w-2 rounded-full transition-opacity duration-150 ease-out",
-                    statusToken.dot,
-                    isChecked || isSelected
-                      ? "opacity-0"
-                      : "opacity-100 group-hover:opacity-0",
-                  )}
-                  title={statusToken.label}
-                />
                 <Checkbox
                   checked={isChecked}
                   onCheckedChange={() => onToggleSelectJob(job.id)}
@@ -159,9 +148,12 @@ export const JobListPanel: React.FC<JobListPanelProps> = ({
                     "absolute inset-0 m-0 border-border/80 cursor-pointer text-muted-foreground/70 transition-opacity duration-150 ease-out",
                     "data-[state=checked]:border-primary data-[state=checked]:bg-primary/20 data-[state=checked]:text-primary",
                     "data-[state=checked]:shadow-[0_0_0_1px_hsl(var(--primary)/0.35)]",
+                    // Keyboard accessibility: the checkbox is invisible until
+                    // hover/focus. group-focus-within keeps it visible while
+                    // the row button (or the checkbox itself) is focused.
                     isChecked || isSelected
                       ? "opacity-100 pointer-events-auto"
-                      : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto",
+                      : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
                   )}
                 />
               </div>

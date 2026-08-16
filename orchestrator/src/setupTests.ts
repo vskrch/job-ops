@@ -4,6 +4,17 @@
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
 
+// Server modules initialize the SQLite DB (and run migrations) at import
+// time (src/server/db/index.ts). Without a dedicated data dir, every test
+// fork races on the developer's real data/jobs.db — causing intermittent
+// "no such table"/lock failures under parallel execution. Give each fork its
+// own throwaway dir so import-time initialization is fully isolated.
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "job-ops-vitest-data-"));
+
 if (typeof globalThis.ResizeObserver === "undefined") {
   class ResizeObserver {
     observe() {}

@@ -358,7 +358,12 @@ function failRxResume(res: Response, error: unknown): void {
   }
   const message = error instanceof Error ? error.message : "Unknown error";
   logger.error("Reactive Resume route request failed", { message, error });
-  fail(res, upstreamError(message));
+  fail(
+    res,
+    upstreamError(
+      "Reactive Resume request failed. Check the URL and try again.",
+    ),
+  );
 }
 
 settingsRouter.get(

@@ -74,6 +74,10 @@ export const DesignResumePage: React.FC = () => {
   const editVersionRef = useRef(0);
   const draftRef = useRef<DesignResumeDocument | null>(null);
   draftRef.current = draft;
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  const saveStateRef = useRef<"idle" | "saving" | "saved" | "error">("idle");
+  saveStateRef.current = saveState;
 
   const pdfRenderer = settings?.pdfRenderer?.value ?? "latex";
   const latexTemplate = settings?.latexTemplate?.value ?? "jake";
@@ -153,6 +157,54 @@ export const DesignResumePage: React.FC = () => {
 
     return () => window.clearTimeout(timer);
   }, [dirty, draft, document, queryClient, saveState]);
+
+  // Flush unsaved edits when the tab is hidden or closed. The 700ms autosave
+  // debounce would otherwise silently drop the user's last edits when they
+  // switch tabs, navigate away, or close the window right after typing.
+  // Note: `document` here is the resume document from useDesignResume, so the
+  // window document is captured explicitly.
+  useEffect(() => {
+    const winDoc = window.document;
+    if (!document) return;
+    const flush = () => {
+      const currentDraft = draftRef.current;
+      if (
+        !currentDraft ||
+        !dirtyRef.current ||
+        saveStateRef.current === "saving"
+      ) {
+        return;
+      }
+      void api
+        .updateDesignResume(
+          {
+            baseRevision: currentDraft.revision,
+            document: structuredClone(currentDraft.resumeJson),
+          },
+          { keepalive: true },
+        )
+        .then((updated) => {
+          setDraft((current) =>
+            current ? { ...updated, resumeJson: current.resumeJson } : updated,
+          );
+          setDirty(false);
+          setSaveState("saved");
+        })
+        .catch(() => {
+          // Best-effort flush: if the document is still open, the autosave
+          // cycle retries; if the tab is gone, nothing more can be done.
+        });
+    };
+    const onVisibilityChange = () => {
+      if (winDoc.visibilityState === "hidden") flush();
+    };
+    winDoc.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      winDoc.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [document]);
 
   const setDesignResume = (next: DesignResumeDocument) => {
     queryClient.setQueryData(queryKeys.designResume.current(), next);

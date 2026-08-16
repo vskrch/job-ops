@@ -13,30 +13,35 @@
  *   - Path=/     — available to the whole app
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { logger } from "@infra/logger";
 
 const COOKIE_NAME = "jobops.session";
 const TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const TTL_MS = TTL_SECONDS * 1000;
-const DEV_FALLBACK_SECRET = "jobops-dev-session-secret-change-in-production";
 
 let devFallbackWarned = false;
+let devSecret: string | null = null;
 
 function sessionSecret(): string {
   const explicit = process.env.SESSION_SECRET?.trim();
   if (explicit) return explicit;
 
-  const basicAuthPass = process.env.BASIC_AUTH_PASSWORD?.trim();
-  if (basicAuthPass) return basicAuthPass;
-
+  // Production is guarded at startup (server/index.ts), so reaching this
+  // branch means non-production. Never use a hardcoded/predictable secret:
+  // use a random per-process secret so sessions cannot be forged even if a
+  // dev/staging instance is accidentally exposed. Downside: sessions do not
+  // survive restarts in dev — acceptable for non-production.
   if (!devFallbackWarned) {
     devFallbackWarned = true;
     logger.warn(
-      "SESSION_SECRET is not set — using a publicly known dev fallback. Do NOT deploy without setting SESSION_SECRET.",
+      "SESSION_SECRET is not set. Using an ephemeral per-process secret: sessions will not survive a restart. Set SESSION_SECRET for stable sessions.",
     );
   }
-  return DEV_FALLBACK_SECRET;
+  if (!devSecret) {
+    devSecret = randomBytes(32).toString("hex");
+  }
+  return devSecret;
 }
 
 function sign(userId: string, expiresAt: number): string {

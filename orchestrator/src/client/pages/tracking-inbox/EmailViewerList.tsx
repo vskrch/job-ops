@@ -106,6 +106,11 @@ const EmailViewerRow: React.FC<EmailViewerRowProps> = ({
         </div>
 
         <p className="truncate text-sm font-medium">{item.message.subject}</p>
+        {item.message.snippet ? (
+          <p className="line-clamp-2 text-xs text-muted-foreground/80">
+            {item.message.snippet}
+          </p>
+        ) : null}
         {item.message.matchedJobId ? null : (
           <p className="text-xs text-amber-600">
             Relevant email with no reliable job match. Please select the correct
