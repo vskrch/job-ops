@@ -1,21 +1,23 @@
-# Natural Language Job Search Overhaul Plan
+# Multi-Tenant Pipeline Isolation & Concurrency Overhaul Plan
 
-- [x] **Robust Rule-Based & LLM Query Parser (`query-parser.ts`)**:
-  - Add comprehensive rule-based heuristic extraction (roles, skills, location, workMode, experience, salary, postedWithin, excludeTerms)
-  - Wrap LLM client initialization and call in safe `try/catch` with automatic fallback to rule-based parser
-  - Update query parser unit tests covering both LLM and offline rule-based extraction
-- [x] **Prompt Template & Region Expansion (`prompt-template-definitions.ts`)**:
-  - Update default search prompt template to support global countries (UK, US, Canada, EU, Australia, etc.)
-- [x] **Source Runner & Term Formation Fixes (`source-runner.ts`)**:
-  - Ensure clean keyword generation from parsed spec without generic or duplicate terms
-  - Sanitize location/city passing to JobSpy and other extractors
-- [x] **Frontend JobSearchPage Wiring & URL Synchronization (`JobSearchPage.tsx`)**:
-  - Add `useSearchParams` synchronization so `?q=...` or `?id=...` immediately populates and triggers search
-  - Improve search progress notifications and partial result rendering
-- [x] **Global NL Search Affordance in Command Bar (`JobCommandBar.tsx`)**:
-  - Add "Search web for '<query>' with Natural Language" action in `Cmd+K` command bar to navigate directly to `/job-search?q=...`
-- [x] **Comprehensive Verification & CI Parity**:
-  - Run full test suite (1,380 tests passed across 216 test files)
-  - Biome CI passed (0 errors across 818 files)
-  - TypeScript checks passed (`check:types:shared`, `check:types`)
-  - Client bundle build passed (`build:client`)
+- [x] **Multi-Tenant Pipeline Progress Tracking (`progress.ts`)**:
+  - Partition `currentProgress`, `listeners`, `replayBuffer`, and `crawlingStatsBySource` by `userId`
+  - Ensure `updateProgress`, `getProgress`, `subscribeToProgress`, and `resetProgress` operate on user-specific state
+  - Ensure progress events are only broadcast to the user who owns the pipeline run
+- [x] **Multi-Tenant Pipeline Orchestration & Concurrency (`orchestrator.ts`)**:
+  - Scope `activeRunIdsByUserId`, `cancelRequestedByRunId`, and `cancelAllByUserId` per user
+  - Enable multiple users to run their own pipelines concurrently without blocking each other
+  - Pass `{ userId, requestId, pipelineRunId }` in `runWithRequestContext` throughout background execution
+  - Update `getPipelineStatus(userId)` and `requestPipelineCancel(runId, userId)` to be user-scoped
+- [x] **API Routes User Scoping (`pipeline.ts`)**:
+  - `GET /api/pipeline/status`: pass `userId` to `getPipelineStatus(userId)` and `getProgress(userId)`
+  - `GET /api/pipeline/progress`: pass `userId` to `subscribeToProgress(sendProgress, userId)`
+  - `POST /api/pipeline/run`: capture `userId = getCurrentUserId()` and pass to `runWithRequestContext`
+  - `POST /api/pipeline/cancel`: pass `userId` to `requestPipelineCancel(input.pipelineRunId, userId)`
+- [x] **Multi-Tenant Pipeline Tests (`multi-tenant-pipeline.test.ts`)**:
+  - Add comprehensive multi-user pipeline concurrency and isolation test validating that User A and User B can run pipelines concurrently and only receive their own progress and runs
+- [x] **CI Parity Verification**:
+  - Biome CI passed (0 errors across 819 files)
+  - TypeScript checked on shared and orchestrator (0 errors)
+  - Client bundle built successfully
+  - All 1,382 automated tests passed across 217 test files

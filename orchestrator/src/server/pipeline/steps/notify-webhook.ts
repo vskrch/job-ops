@@ -3,7 +3,7 @@ import { postWebhook } from "@infra/webhook";
 import * as settingsRepo from "@server/repositories/settings";
 
 export async function notifyPipelineWebhookStep(
-  event: "pipeline.completed" | "pipeline.failed",
+  event: "pipeline.completed" | "pipeline.failed" | "pipeline.cancelled",
   payload: Record<string, unknown>,
 ): Promise<void> {
   const overridePipelineWebhookUrl =

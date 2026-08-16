@@ -7,10 +7,15 @@
  * 3. Leave all jobs in "discovered" for manual processing
  */
 
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
-import { runWithRequestContext } from "@infra/request-context";
+import {
+  getCurrentUserId,
+  getRequestId,
+  runWithRequestContext,
+} from "@infra/request-context";
 import type {
   PipelineConfig,
   PipelineRunConfigSnapshot,
@@ -134,26 +139,28 @@ function safeParseExperienceBullets(
   }
 }
 
-// ponytail: module-level counting semaphore — single-process only.
-// SQLite + better-sqlite3 is single-connection; this is fine until horizontal
-// scaling. Up to `maxConcurrentPipelines` runs can execute simultaneously.
-// Upgrade path: move to a DB-backed advisory lock (pipeline_runs row) if
-// multi-instance.
-let activePipelineRuns = 0;
-let maxConcurrentPipelines = 3;
-const activeRunIds = new Set<string>();
+// Multi-tenant counting semaphore and run tracking.
+// Concurrency is enforced per-user account so runs for User A do not
+// block or interfere with runs for User B.
+const activeRunIdsByUserId = new Map<string, Set<string>>();
 const cancelRequestedByRunId = new Set<string>();
-let cancelAllRequested = false;
+const cancelAllByUserId = new Map<string, boolean>();
+let maxConcurrentPipelinesPerUser = 3;
 
 class PipelineCancelledError extends Error {
-  constructor(message = "Pipeline cancellation requested") {
+  constructor(message = "Cancelled by user request") {
     super(message);
     this.name = "PipelineCancelledError";
   }
 }
 
-function ensureNotCancelled(runId: string): void {
-  if (cancelAllRequested || cancelRequestedByRunId.has(runId)) {
+function resolveUser(explicitUserId?: string): string {
+  return explicitUserId || getCurrentUserId();
+}
+
+function ensureNotCancelled(runId: string, explicitUserId?: string): void {
+  const userId = resolveUser(explicitUserId);
+  if (cancelAllByUserId.get(userId) || cancelRequestedByRunId.has(runId)) {
     throw new PipelineCancelledError();
   }
 }
@@ -218,26 +225,33 @@ async function buildRunConfigSnapshot(
  */
 export async function runPipeline(
   config: Partial<PipelineConfig> = {},
+  explicitUserId?: string,
 ): Promise<{
   success: boolean;
   jobsDiscovered: number;
   jobsProcessed: number;
   error?: string;
 }> {
-  if (activePipelineRuns >= maxConcurrentPipelines) {
+  const userId = resolveUser(explicitUserId);
+  let userActiveRuns = activeRunIdsByUserId.get(userId);
+  if (!userActiveRuns) {
+    userActiveRuns = new Set<string>();
+    activeRunIdsByUserId.set(userId, userActiveRuns);
+  }
+
+  if (userActiveRuns.size >= maxConcurrentPipelinesPerUser) {
     return {
       success: false,
       jobsDiscovered: 0,
       jobsProcessed: 0,
-      error: `Pipeline concurrency limit reached (${activePipelineRuns} running). Try again shortly.`,
+      error: `Pipeline concurrency limit reached (${userActiveRuns.size} running for your account). Try again shortly.`,
     };
   }
 
-  activePipelineRuns++;
+  const pendingId = `pending-${randomUUID()}`;
+  userActiveRuns.add(pendingId);
+  resetProgress(userId);
   let pipelineRunId: string | null = null;
-  const pendingId = "pending";
-  activeRunIds.add(pendingId);
-  resetProgress();
 
   try {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
@@ -257,13 +271,20 @@ export async function runPipeline(
     // future runs once maxConcurrentPipelines failures accumulate.
     const pipelineRun = await pipelineRepo.createPipelineRun(configSnapshot);
     pipelineRunId = pipelineRun.id;
-    activeRunIds.delete(pendingId);
-    activeRunIds.add(pipelineRun.id);
+    userActiveRuns.delete(pendingId);
+    userActiveRuns.add(pipelineRun.id);
 
     return await runWithRequestContext(
-      { pipelineRunId: pipelineRun.id },
+      {
+        userId,
+        requestId: getRequestId() ?? randomUUID(),
+        pipelineRunId: pipelineRun.id,
+      },
       async () => {
-        const pipelineLogger = logger.child({ pipelineRunId: pipelineRun.id });
+        const pipelineLogger = logger.child({
+          pipelineRunId: pipelineRun.id,
+          userId,
+        });
         let jobsDiscovered = 0;
         let jobsProcessed = 0;
         pipelineLogger.info("Starting pipeline run", {
@@ -271,7 +292,7 @@ export async function runPipeline(
           minSuitabilityScore: effectiveConfig.minSuitabilityScore,
           sources: effectiveConfig.sources,
           excludeRunIds,
-          activeRunCount: activePipelineRuns,
+          activeRunCount: userActiveRuns?.size ?? 1,
         });
 
         const stepStartTimes = new Map<string, number>();
@@ -291,12 +312,12 @@ export async function runPipeline(
         };
 
         try {
-          ensureNotCancelled(pipelineRun.id);
+          ensureNotCancelled(pipelineRun.id, userId);
           startStep("load-profile");
           const profile = await loadProfileStep();
           finishStep("load-profile");
 
-          ensureNotCancelled(pipelineRun.id);
+          ensureNotCancelled(pipelineRun.id, userId);
           startStep("discover-jobs");
           const { discoveredJobs } = await discoverJobsStep({
             mergedConfig: effectiveConfig,
@@ -304,7 +325,7 @@ export async function runPipeline(
           });
           finishStep("discover-jobs", { discovered: discoveredJobs.length });
 
-          ensureNotCancelled(pipelineRun.id);
+          ensureNotCancelled(pipelineRun.id, userId);
           startStep("import-jobs");
           const { created } = await importJobsStep({
             discoveredJobs,
@@ -317,7 +338,7 @@ export async function runPipeline(
             jobsDiscovered: created,
           });
 
-          ensureNotCancelled(pipelineRun.id);
+          ensureNotCancelled(pipelineRun.id, userId);
           startStep("score-jobs");
           const { unprocessedJobs, scoredJobs } = await scoreJobsStep({
             profile,
@@ -329,7 +350,7 @@ export async function runPipeline(
             unprocessed: unprocessedJobs.length,
           });
 
-          ensureNotCancelled(pipelineRun.id);
+          ensureNotCancelled(pipelineRun.id, userId);
           startStep("select-jobs");
           const jobsToProcess = selectJobsStep({
             scoredJobs,
@@ -337,10 +358,7 @@ export async function runPipeline(
           });
           finishStep("select-jobs", { selected: jobsToProcess.length });
 
-          pipelineLogger.info("Selected jobs for processing", {
-            candidates: jobsToProcess.length,
-          });
-
+          ensureNotCancelled(pipelineRun.id, userId);
           startStep("process-jobs");
           const { processedCount } = await processJobsStep({
             jobsToProcess,
@@ -353,47 +371,48 @@ export async function runPipeline(
           await pipelineRepo.updatePipelineRun(pipelineRun.id, {
             status: "completed",
             completedAt: new Date().toISOString(),
-            jobsProcessed: processedCount,
+            jobsProcessed,
           });
 
-          progressHelpers.complete(created, processedCount);
+          progressHelpers.complete(jobsDiscovered, jobsProcessed, userId);
           pipelineLogger.info("Pipeline run completed", {
-            jobsDiscovered: created,
-            jobsProcessed: processedCount,
+            jobsDiscovered,
+            jobsProcessed,
           });
 
           await notifyPipelineWebhookStep("pipeline.completed", {
             pipelineRunId: pipelineRun.id,
-            jobsDiscovered: created,
-            jobsScored: unprocessedJobs.length,
-            jobsProcessed: processedCount,
+            jobsDiscovered,
+            jobsProcessed,
           });
 
-          return {
-            success: true,
-            jobsDiscovered: created,
-            jobsProcessed: processedCount,
-          };
+          return { success: true, jobsDiscovered, jobsProcessed };
         } catch (error) {
           if (error instanceof PipelineCancelledError) {
-            const message = "Cancelled by user request";
+            const reason = error.message || "Pipeline cancellation requested";
             await pipelineRepo.updatePipelineRun(pipelineRun.id, {
               status: "cancelled",
               completedAt: new Date().toISOString(),
+              errorMessage: reason,
+            });
+
+            progressHelpers.cancelled(reason, userId);
+            pipelineLogger.warn("Pipeline run cancelled", {
+              reason,
               jobsDiscovered,
               jobsProcessed,
-              errorMessage: message,
             });
-            progressHelpers.cancelled(message);
-            pipelineLogger.info("Pipeline run cancelled", {
-              jobsDiscovered,
-              jobsProcessed,
+
+            await notifyPipelineWebhookStep("pipeline.cancelled", {
+              pipelineRunId: pipelineRun.id,
+              reason,
             });
+
             return {
               success: false,
               jobsDiscovered,
               jobsProcessed,
-              error: message,
+              error: reason,
             };
           }
 
@@ -406,7 +425,7 @@ export async function runPipeline(
             errorMessage: message,
           });
 
-          progressHelpers.failed(message);
+          progressHelpers.failed(message, userId);
           pipelineLogger.error("Pipeline run failed", error);
 
           await notifyPipelineWebhookStep("pipeline.failed", {
@@ -424,15 +443,14 @@ export async function runPipeline(
       },
     );
   } finally {
-    activePipelineRuns = Math.max(0, activePipelineRuns - 1);
     if (pipelineRunId) {
-      activeRunIds.delete(pipelineRunId);
+      userActiveRuns?.delete(pipelineRunId);
       cancelRequestedByRunId.delete(pipelineRunId);
     }
-    activeRunIds.delete(pendingId);
-    // Reset the global "cancel all" flag once the last active run finishes.
-    if (activePipelineRuns === 0) {
-      cancelAllRequested = false;
+    userActiveRuns?.delete(pendingId);
+    if (userActiveRuns && userActiveRuns.size === 0) {
+      activeRunIdsByUserId.delete(userId);
+      cancelAllByUserId.delete(userId);
     }
   }
 }
@@ -661,37 +679,45 @@ export async function processJob(
 }
 
 /**
- * Check if pipeline is currently running.
+ * Check if pipeline is currently running for a user.
  */
-export function getPipelineStatus(): {
+export function getPipelineStatus(explicitUserId?: string): {
   isRunning: boolean;
   activeRunCount: number;
   maxConcurrentRuns: number;
 } {
+  const userId = resolveUser(explicitUserId);
+  const userActiveRuns = activeRunIdsByUserId.get(userId);
+  const count = userActiveRuns?.size ?? 0;
   return {
-    isRunning: activePipelineRuns > 0,
-    activeRunCount: activePipelineRuns,
-    maxConcurrentRuns: maxConcurrentPipelines,
+    isRunning: count > 0,
+    activeRunCount: count,
+    maxConcurrentRuns: maxConcurrentPipelinesPerUser,
   };
 }
 
-/** Set the max concurrent pipeline runs (called from the settings service). */
+/** Set the max concurrent pipeline runs per user. */
 export function setMaxConcurrentPipelines(max: number): void {
-  maxConcurrentPipelines = Math.min(5, Math.max(1, max));
+  maxConcurrentPipelinesPerUser = Math.min(5, Math.max(1, max));
 }
 
-export function requestPipelineCancel(pipelineRunId?: string): {
+export function requestPipelineCancel(
+  pipelineRunId?: string,
+  explicitUserId?: string,
+): {
   accepted: boolean;
   pipelineRunId: string | null;
   alreadyRequested: boolean;
 } {
-  if (activePipelineRuns === 0) {
+  const userId = resolveUser(explicitUserId);
+  const userActiveRuns = activeRunIdsByUserId.get(userId);
+  if (!userActiveRuns || userActiveRuns.size === 0) {
     return { accepted: false, pipelineRunId: null, alreadyRequested: false };
   }
 
   // If a specific run id is provided, cancel just that run.
   if (pipelineRunId) {
-    if (!activeRunIds.has(pipelineRunId)) {
+    if (!userActiveRuns.has(pipelineRunId)) {
       return { accepted: false, pipelineRunId: null, alreadyRequested: false };
     }
     if (cancelRequestedByRunId.has(pipelineRunId)) {
@@ -709,20 +735,19 @@ export function requestPipelineCancel(pipelineRunId?: string): {
     };
   }
 
-  // No id: cancel every active run (restores the pre-concurrency "cancel all"
-  // behavior). The run may still be in the "pending" phase (createPipelineRun
-  // not yet resolved), so a global flag covers that window.
+  // No id: cancel every active run for this user
   const mostRecentId =
-    [...activeRunIds].filter((id) => id !== "pending").at(-1) ?? null;
-  if (cancelAllRequested) {
+    [...userActiveRuns].filter((id) => !id.startsWith("pending")).at(-1) ??
+    null;
+  if (cancelAllByUserId.get(userId)) {
     return {
       accepted: true,
       pipelineRunId: mostRecentId,
       alreadyRequested: true,
     };
   }
-  cancelAllRequested = true;
-  for (const id of activeRunIds) {
+  cancelAllByUserId.set(userId, true);
+  for (const id of userActiveRuns) {
     cancelRequestedByRunId.add(id);
   }
   return {
@@ -732,6 +757,15 @@ export function requestPipelineCancel(pipelineRunId?: string): {
   };
 }
 
-export function isPipelineCancelRequested(): boolean {
-  return cancelAllRequested || cancelRequestedByRunId.size > 0;
+export function isPipelineCancelRequested(explicitUserId?: string): boolean {
+  const userId = resolveUser(explicitUserId);
+  return (
+    Boolean(cancelAllByUserId.get(userId)) || cancelRequestedByRunId.size > 0
+  );
+}
+
+export function __resetPipelineOrchestratorForTests(): void {
+  activeRunIdsByUserId.clear();
+  cancelRequestedByRunId.clear();
+  cancelAllByUserId.clear();
 }

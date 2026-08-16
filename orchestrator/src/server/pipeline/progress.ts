@@ -1,7 +1,10 @@
 import { logger } from "@infra/logger";
+import { getCurrentUserId } from "@infra/request-context";
 
 /**
- * Pipeline progress tracking with Server-Sent Events.
+ * Multi-tenant pipeline progress tracking with Server-Sent Events.
+ * State, replay buffers, and listeners are partitioned per-user so
+ * each user's pipeline run and status are fully isolated.
  */
 
 export type PipelineStep =
@@ -47,34 +50,31 @@ export interface PipelineProgress {
   completedAt?: string;
 }
 
-// Event emitter for progress updates with bounded replay buffer.
-// Late or reconnecting subscribers receive buffered events in order so
-// they can reconstruct state missed while the page was closed.
 type ProgressListener = (progress: PipelineProgress) => void;
-const listeners: Set<ProgressListener> = new Set();
 
 const MAX_REPLAY_EVENTS = 100;
-const replayBuffer: PipelineProgress[] = [];
 
-let currentProgress: PipelineProgress = {
-  step: "idle",
-  message: "Ready",
-  crawlingSource: null,
-  crawlingSourcesCompleted: 0,
-  crawlingSourcesTotal: 0,
-  crawlingTermsProcessed: 0,
-  crawlingTermsTotal: 0,
-  crawlingListPagesProcessed: 0,
-  crawlingListPagesTotal: 0,
-  crawlingJobCardsFound: 0,
-  crawlingJobPagesEnqueued: 0,
-  crawlingJobPagesSkipped: 0,
-  crawlingJobPagesProcessed: 0,
-  jobsDiscovered: 0,
-  jobsScored: 0,
-  jobsProcessed: 0,
-  totalToProcess: 0,
-};
+function createIdleProgress(): PipelineProgress {
+  return {
+    step: "idle",
+    message: "Ready",
+    crawlingSource: null,
+    crawlingSourcesCompleted: 0,
+    crawlingSourcesTotal: 0,
+    crawlingTermsProcessed: 0,
+    crawlingTermsTotal: 0,
+    crawlingListPagesProcessed: 0,
+    crawlingListPagesTotal: 0,
+    crawlingJobCardsFound: 0,
+    crawlingJobPagesEnqueued: 0,
+    crawlingJobPagesSkipped: 0,
+    crawlingJobPagesProcessed: 0,
+    jobsDiscovered: 0,
+    jobsScored: 0,
+    jobsProcessed: 0,
+    totalToProcess: 0,
+  };
+}
 
 const emptyCrawlingStats = {
   crawlingTermsProcessed: 0,
@@ -111,9 +111,32 @@ const emptySourceCrawlingStats = (): SourceCrawlingStats => ({
   jobPagesProcessed: 0,
 });
 
-const crawlingStatsBySource = new Map<CrawlSource, SourceCrawlingStats>();
+// Per-user state storage
+const userProgressMap = new Map<string, PipelineProgress>();
+const userListenersMap = new Map<string, Set<ProgressListener>>();
+const userReplayBufferMap = new Map<string, PipelineProgress[]>();
+const userCrawlingStatsMap = new Map<
+  string,
+  Map<CrawlSource, SourceCrawlingStats>
+>();
 
-function aggregateCrawlingStats() {
+function resolveUserId(explicitUserId?: string): string {
+  return explicitUserId || getCurrentUserId();
+}
+
+function getUserCrawlingStats(
+  userId: string,
+): Map<CrawlSource, SourceCrawlingStats> {
+  let stats = userCrawlingStatsMap.get(userId);
+  if (!stats) {
+    stats = new Map<CrawlSource, SourceCrawlingStats>();
+    userCrawlingStatsMap.set(userId, stats);
+  }
+  return stats;
+}
+
+function aggregateCrawlingStats(userId: string) {
+  const crawlingStatsBySource = getUserCrawlingStats(userId);
   let termsProcessed = 0;
   let termsTotal = 0;
   let listPagesProcessed = 0;
@@ -147,44 +170,69 @@ function aggregateCrawlingStats() {
 }
 
 /**
- * Update the current progress and notify all listeners.
+ * Update the current progress and notify all listeners for the user.
  * Each update is pushed to a bounded replay buffer so reconnecting
  * clients can catch up on missed events.
  */
-export function updateProgress(update: Partial<PipelineProgress>): void {
-  currentProgress = { ...currentProgress, ...update };
+export function updateProgress(
+  update: Partial<PipelineProgress>,
+  explicitUserId?: string,
+): void {
+  const userId = resolveUserId(explicitUserId);
+  const current = userProgressMap.get(userId) ?? createIdleProgress();
+  const next = { ...current, ...update };
+  userProgressMap.set(userId, next);
 
-  replayBuffer.push({ ...currentProgress });
+  let replayBuffer = userReplayBufferMap.get(userId);
+  if (!replayBuffer) {
+    replayBuffer = [];
+    userReplayBufferMap.set(userId, replayBuffer);
+  }
+  replayBuffer.push({ ...next });
   if (replayBuffer.length > MAX_REPLAY_EVENTS) {
     replayBuffer.splice(0, replayBuffer.length - MAX_REPLAY_EVENTS);
   }
 
-  // Notify all listeners
-  for (const listener of listeners) {
-    try {
-      listener(currentProgress);
-    } catch (error) {
-      logger.error("Error in progress listener", error);
+  // Notify all listeners for this user
+  const listeners = userListenersMap.get(userId);
+  if (listeners) {
+    for (const listener of listeners) {
+      try {
+        listener(next);
+      } catch (error) {
+        logger.error("Error in progress listener", error);
+      }
     }
   }
 }
 
 /**
- * Get the current progress state.
+ * Get the current progress state for a user.
  */
-export function getProgress(): PipelineProgress {
-  return { ...currentProgress };
+export function getProgress(explicitUserId?: string): PipelineProgress {
+  const userId = resolveUserId(explicitUserId);
+  return { ...(userProgressMap.get(userId) ?? createIdleProgress()) };
 }
 
 /**
- * Subscribe to progress updates.
+ * Subscribe to progress updates for a user.
  * Replays buffered events in order so late subscribers (e.g. a user
  * reopening the page mid-run) can reconstruct missed state.
  */
-export function subscribeToProgress(listener: ProgressListener): () => void {
+export function subscribeToProgress(
+  listener: ProgressListener,
+  explicitUserId?: string,
+): () => void {
+  const userId = resolveUserId(explicitUserId);
+  let listeners = userListenersMap.get(userId);
+  if (!listeners) {
+    listeners = new Set<ProgressListener>();
+    userListenersMap.set(userId, listeners);
+  }
   listeners.add(listener);
 
   // Replay buffered events in order so late subscribers reconstruct state.
+  const replayBuffer = userReplayBufferMap.get(userId) ?? [];
   for (const event of replayBuffer) {
     try {
       listener(event);
@@ -195,38 +243,43 @@ export function subscribeToProgress(listener: ProgressListener): () => void {
 
   // Return unsubscribe function
   return () => {
-    listeners.delete(listener);
+    listeners?.delete(listener);
+    if (listeners && listeners.size === 0) {
+      userListenersMap.delete(userId);
+    }
   };
 }
 
 /**
- * Reset progress to idle state and clear the replay buffer.
+ * Reset progress to idle state and clear the replay buffer for a user.
  */
-export function resetProgress(): void {
-  crawlingStatsBySource.clear();
-  replayBuffer.length = 0;
-  currentProgress = {
-    step: "idle",
-    message: "Ready",
-    crawlingSource: null,
-    crawlingSourcesCompleted: 0,
-    crawlingSourcesTotal: 0,
-    ...emptyCrawlingStats,
-    jobsDiscovered: 0,
-    jobsScored: 0,
-    jobsProcessed: 0,
-    totalToProcess: 0,
-  };
+export function resetProgress(explicitUserId?: string): void {
+  const userId = resolveUserId(explicitUserId);
+  userCrawlingStatsMap.delete(userId);
+  userReplayBufferMap.delete(userId);
+  userProgressMap.set(userId, createIdleProgress());
+}
+
+/**
+ * Clear all multi-tenant progress state for test isolation.
+ */
+export function __resetProgressForTests(): void {
+  userProgressMap.clear();
+  userListenersMap.clear();
+  userReplayBufferMap.clear();
+  userCrawlingStatsMap.clear();
 }
 
 /**
  * Helper to create progress updates for each step.
  */
 export const progressHelpers = {
-  startCrawling: (sourcesTotal = 0) =>
-    (() => {
-      crawlingStatsBySource.clear();
-      updateProgress({
+  startCrawling: (sourcesTotal = 0, explicitUserId?: string) => {
+    const userId = resolveUserId(explicitUserId);
+    const crawlingStatsBySource = getUserCrawlingStats(userId);
+    crawlingStatsBySource.clear();
+    updateProgress(
+      {
         step: "crawling",
         message: "Fetching jobs from sources...",
         detail: "Starting crawler",
@@ -239,65 +292,85 @@ export const progressHelpers = {
         jobsScored: 0,
         jobsProcessed: 0,
         totalToProcess: 0,
-      });
-    })(),
+      },
+      userId,
+    );
+  },
 
   startSource: (
     source: CrawlSource,
     sourcesCompleted: number,
     sourcesTotal: number,
     options?: { termsTotal?: number; detail?: string },
+    explicitUserId?: string,
   ) => {
+    const userId = resolveUserId(explicitUserId);
+    const crawlingStatsBySource = getUserCrawlingStats(userId);
     const existing =
       crawlingStatsBySource.get(source) ?? emptySourceCrawlingStats();
     crawlingStatsBySource.set(source, {
       ...emptySourceCrawlingStats(),
       termsTotal: options?.termsTotal ?? existing.termsTotal,
     });
-    const aggregated = aggregateCrawlingStats();
+    const aggregated = aggregateCrawlingStats(userId);
 
-    updateProgress({
-      step: "crawling",
-      message: `Fetching jobs from ${source}...`,
-      detail: options?.detail,
-      crawlingSource: source,
-      crawlingSourcesCompleted: sourcesCompleted,
-      crawlingSourcesTotal: sourcesTotal,
-      crawlingTermsProcessed: aggregated.termsProcessed,
-      crawlingTermsTotal: aggregated.termsTotal,
-      crawlingListPagesProcessed: aggregated.listPagesProcessed,
-      crawlingListPagesTotal: aggregated.listPagesTotal,
-      crawlingJobCardsFound: aggregated.jobCardsFound,
-      crawlingJobPagesEnqueued: aggregated.jobPagesEnqueued,
-      crawlingJobPagesSkipped: aggregated.jobPagesSkipped,
-      crawlingJobPagesProcessed: aggregated.jobPagesProcessed,
-      crawlingPhase: undefined,
-      crawlingCurrentUrl: undefined,
-    });
+    updateProgress(
+      {
+        step: "crawling",
+        message: `Fetching jobs from ${source}...`,
+        detail: options?.detail,
+        crawlingSource: source,
+        crawlingSourcesCompleted: sourcesCompleted,
+        crawlingSourcesTotal: sourcesTotal,
+        crawlingTermsProcessed: aggregated.termsProcessed,
+        crawlingTermsTotal: aggregated.termsTotal,
+        crawlingListPagesProcessed: aggregated.listPagesProcessed,
+        crawlingListPagesTotal: aggregated.listPagesTotal,
+        crawlingJobCardsFound: aggregated.jobCardsFound,
+        crawlingJobPagesEnqueued: aggregated.jobPagesEnqueued,
+        crawlingJobPagesSkipped: aggregated.jobPagesSkipped,
+        crawlingJobPagesProcessed: aggregated.jobPagesProcessed,
+        crawlingPhase: undefined,
+        crawlingCurrentUrl: undefined,
+      },
+      userId,
+    );
   },
 
-  completeSource: (sourcesCompleted: number, sourcesTotal: number) =>
-    updateProgress({
-      crawlingSourcesCompleted: sourcesCompleted,
-      crawlingSourcesTotal: sourcesTotal,
-      crawlingCurrentUrl: undefined,
-      crawlingPhase: undefined,
-    }),
+  completeSource: (
+    sourcesCompleted: number,
+    sourcesTotal: number,
+    explicitUserId?: string,
+  ) =>
+    updateProgress(
+      {
+        crawlingSourcesCompleted: sourcesCompleted,
+        crawlingSourcesTotal: sourcesTotal,
+        crawlingCurrentUrl: undefined,
+        crawlingPhase: undefined,
+      },
+      explicitUserId,
+    ),
 
-  crawlingUpdate: (update: {
-    source?: CrawlSource;
-    termsProcessed?: number;
-    termsTotal?: number;
-    listPagesProcessed?: number;
-    listPagesTotal?: number;
-    jobCardsFound?: number;
-    jobPagesEnqueued?: number;
-    jobPagesSkipped?: number;
-    jobPagesProcessed?: number;
-    phase?: "list" | "job";
-    currentUrl?: string;
-  }) => {
-    const current = getProgress();
+  crawlingUpdate: (
+    update: {
+      source?: CrawlSource;
+      termsProcessed?: number;
+      termsTotal?: number;
+      listPagesProcessed?: number;
+      listPagesTotal?: number;
+      jobCardsFound?: number;
+      jobPagesEnqueued?: number;
+      jobPagesSkipped?: number;
+      jobPagesProcessed?: number;
+      phase?: "list" | "job";
+      currentUrl?: string;
+    },
+    explicitUserId?: string,
+  ) => {
+    const userId = resolveUserId(explicitUserId);
+    const crawlingStatsBySource = getUserCrawlingStats(userId);
+    const current = getProgress(userId);
     if (update.source) {
       const existing =
         crawlingStatsBySource.get(update.source) ?? emptySourceCrawlingStats();
@@ -316,7 +389,7 @@ export const progressHelpers = {
       crawlingStatsBySource.set(update.source, nextForSource);
     }
 
-    const aggregated = aggregateCrawlingStats();
+    const aggregated = aggregateCrawlingStats(userId);
     const next = {
       ...current,
       crawlingSource: update.source ?? current.crawlingSource,
@@ -375,113 +448,161 @@ export const progressHelpers = {
           ? next.crawlingCurrentUrl
           : "Running crawler";
 
-    updateProgress({
-      step: "crawling",
-      message,
-      detail,
-      crawlingSource: next.crawlingSource,
-      crawlingTermsProcessed: next.crawlingTermsProcessed,
-      crawlingTermsTotal: next.crawlingTermsTotal,
-      crawlingListPagesProcessed: next.crawlingListPagesProcessed,
-      crawlingListPagesTotal: next.crawlingListPagesTotal,
-      crawlingJobCardsFound: next.crawlingJobCardsFound,
-      crawlingJobPagesEnqueued: next.crawlingJobPagesEnqueued,
-      crawlingJobPagesSkipped: next.crawlingJobPagesSkipped,
-      crawlingJobPagesProcessed: next.crawlingJobPagesProcessed,
-      crawlingPhase: next.crawlingPhase,
-      crawlingCurrentUrl: next.crawlingCurrentUrl,
-    });
+    updateProgress(
+      {
+        step: "crawling",
+        message,
+        detail,
+        crawlingSource: next.crawlingSource,
+        crawlingTermsProcessed: next.crawlingTermsProcessed,
+        crawlingTermsTotal: next.crawlingTermsTotal,
+        crawlingListPagesProcessed: next.crawlingListPagesProcessed,
+        crawlingListPagesTotal: next.crawlingListPagesTotal,
+        crawlingJobCardsFound: next.crawlingJobCardsFound,
+        crawlingJobPagesEnqueued: next.crawlingJobPagesEnqueued,
+        crawlingJobPagesSkipped: next.crawlingJobPagesSkipped,
+        crawlingJobPagesProcessed: next.crawlingJobPagesProcessed,
+        crawlingPhase: next.crawlingPhase,
+        crawlingCurrentUrl: next.crawlingCurrentUrl,
+      },
+      userId,
+    );
   },
 
-  crawlingComplete: (jobsFound: number) =>
-    updateProgress({
-      step: "importing",
-      message: `Found ${jobsFound} jobs, importing to database...`,
-      detail: "Deduplicating and saving",
-      jobsDiscovered: jobsFound,
-      crawlingSource: null,
-      crawlingCurrentUrl: undefined,
-    }),
+  crawlingComplete: (jobsFound: number, explicitUserId?: string) =>
+    updateProgress(
+      {
+        step: "importing",
+        message: `Found ${jobsFound} jobs, importing to database...`,
+        detail: "Deduplicating and saving",
+        jobsDiscovered: jobsFound,
+        crawlingSource: null,
+        crawlingCurrentUrl: undefined,
+      },
+      explicitUserId,
+    ),
 
-  importComplete: (created: number, skipped: number) =>
-    updateProgress({
-      step: "scoring",
-      message: `Imported ${created} new jobs (${skipped} duplicates). Scoring...`,
-      detail: "Using AI to evaluate job fit",
-    }),
+  importComplete: (created: number, skipped: number, explicitUserId?: string) =>
+    updateProgress(
+      {
+        step: "scoring",
+        message: `Imported ${created} new jobs (${skipped} duplicates). Scoring...`,
+        detail: "Using AI to evaluate job fit",
+      },
+      explicitUserId,
+    ),
 
-  scoringJob: (index: number, total: number, title: string) =>
-    updateProgress({
-      step: "scoring",
-      message: `Scoring jobs (${index}/${total})...`,
-      detail: title,
-      jobsScored: index,
-    }),
+  scoringJob: (
+    index: number,
+    total: number,
+    title: string,
+    explicitUserId?: string,
+  ) =>
+    updateProgress(
+      {
+        step: "scoring",
+        message: `Scoring jobs (${index}/${total})...`,
+        detail: title,
+        jobsScored: index,
+      },
+      explicitUserId,
+    ),
 
-  scoringComplete: (totalScored: number) =>
-    updateProgress({
-      step: "scoring",
-      message: `Scored ${totalScored} jobs.`,
-      detail: "Ready for manual processing",
-      jobsScored: totalScored,
-      totalToProcess: 0,
-      jobsProcessed: 0,
-      currentJob: undefined,
-    }),
+  scoringComplete: (totalScored: number, explicitUserId?: string) =>
+    updateProgress(
+      {
+        step: "scoring",
+        message: `Scored ${totalScored} jobs.`,
+        detail: "Ready for manual processing",
+        jobsScored: totalScored,
+        totalToProcess: 0,
+        jobsProcessed: 0,
+        currentJob: undefined,
+      },
+      explicitUserId,
+    ),
 
   processingJob: (
     index: number,
     total: number,
     job: { id: string; title: string; employer: string },
+    explicitUserId?: string,
   ) =>
-    updateProgress({
-      step: "processing",
-      message: `Processing job ${index}/${total}...`,
-      detail: `${job.title} @ ${job.employer}`,
-      totalToProcess: total,
-      currentJob: job,
-    }),
+    updateProgress(
+      {
+        step: "processing",
+        message: `Processing job ${index}/${total}...`,
+        detail: `${job.title} @ ${job.employer}`,
+        totalToProcess: total,
+        currentJob: job,
+      },
+      explicitUserId,
+    ),
 
-  generatingSummary: (job: { title: string; employer: string }) =>
-    updateProgress({
-      detail: `Generating summary for ${job.title}...`,
-    }),
+  generatingSummary: (
+    job: { title: string; employer: string },
+    explicitUserId?: string,
+  ) =>
+    updateProgress(
+      {
+        detail: `Generating summary for ${job.title}...`,
+      },
+      explicitUserId,
+    ),
 
-  generatingPdf: (job: { title: string; employer: string }) =>
-    updateProgress({
-      detail: `Generating PDF for ${job.title}...`,
-    }),
+  generatingPdf: (
+    job: { title: string; employer: string },
+    explicitUserId?: string,
+  ) =>
+    updateProgress(
+      {
+        detail: `Generating PDF for ${job.title}...`,
+      },
+      explicitUserId,
+    ),
 
-  jobComplete: (index: number, total: number) =>
-    updateProgress({
-      jobsProcessed: index,
-      detail: `Completed ${index}/${total} jobs`,
-    }),
+  jobComplete: (index: number, total: number, explicitUserId?: string) =>
+    updateProgress(
+      {
+        jobsProcessed: index,
+        detail: `Completed ${index}/${total} jobs`,
+      },
+      explicitUserId,
+    ),
 
-  complete: (discovered: number, processed: number) =>
-    updateProgress({
-      step: "completed",
-      message: `Pipeline complete! Discovered ${discovered} jobs, processed ${processed}.`,
-      detail: "Ready for review",
-      completedAt: new Date().toISOString(),
-      currentJob: undefined,
-    }),
+  complete: (discovered: number, processed: number, explicitUserId?: string) =>
+    updateProgress(
+      {
+        step: "completed",
+        message: `Pipeline complete! Discovered ${discovered} jobs, processed ${processed}.`,
+        detail: "Ready for review",
+        completedAt: new Date().toISOString(),
+        currentJob: undefined,
+      },
+      explicitUserId,
+    ),
 
-  cancelled: (reason: string) =>
-    updateProgress({
-      step: "cancelled",
-      message: "Pipeline cancelled",
-      detail: reason,
-      completedAt: new Date().toISOString(),
-      currentJob: undefined,
-    }),
+  cancelled: (reason: string, explicitUserId?: string) =>
+    updateProgress(
+      {
+        step: "cancelled",
+        message: "Pipeline cancelled",
+        detail: reason,
+        completedAt: new Date().toISOString(),
+        currentJob: undefined,
+      },
+      explicitUserId,
+    ),
 
-  failed: (error: string) =>
-    updateProgress({
-      step: "failed",
-      message: "Pipeline failed",
-      detail: error,
-      error,
-      completedAt: new Date().toISOString(),
-    }),
+  failed: (error: string, explicitUserId?: string) =>
+    updateProgress(
+      {
+        step: "failed",
+        message: "Pipeline failed",
+        detail: error,
+        error,
+        completedAt: new Date().toISOString(),
+      },
+      explicitUserId,
+    ),
 };

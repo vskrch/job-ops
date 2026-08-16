@@ -8,7 +8,11 @@ import {
 } from "@infra/errors";
 import { fail, ok, okWithMeta } from "@infra/http";
 import { logger } from "@infra/logger";
-import { runWithRequestContext } from "@infra/request-context";
+import {
+  getCurrentUserId,
+  getRequestId,
+  runWithRequestContext,
+} from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import { isDemoMode } from "@server/config/demo";
 import {
@@ -37,12 +41,13 @@ import { z } from "zod";
 export const pipelineRouter = Router();
 
 /**
- * GET /api/pipeline/status - Get pipeline status
+ * GET /api/pipeline/status - Get pipeline status for the current user
  */
 pipelineRouter.get("/status", async (_req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId();
     const { isRunning, activeRunCount, maxConcurrentRuns } =
-      getPipelineStatus();
+      getPipelineStatus(userId);
     const lastRun = await pipelineRepo.getLatestPipelineRun();
     const schedules = await getPipelineSchedules();
     const nextScheduledRun =
@@ -50,7 +55,7 @@ pipelineRouter.get("/status", async (_req: Request, res: Response) => {
         .filter((s) => s.enabled && s.nextRun)
         .map((s) => s.nextRun as string)
         .sort()[0] ?? null;
-    const progress = getProgress();
+    const progress = getProgress(userId);
     const data: PipelineStatusResponse = {
       isRunning,
       activeRunCount,
@@ -299,6 +304,7 @@ pipelineRouter.delete("/schedules/:id", async (req: Request, res: Response) => {
  * GET /api/pipeline/progress - Server-Sent Events endpoint for live progress
  */
 pipelineRouter.get("/progress", (req: Request, res: Response) => {
+  const userId = getCurrentUserId();
   setupSse(res, {
     cacheControl: "no-cache, no-transform",
     disableBuffering: true,
@@ -310,8 +316,8 @@ pipelineRouter.get("/progress", (req: Request, res: Response) => {
     writeSseData(res, data);
   };
 
-  // Subscribe to progress updates
-  const unsubscribe = subscribeToProgress(sendProgress);
+  // Subscribe to progress updates for this specific user
+  const unsubscribe = subscribeToProgress(sendProgress, userId);
 
   // Send heartbeat every 30 seconds to keep connection alive
   const stopHeartbeat = startSseHeartbeat(res);
@@ -405,10 +411,13 @@ pipelineRouter.post("/run", async (req: Request, res: Response) => {
       return okWithMeta(res, simulated, { simulated: true });
     }
 
-    // Start pipeline in background
-    runWithRequestContext({}, () => {
+    const userId = getCurrentUserId();
+    const requestId = getRequestId();
+
+    // Start pipeline in background scoped to the authenticated user
+    runWithRequestContext({ userId, requestId }, () => {
       runPipeline(config).catch((error) => {
-        logger.error("Background pipeline run failed", error);
+        logger.error("Background pipeline run failed", { error, userId });
       });
     });
     ok(res, { message: "Pipeline started" });
@@ -443,8 +452,9 @@ const cancelSchema = z.object({
  */
 pipelineRouter.post("/cancel", async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId();
     const input = cancelSchema.parse(req.body ?? {});
-    const cancelResult = requestPipelineCancel(input.pipelineRunId);
+    const cancelResult = requestPipelineCancel(input.pipelineRunId, userId);
     if (!cancelResult.accepted) {
       return fail(res, conflict("No running pipeline to cancel"));
     }
@@ -455,6 +465,7 @@ pipelineRouter.post("/cancel", async (req: Request, res: Response) => {
       status: "accepted",
       pipelineRunId: cancelResult.pipelineRunId,
       alreadyRequested: cancelResult.alreadyRequested,
+      userId,
     });
 
     ok(res, {
