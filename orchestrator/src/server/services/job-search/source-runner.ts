@@ -162,14 +162,23 @@ export async function runManifestTask(
 }
 
 function buildSearchTerms(spec: ParsedSearchSpec): string[] {
-  const terms: string[] = [
-    ...(spec.roles.length > 0 ? spec.roles : []),
-    ...(spec.roles.length === 0 && spec.skills.length > 0 ? spec.skills : []),
-  ];
+  const terms: string[] = [];
+  if (spec.roles.length > 0) {
+    terms.push(...spec.roles);
+    if (spec.skills.length > 0) {
+      const topSkills = spec.skills.slice(0, 2).join(" ");
+      terms.unshift(`${spec.roles[0]} ${topSkills}`);
+    }
+  } else if (spec.skills.length > 0) {
+    terms.push(spec.skills.join(" "));
+    terms.push(...spec.skills.slice(0, 3));
+  }
+
   if (terms.length === 0) {
     terms.push("software engineer");
   }
-  return terms;
+
+  return Array.from(new Set(terms.map((t) => t.trim()).filter(Boolean)));
 }
 
 export type { CreateJobInput };

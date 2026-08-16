@@ -237,7 +237,15 @@ export async function executeJobSearch(
               const metaParams: MetaSearchParams = {
                 terms:
                   parsedSpec.roles.length > 0
-                    ? parsedSpec.roles
+                    ? [
+                        ...(parsedSpec.skills.length > 0
+                          ? [
+                              `${parsedSpec.roles[0]} ${parsedSpec.skills.slice(0, 2).join(" ")}`,
+                            ]
+                          : []),
+                        ...parsedSpec.roles,
+                        ...parsedSpec.skills,
+                      ]
                     : parsedSpec.skills.length > 0
                       ? parsedSpec.skills
                       : ["software engineer"],

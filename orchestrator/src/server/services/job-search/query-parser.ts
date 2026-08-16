@@ -310,7 +310,8 @@ export async function parseSearchQuery(
     model,
     messages: [{ role: "user", content: prompt }],
     jsonSchema: SEARCH_PARSE_SCHEMA,
-    maxRetries: 2,
+    maxRetries: 1,
+    timeoutMs: 12_000,
   });
 
   if (!result.success) {
