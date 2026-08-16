@@ -203,13 +203,11 @@ function normalizeSpec(raw: Record<string, unknown>): ParsedSearchSpec {
     | Record<string, unknown>
     | undefined;
 
-  // Restrict parsed countries to the app-supported set (US, Canada, India).
-  // Anything else is dropped so UK/other markets can never leak in.
   const rawCountry = asString(locationRaw?.country ?? null);
   const country = rawCountry
     ? (SUPPORTED_COUNTRY_KEYS.find(
         (key) => key === normalizeCountryKey(rawCountry),
-      ) ?? null)
+      ) ?? normalizeCountryKey(rawCountry))
     : null;
 
   return {

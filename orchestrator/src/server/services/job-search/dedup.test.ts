@@ -134,6 +134,16 @@ describe("deduplicateJobs", () => {
     expect(result.duplicatesRemoved).toBe(1);
   });
 
+  it("normalizes URLs with reordered query parameters", () => {
+    const jobs = [
+      makeJob({ jobUrl: "https://example.com/job/1?paramB=2&paramA=1" }),
+      makeJob({ jobUrl: "https://example.com/job/1?paramA=1&paramB=2" }),
+    ];
+    const result = deduplicateJobs(jobs);
+    expect(result.jobs).toHaveLength(1);
+    expect(result.duplicatesRemoved).toBe(1);
+  });
+
   it("keeps the more complete record when deduplicating", () => {
     const sparse = makeJob({
       jobUrl: "https://example.com/1",

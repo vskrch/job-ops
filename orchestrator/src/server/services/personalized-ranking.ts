@@ -107,6 +107,12 @@ function scoreLocationMatch(
   job: CreateJobInput,
   profileLocation: string,
 ): number {
+  if (
+    job.isRemote === true ||
+    job.workFromHomeType?.toLowerCase().includes("remote")
+  ) {
+    return 20;
+  }
   if (!profileLocation) return 10; // Unknown location: neutral, not a penalty
   const jobLocation = normalize(job.companyAddresses ?? job.location ?? "");
   if (!jobLocation) return 10;

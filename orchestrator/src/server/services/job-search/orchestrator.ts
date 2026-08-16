@@ -12,7 +12,10 @@
  */
 
 import { logger } from "@infra/logger";
-import { runWithRequestContext } from "@infra/request-context";
+import {
+  getCurrentUserId,
+  runWithRequestContext,
+} from "@infra/request-context";
 import { getExtractorRegistry } from "@server/extractors/registry";
 import * as jobSearchRepo from "@server/repositories/job-search";
 import { getAllJobUrls } from "@server/repositories/jobs";
@@ -73,6 +76,7 @@ async function updatePhase(
 export async function executeJobSearch(
   searchId: string,
   query: string,
+  explicitUserId?: string,
 ): Promise<void> {
   if (activeSearches.has(searchId)) {
     logger.warn("Search already running, skipping", { searchId });
@@ -81,8 +85,9 @@ export async function executeJobSearch(
   activeSearches.add(searchId);
 
   let releaseSearchSlot: (() => void) | null = null;
+  const userId = explicitUserId ?? getCurrentUserId();
 
-  await runWithRequestContext({ searchId }, async () => {
+  await runWithRequestContext({ searchId, userId }, async () => {
     const searchLogger = logger.child({ searchId });
     searchLogger.info("Starting job search", { queryLength: query.length });
 

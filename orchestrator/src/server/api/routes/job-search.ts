@@ -20,7 +20,11 @@ import {
 } from "@infra/errors";
 import { asyncRoute, fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
-import { runWithRequestContext } from "@infra/request-context";
+import {
+  getCurrentUserId,
+  getRequestId,
+  runWithRequestContext,
+} from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
 import * as jobSearchRepo from "@server/repositories/job-search";
 import * as jobsRepo from "@server/repositories/jobs";
@@ -120,14 +124,20 @@ jobSearchRouter.post("/", async (req: Request, res: Response) => {
       );
     }
 
-    runWithRequestContext({}, () => {
-      executeJobSearch(search.id, query).catch((error) => {
-        logger.error("Background job search failed", {
-          searchId: search.id,
-          error,
+    const currentUserId = getCurrentUserId();
+    const currentRequestId = getRequestId();
+
+    runWithRequestContext(
+      { userId: currentUserId, requestId: currentRequestId },
+      () => {
+        executeJobSearch(search.id, query).catch((error) => {
+          logger.error("Background job search failed", {
+            searchId: search.id,
+            error,
+          });
         });
-      });
-    });
+      },
+    );
 
     return ok(res, {
       searchId: search.id,

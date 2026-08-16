@@ -39,9 +39,12 @@ export function normalizeUrl(url: string | undefined): string | null {
     for (const p of trackingParams) {
       u.searchParams.delete(p);
     }
+    u.searchParams.sort();
+    const search = u.searchParams.toString();
+    const searchStr = search ? `?${search}` : "";
     let path = u.pathname.replace(/\/+$/, "");
     if (!path) path = "/";
-    return `${u.protocol}//${u.host}${path}${u.search}`;
+    return `${u.protocol}//${u.host}${path}${searchStr}`;
   } catch {
     return null;
   }
@@ -158,7 +161,7 @@ export function computeKeys(job: CreateJobInput): DedupKey {
   const employer = normalizeEmployer(job.employer);
   const title = normalizeTitle(job.title);
   const location = normalizeLocation(job.location);
-  const content = `${employer}|${title}|${location}`;
+  const content = employer && title ? `${employer}|${title}|${location}` : "";
   return { sourceId, url, appUrl, content, employer, location };
 }
 

@@ -250,7 +250,7 @@ export async function rankJobs(
         candidate.job,
         options.userProfile,
       );
-      if (score > 0) profileScores.set(candidate.job.jobUrl, score);
+      profileScores.set(candidate.job.jobUrl, score);
     }
   }
 

@@ -22,7 +22,11 @@
 
 import { createHash } from "node:crypto";
 import { logger } from "@infra/logger";
-import { runWithRequestContext } from "@infra/request-context";
+import {
+  getCurrentUserId,
+  getRequestId,
+  runWithRequestContext,
+} from "@infra/request-context";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { getExtractorRegistry } from "@server/extractors/registry";
 import * as agenticRepo from "@server/repositories/agentic-search";
@@ -141,7 +145,13 @@ export async function startAgenticSearch(
     queryHash,
   });
 
-  void runAgenticLoop(search.id, originalQuery).catch((err) => {
+  const currentUserId = getCurrentUserId();
+  const currentRequestId = getRequestId();
+
+  void runWithRequestContext(
+    { userId: currentUserId, requestId: currentRequestId },
+    () => runAgenticLoop(search.id, originalQuery),
+  ).catch((err) => {
     logger.error("Agentic search loop failed", {
       searchId: search.id,
       error: sanitizeUnknown(err),

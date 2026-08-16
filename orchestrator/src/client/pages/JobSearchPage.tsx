@@ -22,6 +22,8 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Download,
   Loader2,
@@ -79,6 +81,8 @@ export const JobSearchPage: React.FC = () => {
   const [trackedUrls, setTrackedUrls] = useState<Set<string>>(new Set());
   const [importingAll, setImportingAll] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const unsubscribeProgress = useCallback(() => {
@@ -206,6 +210,7 @@ export const JobSearchPage: React.FC = () => {
     setErrorKind(null);
     setParsedSpec(null);
     setSearch(null);
+    setCurrentPage(1);
     setProvisionalResults([]);
     setProvisionalCounts(null);
     setSourceStatuses([]);
@@ -828,18 +833,74 @@ export const JobSearchPage: React.FC = () => {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  {results.jobs.map((item, i) => (
-                    <JobResultCard
-                      key={`${item.job.jobUrl}-${i}`}
-                      item={item}
-                      index={i}
-                      isTracked={trackedUrls.has(item.job.jobUrl)}
-                      onTrack={() => handleTrackSingleJob(item.job.jobUrl)}
-                    />
-                  ))}
+                  {results.jobs
+                    .slice(
+                      (currentPage - 1) * PAGE_SIZE,
+                      currentPage * PAGE_SIZE,
+                    )
+                    .map((item, i) => {
+                      const globalIndex = (currentPage - 1) * PAGE_SIZE + i;
+                      return (
+                        <JobResultCard
+                          key={`${item.job.jobUrl}-${globalIndex}`}
+                          item={item}
+                          index={globalIndex}
+                          isTracked={trackedUrls.has(item.job.jobUrl)}
+                          onTrack={() => handleTrackSingleJob(item.job.jobUrl)}
+                        />
+                      );
+                    })}
                 </div>
+
+                {Math.ceil(results.jobs.length / PAGE_SIZE) > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-sm text-muted-foreground">
+                    <div>
+                      Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                      {Math.min(currentPage * PAGE_SIZE, results.jobs.length)}{" "}
+                      of {results.jobs.length} jobs
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                      >
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                        Previous
+                      </Button>
+                      <span className="px-2 text-xs font-medium">
+                        Page {currentPage} of{" "}
+                        {Math.ceil(results.jobs.length / PAGE_SIZE)}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          currentPage >=
+                          Math.ceil(results.jobs.length / PAGE_SIZE)
+                        }
+                        onClick={() =>
+                          setCurrentPage((p) =>
+                            Math.min(
+                              Math.ceil(results.jobs.length / PAGE_SIZE),
+                              p + 1,
+                            ),
+                          )
+                        }
+                      >
+                        Next
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
