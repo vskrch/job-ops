@@ -7,12 +7,17 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type { ExtractorSourceId } from "@shared/extractors";
 import type { PipelineSchedule } from "@shared/types";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { pipelineSchedules } = schema;
+
+function currentUserId(): string {
+  return getCurrentUserId();
+}
 
 /** Parse a JSON column value into a string array (or null). */
 function parseJsonArray(raw: string | null): string[] | null {
@@ -43,6 +48,7 @@ function serializeOptionalString(
 
 interface ScheduleRow {
   id: string;
+  userId: string;
   label: string;
   enabled: number;
   hour: number;
@@ -57,9 +63,12 @@ interface ScheduleRow {
   updatedAt: string;
 }
 
-function mapRowToSchedule(row: ScheduleRow): PipelineSchedule {
+function mapRowToSchedule(
+  row: ScheduleRow,
+): PipelineSchedule & { userId: string } {
   return {
     id: row.id,
+    userId: row.userId,
     label: row.label,
     enabled: row.enabled === 1,
     hour: row.hour,
@@ -83,12 +92,15 @@ export function withNextRun(
 }
 
 /**
- * List all pipeline schedules, ordered by creation order (oldest first).
+ * List all pipeline schedules for the user, ordered by creation order (oldest first).
  */
-export async function listPipelineSchedules(): Promise<PipelineSchedule[]> {
+export async function listPipelineSchedules(
+  userId: string = currentUserId(),
+): Promise<PipelineSchedule[]> {
   const rows = await db
     .select()
     .from(pipelineSchedules)
+    .where(eq(pipelineSchedules.userId, userId))
     .orderBy(desc(pipelineSchedules.createdAt));
 
   return rows.map((row) => mapRowToSchedule(row as unknown as ScheduleRow));
@@ -99,11 +111,14 @@ export async function listPipelineSchedules(): Promise<PipelineSchedule[]> {
  */
 export async function getPipelineScheduleById(
   id: string,
+  userId: string = currentUserId(),
 ): Promise<PipelineSchedule | null> {
   const [row] = await db
     .select()
     .from(pipelineSchedules)
-    .where(eq(pipelineSchedules.id, id))
+    .where(
+      and(eq(pipelineSchedules.id, id), eq(pipelineSchedules.userId, userId)),
+    )
     .limit(1);
 
   if (!row) return null;
@@ -112,7 +127,7 @@ export async function getPipelineScheduleById(
 
 export interface CreateScheduleInput {
   label: string;
-  enabled: boolean;
+  enabled?: boolean;
   hour: number;
   sources: ExtractorSourceId[];
   searchTerms?: string[] | null;
@@ -128,12 +143,14 @@ export interface CreateScheduleInput {
  */
 export async function createPipelineSchedule(
   input: CreateScheduleInput,
+  userId: string = currentUserId(),
 ): Promise<PipelineSchedule> {
   const id = randomUUID();
   const now = new Date().toISOString();
 
   const values = {
     id,
+    userId,
     label: input.label,
     enabled: input.enabled ? 1 : 0,
     hour: input.hour,
@@ -161,6 +178,7 @@ export type UpdateScheduleInput = Partial<CreateScheduleInput>;
 export async function updatePipelineSchedule(
   id: string,
   input: UpdateScheduleInput,
+  userId: string = currentUserId(),
 ): Promise<PipelineSchedule | null> {
   const update: Record<string, unknown> = {
     updatedAt: new Date().toISOString(),
@@ -186,7 +204,9 @@ export async function updatePipelineSchedule(
   const [row] = await db
     .update(pipelineSchedules)
     .set(update)
-    .where(eq(pipelineSchedules.id, id))
+    .where(
+      and(eq(pipelineSchedules.id, id), eq(pipelineSchedules.userId, userId)),
+    )
     .returning();
 
   if (!row) return null;
@@ -196,20 +216,27 @@ export async function updatePipelineSchedule(
 /**
  * Delete a pipeline schedule by id.
  */
-export async function deletePipelineSchedule(id: string): Promise<boolean> {
+export async function deletePipelineSchedule(
+  id: string,
+  userId: string = currentUserId(),
+): Promise<boolean> {
   const result = await db
     .delete(pipelineSchedules)
-    .where(eq(pipelineSchedules.id, id))
+    .where(
+      and(eq(pipelineSchedules.id, id), eq(pipelineSchedules.userId, userId)),
+    )
     .returning({ id: pipelineSchedules.id });
 
   return result.length > 0;
 }
 
 /**
- * Get all enabled pipeline schedules (used by the scheduler to build timer
- * instances).
+ * Get all enabled pipeline schedules across all users (used by the background
+ * scheduler to build timer instances).
  */
-export async function getEnabledSchedules(): Promise<PipelineSchedule[]> {
+export async function getEnabledSchedules(): Promise<
+  Array<PipelineSchedule & { userId: string }>
+> {
   const rows = await db
     .select()
     .from(pipelineSchedules)
@@ -218,7 +245,3 @@ export async function getEnabledSchedules(): Promise<PipelineSchedule[]> {
 
   return rows.map((row) => mapRowToSchedule(row as unknown as ScheduleRow));
 }
-
-// Suppress unused import warning — `and` is available for future query
-// composition.
-void and;

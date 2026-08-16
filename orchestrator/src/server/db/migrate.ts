@@ -239,6 +239,7 @@ const migrations = [
 
   `CREATE TABLE IF NOT EXISTS post_application_integrations (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     provider TEXT NOT NULL CHECK(provider IN ('gmail', 'imap')),
     account_key TEXT NOT NULL DEFAULT 'default',
     display_name TEXT,
@@ -249,11 +250,12 @@ const migrations = [
     last_error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(provider, account_key)
+    UNIQUE(user_id, provider, account_key)
   )`,
 
   `CREATE TABLE IF NOT EXISTS post_application_sync_runs (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     provider TEXT NOT NULL CHECK(provider IN ('gmail', 'imap')),
     account_key TEXT NOT NULL DEFAULT 'default',
     integration_id TEXT,
@@ -276,6 +278,7 @@ const migrations = [
 
   `CREATE TABLE IF NOT EXISTS post_application_messages (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     provider TEXT NOT NULL CHECK(provider IN ('gmail', 'imap')),
     account_key TEXT NOT NULL DEFAULT 'default',
     integration_id TEXT,
@@ -307,7 +310,7 @@ const migrations = [
     FOREIGN KEY (integration_id) REFERENCES post_application_integrations(id) ON DELETE SET NULL,
     FOREIGN KEY (sync_run_id) REFERENCES post_application_sync_runs(id) ON DELETE SET NULL,
     FOREIGN KEY (matched_job_id) REFERENCES jobs(id) ON DELETE SET NULL,
-    UNIQUE(provider, account_key, external_message_id)
+    UNIQUE(user_id, provider, account_key, external_message_id)
   )`,
 
   `CREATE TABLE IF NOT EXISTS tracer_links (
@@ -841,6 +844,7 @@ const migrations = [
   // Multi-schedule pipeline: create the pipeline_schedules table.
   `CREATE TABLE IF NOT EXISTS pipeline_schedules (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     label TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 0,
     hour INTEGER NOT NULL DEFAULT 2,
@@ -854,14 +858,17 @@ const migrations = [
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `ALTER TABLE pipeline_schedules ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
   `CREATE INDEX IF NOT EXISTS idx_pipeline_schedules_enabled ON pipeline_schedules(enabled)`,
+  `CREATE INDEX IF NOT EXISTS idx_pipeline_schedules_user_enabled ON pipeline_schedules(user_id, enabled)`,
   // Backward-compat seeding: if old single-schedule settings exist and the new
   // table is empty, seed one row from the old settings so existing users don't
   // lose their schedule. Runs once; the IF NOT EXISTS guard makes it safe to
   // re-run.
-  `INSERT INTO pipeline_schedules (id, label, enabled, hour, sources, created_at, updated_at)
+  `INSERT INTO pipeline_schedules (id, user_id, label, enabled, hour, sources, created_at, updated_at)
    SELECT
      'migrated-schedule',
+     'default-user',
      'Migrated schedule',
      CASE WHEN EXISTS (SELECT 1 FROM settings WHERE key = 'pipelineScheduleEnabled' AND value IN ('1', 'true')) THEN 1 ELSE 0 END,
      COALESCE(CAST((SELECT value FROM settings WHERE key = 'pipelineScheduleHour') AS INTEGER), 2),
@@ -874,6 +881,7 @@ const migrations = [
   // Periodic search scanning: create the search_schedules table.
   `CREATE TABLE IF NOT EXISTS search_schedules (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
     label TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     frequency TEXT NOT NULL DEFAULT 'daily' CHECK(frequency IN ('hourly', 'daily')),
@@ -888,7 +896,16 @@ const migrations = [
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `ALTER TABLE search_schedules ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
   `CREATE INDEX IF NOT EXISTS idx_search_schedules_enabled ON search_schedules(enabled)`,
+  `CREATE INDEX IF NOT EXISTS idx_search_schedules_user_enabled ON search_schedules(user_id, enabled)`,
+
+  // Multi-tenancy for post-application tables
+  `ALTER TABLE post_application_integrations ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
+  `ALTER TABLE post_application_sync_runs ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
+  `ALTER TABLE post_application_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
+  `CREATE INDEX IF NOT EXISTS idx_post_app_sync_runs_user_provider_account_started_at ON post_application_sync_runs(user_id, provider, account_key, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_post_app_messages_user_provider_account_processing_status ON post_application_messages(user_id, provider, account_key, processing_status)`,
 ];
 
 export function runMigrations(db: Database.Database): void {

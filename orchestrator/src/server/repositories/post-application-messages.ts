@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type {
   PostApplicationMessage,
   PostApplicationMessageType,
@@ -15,6 +16,10 @@ import {
 } from "../services/post-application/stage-target";
 
 const { postApplicationMessages } = schema;
+
+function currentUserId(): string {
+  return getCurrentUserId();
+}
 
 type UpsertPostApplicationMessageInput = {
   provider: PostApplicationProvider;
@@ -128,12 +133,14 @@ export async function getPostApplicationMessageByExternalId(
   provider: PostApplicationProvider,
   accountKey: string,
   externalMessageId: string,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationMessage | null> {
   const [row] = await db
     .select()
     .from(postApplicationMessages)
     .where(
       and(
+        eq(postApplicationMessages.userId, userId),
         eq(postApplicationMessages.provider, provider),
         eq(postApplicationMessages.accountKey, accountKey),
         eq(postApplicationMessages.externalMessageId, externalMessageId),
@@ -144,16 +151,23 @@ export async function getPostApplicationMessageByExternalId(
 
 export async function getPostApplicationMessageById(
   id: string,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationMessage | null> {
   const [row] = await db
     .select()
     .from(postApplicationMessages)
-    .where(eq(postApplicationMessages.id, id));
+    .where(
+      and(
+        eq(postApplicationMessages.id, id),
+        eq(postApplicationMessages.userId, userId),
+      ),
+    );
   return row ? mapRowToPostApplicationMessage(row) : null;
 }
 
 export async function upsertPostApplicationMessage(
   input: UpsertPostApplicationMessageInput,
+  userId: string = currentUserId(),
 ): Promise<UpsertPostApplicationMessageResult> {
   const stageTarget =
     input.stageTarget ??
@@ -170,6 +184,7 @@ export async function upsertPostApplicationMessage(
       input.provider,
       input.accountKey,
       input.externalMessageId,
+      userId,
     ));
 
   if (existing) {
@@ -210,12 +225,18 @@ export async function upsertPostApplicationMessage(
         errorMessage: input.errorMessage ?? null,
         updatedAt: nowIso,
       })
-      .where(eq(postApplicationMessages.id, existing.id));
+      .where(
+        and(
+          eq(postApplicationMessages.id, existing.id),
+          eq(postApplicationMessages.userId, userId),
+        ),
+      );
 
     const updated = await getPostApplicationMessageByExternalId(
       input.provider,
       input.accountKey,
       input.externalMessageId,
+      userId,
     );
     if (!updated) {
       throw new Error(
@@ -233,6 +254,7 @@ export async function upsertPostApplicationMessage(
   const id = randomUUID();
   await db.insert(postApplicationMessages).values({
     id,
+    userId,
     provider: input.provider,
     accountKey: input.accountKey,
     integrationId: input.integrationId,
@@ -267,6 +289,7 @@ export async function upsertPostApplicationMessage(
     input.provider,
     input.accountKey,
     input.externalMessageId,
+    userId,
   );
   if (!created) {
     throw new Error(
@@ -283,6 +306,7 @@ export async function upsertPostApplicationMessage(
 
 export async function updatePostApplicationMessageSuggestion(
   input: UpdatePostApplicationMessageSuggestionInput,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationMessage | null> {
   const nowIso = new Date().toISOString();
   await db
@@ -295,12 +319,22 @@ export async function updatePostApplicationMessageSuggestion(
       processingStatus: input.processingStatus,
       updatedAt: nowIso,
     })
-    .where(eq(postApplicationMessages.id, input.id));
+    .where(
+      and(
+        eq(postApplicationMessages.id, input.id),
+        eq(postApplicationMessages.userId, userId),
+      ),
+    );
 
   const [row] = await db
     .select()
     .from(postApplicationMessages)
-    .where(eq(postApplicationMessages.id, input.id));
+    .where(
+      and(
+        eq(postApplicationMessages.id, input.id),
+        eq(postApplicationMessages.userId, userId),
+      ),
+    );
   return row ? mapRowToPostApplicationMessage(row) : null;
 }
 
@@ -309,12 +343,14 @@ export async function listPostApplicationMessagesByProcessingStatus(
   accountKey: string,
   processingStatus: PostApplicationProcessingStatus,
   limit = 50,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationMessage[]> {
   const rows = await db
     .select()
     .from(postApplicationMessages)
     .where(
       and(
+        eq(postApplicationMessages.userId, userId),
         eq(postApplicationMessages.provider, provider),
         eq(postApplicationMessages.accountKey, accountKey),
         eq(postApplicationMessages.processingStatus, processingStatus),
@@ -331,12 +367,14 @@ export async function listPostApplicationMessagesBySyncRun(
   accountKey: string,
   syncRunId: string,
   limit = 300,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationMessage[]> {
   const rows = await db
     .select()
     .from(postApplicationMessages)
     .where(
       and(
+        eq(postApplicationMessages.userId, userId),
         eq(postApplicationMessages.provider, provider),
         eq(postApplicationMessages.accountKey, accountKey),
         eq(postApplicationMessages.syncRunId, syncRunId),
@@ -350,6 +388,7 @@ export async function listPostApplicationMessagesBySyncRun(
 
 export async function updatePostApplicationMessageDecision(
   input: UpdatePostApplicationMessageDecisionInput,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationMessage | null> {
   const decidedAt = input.decidedAt ?? Date.now();
   const nowIso = new Date(decidedAt).toISOString();
@@ -363,11 +402,21 @@ export async function updatePostApplicationMessageDecision(
       decidedBy: input.decidedBy ?? null,
       updatedAt: nowIso,
     })
-    .where(eq(postApplicationMessages.id, input.id));
+    .where(
+      and(
+        eq(postApplicationMessages.id, input.id),
+        eq(postApplicationMessages.userId, userId),
+      ),
+    );
 
   const [row] = await db
     .select()
     .from(postApplicationMessages)
-    .where(eq(postApplicationMessages.id, input.id));
+    .where(
+      and(
+        eq(postApplicationMessages.id, input.id),
+        eq(postApplicationMessages.userId, userId),
+      ),
+    );
   return row ? mapRowToPostApplicationMessage(row) : null;
 }

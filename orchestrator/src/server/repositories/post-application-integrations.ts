@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type {
   PostApplicationIntegration,
   PostApplicationIntegrationStatus,
@@ -8,6 +9,10 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 
 const { postApplicationIntegrations } = schema;
+
+function currentUserId(): string {
+  return getCurrentUserId();
+}
 
 type IntegrationCredentials = Record<string, unknown>;
 
@@ -55,12 +60,14 @@ function mapRowToIntegration(
 export async function getPostApplicationIntegration(
   provider: PostApplicationProvider,
   accountKey: string,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationIntegration | null> {
   const [row] = await db
     .select()
     .from(postApplicationIntegrations)
     .where(
       and(
+        eq(postApplicationIntegrations.userId, userId),
         eq(postApplicationIntegrations.provider, provider),
         eq(postApplicationIntegrations.accountKey, accountKey),
       ),
@@ -71,12 +78,14 @@ export async function getPostApplicationIntegration(
 
 export async function upsertConnectedPostApplicationIntegration(
   input: UpsertConnectedIntegrationInput,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationIntegration> {
   const nowEpoch = Date.now();
   const nowIso = new Date(nowEpoch).toISOString();
   const existing = await getPostApplicationIntegration(
     input.provider,
     input.accountKey,
+    userId,
   );
 
   if (existing) {
@@ -90,11 +99,17 @@ export async function upsertConnectedPostApplicationIntegration(
         lastError: null,
         updatedAt: nowIso,
       })
-      .where(eq(postApplicationIntegrations.id, existing.id));
+      .where(
+        and(
+          eq(postApplicationIntegrations.id, existing.id),
+          eq(postApplicationIntegrations.userId, userId),
+        ),
+      );
 
     const updated = await getPostApplicationIntegration(
       input.provider,
       input.accountKey,
+      userId,
     );
     if (!updated) {
       throw new Error(
@@ -107,6 +122,7 @@ export async function upsertConnectedPostApplicationIntegration(
   const id = randomUUID();
   await db.insert(postApplicationIntegrations).values({
     id,
+    userId,
     provider: input.provider,
     accountKey: input.accountKey,
     displayName: input.displayName ?? null,
@@ -121,6 +137,7 @@ export async function upsertConnectedPostApplicationIntegration(
   const created = await getPostApplicationIntegration(
     input.provider,
     input.accountKey,
+    userId,
   );
   if (!created) {
     throw new Error(
@@ -133,8 +150,13 @@ export async function upsertConnectedPostApplicationIntegration(
 export async function disconnectPostApplicationIntegration(
   provider: PostApplicationProvider,
   accountKey: string,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationIntegration | null> {
-  const existing = await getPostApplicationIntegration(provider, accountKey);
+  const existing = await getPostApplicationIntegration(
+    provider,
+    accountKey,
+    userId,
+  );
   if (!existing) return null;
 
   const nowIso = new Date().toISOString();
@@ -146,17 +168,24 @@ export async function disconnectPostApplicationIntegration(
       lastError: null,
       updatedAt: nowIso,
     })
-    .where(eq(postApplicationIntegrations.id, existing.id));
+    .where(
+      and(
+        eq(postApplicationIntegrations.id, existing.id),
+        eq(postApplicationIntegrations.userId, userId),
+      ),
+    );
 
-  return getPostApplicationIntegration(provider, accountKey);
+  return getPostApplicationIntegration(provider, accountKey, userId);
 }
 
 export async function updatePostApplicationIntegrationSyncState(
   input: UpdatePostApplicationIntegrationSyncStateInput,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationIntegration | null> {
   const existing = await getPostApplicationIntegration(
     input.provider,
     input.accountKey,
+    userId,
   );
   if (!existing) return null;
 
@@ -174,7 +203,16 @@ export async function updatePostApplicationIntegrationSyncState(
         : {}),
       updatedAt: nowIso,
     })
-    .where(eq(postApplicationIntegrations.id, existing.id));
+    .where(
+      and(
+        eq(postApplicationIntegrations.id, existing.id),
+        eq(postApplicationIntegrations.userId, userId),
+      ),
+    );
 
-  return getPostApplicationIntegration(input.provider, input.accountKey);
+  return getPostApplicationIntegration(
+    input.provider,
+    input.accountKey,
+    userId,
+  );
 }

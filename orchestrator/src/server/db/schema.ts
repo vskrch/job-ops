@@ -201,6 +201,7 @@ export const pipelineSchedules = sqliteTable(
   "pipeline_schedules",
   {
     id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
     label: text("label").notNull(),
     enabled: integer("enabled").notNull().default(0),
     hour: integer("hour").notNull().default(2),
@@ -215,6 +216,10 @@ export const pipelineSchedules = sqliteTable(
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
+    userEnabledIndex: index("idx_pipeline_schedules_user_enabled").on(
+      table.userId,
+      table.enabled,
+    ),
     enabledIndex: index("idx_pipeline_schedules_enabled").on(table.enabled),
   }),
 );
@@ -378,6 +383,7 @@ export const postApplicationIntegrations = sqliteTable(
   "post_application_integrations",
   {
     id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
     provider: text("provider", { enum: POST_APPLICATION_PROVIDERS }).notNull(),
     accountKey: text("account_key").notNull().default("default"),
     displayName: text("display_name"),
@@ -392,9 +398,9 @@ export const postApplicationIntegrations = sqliteTable(
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
-    providerAccountUnique: uniqueIndex(
-      "idx_post_app_integrations_provider_account_unique",
-    ).on(table.provider, table.accountKey),
+    userProviderAccountUnique: uniqueIndex(
+      "idx_post_app_integrations_user_provider_account_unique",
+    ).on(table.userId, table.provider, table.accountKey),
   }),
 );
 
@@ -402,6 +408,7 @@ export const postApplicationSyncRuns = sqliteTable(
   "post_application_sync_runs",
   {
     id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
     provider: text("provider", { enum: POST_APPLICATION_PROVIDERS }).notNull(),
     accountKey: text("account_key").notNull().default("default"),
     integrationId: text("integration_id").references(
@@ -426,9 +433,9 @@ export const postApplicationSyncRuns = sqliteTable(
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
-    providerAccountStartedAtIndex: index(
-      "idx_post_app_sync_runs_provider_account_started_at",
-    ).on(table.provider, table.accountKey, table.startedAt),
+    userProviderAccountStartedAtIndex: index(
+      "idx_post_app_sync_runs_user_provider_account_started_at",
+    ).on(table.userId, table.provider, table.accountKey, table.startedAt),
   }),
 );
 
@@ -436,6 +443,7 @@ export const postApplicationMessages = sqliteTable(
   "post_application_messages",
   {
     id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
     provider: text("provider", { enum: POST_APPLICATION_PROVIDERS }).notNull(),
     accountKey: text("account_key").notNull().default("default"),
     integrationId: text("integration_id").references(
@@ -488,12 +496,22 @@ export const postApplicationMessages = sqliteTable(
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
-    providerAccountExternalMessageUnique: uniqueIndex(
-      "idx_post_app_messages_provider_account_external_unique",
-    ).on(table.provider, table.accountKey, table.externalMessageId),
-    providerAccountReviewStatusIndex: index(
-      "idx_post_app_messages_provider_account_processing_status",
-    ).on(table.provider, table.accountKey, table.processingStatus),
+    userProviderAccountExternalMessageUnique: uniqueIndex(
+      "idx_post_app_messages_user_provider_account_external_unique",
+    ).on(
+      table.userId,
+      table.provider,
+      table.accountKey,
+      table.externalMessageId,
+    ),
+    userProviderAccountReviewStatusIndex: index(
+      "idx_post_app_messages_user_provider_account_processing_status",
+    ).on(
+      table.userId,
+      table.provider,
+      table.accountKey,
+      table.processingStatus,
+    ),
   }),
 );
 
@@ -815,6 +833,7 @@ export const searchSchedules = sqliteTable(
   "search_schedules",
   {
     id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
     label: text("label").notNull(),
     enabled: integer("enabled").notNull().default(1),
     frequency: text("frequency", {
@@ -834,6 +853,10 @@ export const searchSchedules = sqliteTable(
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
+    userEnabledIndex: index("idx_search_schedules_user_enabled").on(
+      table.userId,
+      table.enabled,
+    ),
     enabledIndex: index("idx_search_schedules_enabled").on(table.enabled),
   }),
 );

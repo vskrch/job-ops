@@ -69,12 +69,14 @@ async function createScheduledSearch(
  * notifications, and update the schedule's last-run metadata. Never throws.
  */
 async function runScheduledSearch(
-  schedule: SearchSchedule,
+  schedule: SearchSchedule & { userId?: string },
   isManual = false,
 ): Promise<{ searchId: string | null; resultsCount: number | null }> {
+  const userId = schedule.userId ?? "default-user";
   const runLog = {
     scheduler: `search-${schedule.id}`,
     scheduleId: schedule.id,
+    userId,
     label: schedule.label,
     query: schedule.query,
     manual: isManual,
@@ -83,7 +85,9 @@ async function runScheduledSearch(
   logger.info("Scheduled search starting", runLog);
 
   try {
-    const searchId = await createScheduledSearch(schedule.id, schedule.query);
+    const searchId = await runWithRequestContext({ userId }, () =>
+      createScheduledSearch(schedule.id, schedule.query),
+    );
     if (!searchId) {
       logger.warn(
         "Scheduled search: could not create search record (duplicate?)",
@@ -101,14 +105,15 @@ async function runScheduledSearch(
     }
 
     // Execute the search to completion within a request context.
-    await runWithRequestContext({ searchId }, async () => {
-      await executeJobSearch(searchId, schedule.query);
+    await runWithRequestContext({ searchId, userId }, async () => {
+      await executeJobSearch(searchId, schedule.query, userId);
     });
 
     // Read the completed search for notifications + result count.
     let resultsCount: number | null = null;
-    const searchForNotify = await runWithRequestContext({ searchId }, () =>
-      jobSearchRepo.getJobSearch(searchId),
+    const searchForNotify = await runWithRequestContext(
+      { searchId, userId },
+      () => jobSearchRepo.getJobSearch(searchId),
     );
 
     if (searchForNotify && searchForNotify.status === "completed") {
@@ -125,7 +130,7 @@ async function runScheduledSearch(
       };
 
       if (schedule.notifyEmail || schedule.notifyWebhook) {
-        await runWithRequestContext({ searchId }, () =>
+        await runWithRequestContext({ searchId, userId }, () =>
           sendScheduledSearchNotifications(searchForNotify, notifyCtx),
         );
       }
@@ -255,7 +260,7 @@ export async function refreshSearchScheduler(): Promise<void> {
           hour,
         });
 
-        await runWithRequestContext({}, async () => {
+        await runWithRequestContext({ userId: schedule.userId }, async () => {
           await runScheduledSearch(schedule);
         });
       });
@@ -279,8 +284,10 @@ export async function refreshSearchScheduler(): Promise<void> {
 /**
  * Get all search schedules with their computed `nextRun` timestamps.
  */
-export async function getSearchSchedules(): Promise<SearchSchedule[]> {
-  const schedules = await scheduleRepo.listSearchSchedules();
+export async function getSearchSchedules(
+  userId?: string,
+): Promise<SearchSchedule[]> {
+  const schedules = await scheduleRepo.listSearchSchedules(userId);
   return schedules.map((s) => {
     const entry = activeSchedulers.get(s.id);
     let nextRun: string | null = null;
@@ -305,13 +312,16 @@ export async function getSearchSchedules(): Promise<SearchSchedule[]> {
  */
 export async function runSearchScheduleNow(
   scheduleId: string,
+  userId?: string,
 ): Promise<{ searchId: string | null; resultsCount: number | null }> {
-  const schedule = await scheduleRepo.getSearchScheduleById(scheduleId);
+  const schedule = await scheduleRepo.getSearchScheduleById(scheduleId, userId);
   if (!schedule) {
     return { searchId: null, resultsCount: null };
   }
 
-  return runWithRequestContext({}, async () => {
+  const effectiveUserId =
+    (schedule as { userId?: string }).userId ?? userId ?? "default-user";
+  return runWithRequestContext({ userId: effectiveUserId }, async () => {
     return runScheduledSearch(schedule, true);
   });
 }

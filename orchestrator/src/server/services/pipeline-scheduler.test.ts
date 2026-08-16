@@ -77,6 +77,7 @@ describe("pipeline-scheduler", () => {
     mockGetEnabledSchedules.mockResolvedValue([
       {
         id: "sched-1",
+        userId: "default-user",
         label: "Morning scan",
         enabled: true,
         hour: 2,
@@ -141,6 +142,7 @@ describe("pipeline-scheduler", () => {
     mockGetEnabledSchedules.mockResolvedValue([
       {
         id: "sched-2",
+        userId: "default-user",
         label: "Default scan",
         enabled: true,
         hour: 3,
@@ -187,6 +189,7 @@ describe("pipeline-scheduler", () => {
     mockGetEnabledSchedules.mockResolvedValue([
       {
         id: "sched-3",
+        userId: "default-user",
         label: "Detailed scan",
         enabled: true,
         hour: 5,
@@ -236,6 +239,7 @@ describe("pipeline-scheduler", () => {
     mockGetEnabledSchedules.mockResolvedValue([
       {
         id: "sched-a",
+        userId: "default-user",
         label: "A",
         enabled: true,
         hour: 1,
@@ -250,6 +254,7 @@ describe("pipeline-scheduler", () => {
       },
       {
         id: "sched-b",
+        userId: "default-user",
         label: "B",
         enabled: true,
         hour: 2,

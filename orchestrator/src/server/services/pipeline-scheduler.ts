@@ -98,12 +98,13 @@ export async function refreshPipelineScheduler(): Promise<void> {
         sources: schedule.sources,
       });
 
-      await runWithRequestContext({}, async () => {
+      await runWithRequestContext({ userId: schedule.userId }, async () => {
         const runConfig = buildRunConfig(schedule);
         const result = await runPipeline(runConfig);
         logger.info("Scheduled pipeline run finished", {
           scheduler: `pipeline-${schedule.id}`,
           scheduleId: schedule.id,
+          userId: schedule.userId,
           success: result.success,
           jobsDiscovered: result.jobsDiscovered,
           jobsProcessed: result.jobsProcessed,
@@ -126,8 +127,10 @@ export async function refreshPipelineScheduler(): Promise<void> {
  * Get all schedules with their computed `nextRun` timestamps (for the status
  * endpoint and the UI).
  */
-export async function getPipelineSchedules(): Promise<PipelineSchedule[]> {
-  const schedules = await scheduleRepo.listPipelineSchedules();
+export async function getPipelineSchedules(
+  userId?: string,
+): Promise<PipelineSchedule[]> {
+  const schedules = await scheduleRepo.listPipelineSchedules(userId);
   return schedules.map((s) => {
     const entry = activeSchedulers.get(s.id);
     return {

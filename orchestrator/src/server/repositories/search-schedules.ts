@@ -7,19 +7,25 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type {
   CreateSearchScheduleInput,
   SearchSchedule,
   SearchScheduleFrequency,
   UpdateSearchScheduleInput,
 } from "@shared/types";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { searchSchedules } = schema;
 
+function currentUserId(): string {
+  return getCurrentUserId();
+}
+
 interface SearchScheduleRow {
   id: string;
+  userId: string;
   label: string;
   enabled: number;
   frequency: string;
@@ -35,9 +41,12 @@ interface SearchScheduleRow {
   updatedAt: string;
 }
 
-function mapRowToSchedule(row: SearchScheduleRow): SearchSchedule {
+function mapRowToSchedule(
+  row: SearchScheduleRow,
+): SearchSchedule & { userId: string } {
   return {
     id: row.id,
+    userId: row.userId,
     label: row.label,
     enabled: row.enabled === 1,
     frequency: row.frequency as SearchScheduleFrequency,
@@ -56,12 +65,15 @@ function mapRowToSchedule(row: SearchScheduleRow): SearchSchedule {
 }
 
 /**
- * List all search schedules, ordered by creation order (newest first).
+ * List all search schedules for the user, ordered by creation order (newest first).
  */
-export async function listSearchSchedules(): Promise<SearchSchedule[]> {
+export async function listSearchSchedules(
+  userId: string = currentUserId(),
+): Promise<SearchSchedule[]> {
   const rows = await db
     .select()
     .from(searchSchedules)
+    .where(eq(searchSchedules.userId, userId))
     .orderBy(desc(searchSchedules.createdAt));
 
   return rows.map((row) =>
@@ -74,11 +86,12 @@ export async function listSearchSchedules(): Promise<SearchSchedule[]> {
  */
 export async function getSearchScheduleById(
   id: string,
+  userId: string = currentUserId(),
 ): Promise<SearchSchedule | null> {
   const [row] = await db
     .select()
     .from(searchSchedules)
-    .where(eq(searchSchedules.id, id))
+    .where(and(eq(searchSchedules.id, id), eq(searchSchedules.userId, userId)))
     .limit(1);
 
   if (!row) return null;
@@ -90,6 +103,7 @@ export async function getSearchScheduleById(
  */
 export async function createSearchSchedule(
   input: CreateSearchScheduleInput,
+  userId: string = currentUserId(),
 ): Promise<SearchSchedule> {
   const id = randomUUID();
   const now = new Date().toISOString();
@@ -100,6 +114,7 @@ export async function createSearchSchedule(
 
   const values = {
     id,
+    userId,
     label: input.label,
     enabled: (input.enabled ?? true) ? 1 : 0,
     frequency,
@@ -126,6 +141,7 @@ export async function createSearchSchedule(
 export async function updateSearchSchedule(
   id: string,
   input: UpdateSearchScheduleInput,
+  userId: string = currentUserId(),
 ): Promise<SearchSchedule | null> {
   const update: Record<string, unknown> = {
     updatedAt: new Date().toISOString(),
@@ -154,7 +170,7 @@ export async function updateSearchSchedule(
   const [row] = await db
     .update(searchSchedules)
     .set(update)
-    .where(eq(searchSchedules.id, id))
+    .where(and(eq(searchSchedules.id, id), eq(searchSchedules.userId, userId)))
     .returning();
 
   if (!row) return null;
@@ -164,20 +180,25 @@ export async function updateSearchSchedule(
 /**
  * Delete a search schedule by id.
  */
-export async function deleteSearchSchedule(id: string): Promise<boolean> {
+export async function deleteSearchSchedule(
+  id: string,
+  userId: string = currentUserId(),
+): Promise<boolean> {
   const result = await db
     .delete(searchSchedules)
-    .where(eq(searchSchedules.id, id))
+    .where(and(eq(searchSchedules.id, id), eq(searchSchedules.userId, userId)))
     .returning({ id: searchSchedules.id });
 
   return result.length > 0;
 }
 
 /**
- * Get all enabled search schedules (used by the scheduler to build timer
- * instances).
+ * Get all enabled search schedules across all users (used by the background scheduler
+ * to build timer instances).
  */
-export async function getEnabledSearchSchedules(): Promise<SearchSchedule[]> {
+export async function getEnabledSearchSchedules(): Promise<
+  Array<SearchSchedule & { userId: string }>
+> {
   const rows = await db
     .select()
     .from(searchSchedules)

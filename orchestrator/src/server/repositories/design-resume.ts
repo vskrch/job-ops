@@ -1,22 +1,38 @@
+import { getCurrentUserId } from "@infra/request-context";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { designResumeAssets, designResumeDocuments } = schema;
 
-export async function getLatestDesignResumeDocument() {
+function currentUserId(): string {
+  return getCurrentUserId();
+}
+
+export async function getLatestDesignResumeDocument(
+  userId: string = currentUserId(),
+) {
   const [row] = await db
     .select()
     .from(designResumeDocuments)
+    .where(eq(designResumeDocuments.userId, userId))
     .orderBy(desc(designResumeDocuments.updatedAt))
     .limit(1);
   return row ?? null;
 }
 
-export async function getDesignResumeDocumentById(id: string) {
+export async function getDesignResumeDocumentById(
+  id: string,
+  userId: string = currentUserId(),
+) {
   const [row] = await db
     .select()
     .from(designResumeDocuments)
-    .where(eq(designResumeDocuments.id, id))
+    .where(
+      and(
+        eq(designResumeDocuments.id, id),
+        eq(designResumeDocuments.userId, userId),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -38,18 +54,21 @@ export async function getDesignResumeAssetById(id: string) {
   return row ?? null;
 }
 
-export async function upsertDesignResumeDocument(input: {
-  id: string;
-  title: string;
-  resumeJson: Record<string, unknown>;
-  revision: number;
-  sourceResumeId: string | null;
-  sourceMode: "v4" | "v5" | null;
-  importedAt: string | null;
-  createdAt?: string;
-  updatedAt: string;
-}) {
-  const existing = await getDesignResumeDocumentById(input.id);
+export async function upsertDesignResumeDocument(
+  input: {
+    id: string;
+    title: string;
+    resumeJson: Record<string, unknown>;
+    revision: number;
+    sourceResumeId: string | null;
+    sourceMode: "v4" | "v5" | null;
+    importedAt: string | null;
+    createdAt?: string;
+    updatedAt: string;
+  },
+  userId: string = currentUserId(),
+) {
+  const existing = await getDesignResumeDocumentById(input.id, userId);
   if (existing) {
     await db
       .update(designResumeDocuments)
@@ -62,10 +81,16 @@ export async function upsertDesignResumeDocument(input: {
         importedAt: input.importedAt,
         updatedAt: input.updatedAt,
       })
-      .where(eq(designResumeDocuments.id, input.id));
+      .where(
+        and(
+          eq(designResumeDocuments.id, input.id),
+          eq(designResumeDocuments.userId, userId),
+        ),
+      );
   } else {
     await db.insert(designResumeDocuments).values({
       id: input.id,
+      userId,
       title: input.title,
       resumeJson: input.resumeJson,
       revision: input.revision,
@@ -77,7 +102,7 @@ export async function upsertDesignResumeDocument(input: {
     });
   }
 
-  return getDesignResumeDocumentById(input.id);
+  return getDesignResumeDocumentById(input.id, userId);
 }
 
 export async function insertDesignResumeAsset(input: {
@@ -116,10 +141,18 @@ export async function deleteDesignResumeAssetsForDocument(documentId: string) {
     .where(eq(designResumeAssets.documentId, documentId));
 }
 
-export async function deleteDesignResumeDocument(id: string) {
+export async function deleteDesignResumeDocument(
+  id: string,
+  userId: string = currentUserId(),
+) {
   await db
     .delete(designResumeDocuments)
-    .where(eq(designResumeDocuments.id, id));
+    .where(
+      and(
+        eq(designResumeDocuments.id, id),
+        eq(designResumeDocuments.userId, userId),
+      ),
+    );
 }
 
 export async function findDesignResumeAssetForDocument(args: {

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getCurrentUserId } from "@infra/request-context";
 import type {
   PostApplicationProvider,
   PostApplicationSyncRun,
@@ -8,6 +9,10 @@ import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 
 const { postApplicationSyncRuns } = schema;
+
+function currentUserId(): string {
+  return getCurrentUserId();
+}
 
 type StartPostApplicationSyncRunInput = {
   provider: PostApplicationProvider;
@@ -56,6 +61,7 @@ function mapRowToSyncRun(
 
 export async function startPostApplicationSyncRun(
   input: StartPostApplicationSyncRunInput,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationSyncRun> {
   const id = randomUUID();
   const nowEpoch = Date.now();
@@ -63,6 +69,7 @@ export async function startPostApplicationSyncRun(
 
   await db.insert(postApplicationSyncRuns).values({
     id,
+    userId,
     provider: input.provider,
     accountKey: input.accountKey,
     integrationId: input.integrationId,
@@ -82,7 +89,7 @@ export async function startPostApplicationSyncRun(
     updatedAt: nowIso,
   });
 
-  const run = await getPostApplicationSyncRunById(id);
+  const run = await getPostApplicationSyncRunById(id, userId);
   if (!run) {
     throw new Error(`Failed to load created post-application sync run ${id}.`);
   }
@@ -91,6 +98,7 @@ export async function startPostApplicationSyncRun(
 
 export async function completePostApplicationSyncRun(
   input: CompletePostApplicationSyncRunInput,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationSyncRun | null> {
   const nowEpoch = Date.now();
   const nowIso = new Date(nowEpoch).toISOString();
@@ -111,18 +119,29 @@ export async function completePostApplicationSyncRun(
       errorMessage: input.errorMessage ?? null,
       updatedAt: nowIso,
     })
-    .where(eq(postApplicationSyncRuns.id, input.id));
+    .where(
+      and(
+        eq(postApplicationSyncRuns.id, input.id),
+        eq(postApplicationSyncRuns.userId, userId),
+      ),
+    );
 
-  return getPostApplicationSyncRunById(input.id);
+  return getPostApplicationSyncRunById(input.id, userId);
 }
 
 export async function getPostApplicationSyncRunById(
   id: string,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationSyncRun | null> {
   const [row] = await db
     .select()
     .from(postApplicationSyncRuns)
-    .where(eq(postApplicationSyncRuns.id, id));
+    .where(
+      and(
+        eq(postApplicationSyncRuns.id, id),
+        eq(postApplicationSyncRuns.userId, userId),
+      ),
+    );
   return row ? mapRowToSyncRun(row) : null;
 }
 
@@ -130,12 +149,14 @@ export async function listPostApplicationSyncRuns(
   provider: PostApplicationProvider,
   accountKey: string,
   limit = 20,
+  userId: string = currentUserId(),
 ): Promise<PostApplicationSyncRun[]> {
   const rows = await db
     .select()
     .from(postApplicationSyncRuns)
     .where(
       and(
+        eq(postApplicationSyncRuns.userId, userId),
         eq(postApplicationSyncRuns.provider, provider),
         eq(postApplicationSyncRuns.accountKey, accountKey),
       ),
