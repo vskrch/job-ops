@@ -1,0 +1,78 @@
+---
+id: overview
+title: Extractors Overview
+description: Technical index of supported extractors and how they work.
+sidebar_position: 1
+---
+
+This page helps you choose the right extractor for your run, understand key constraints, and navigate to detailed technical guides.
+
+Extractor integrations are now registered through manifests and loaded automatically at orchestrator startup. Runtime discovery only scans `extractors/*/(manifest.ts|src/manifest.ts)` and does not read manifests from `orchestrator/**`. Extractor-specific run logic should also remain in `extractors/<name>/` so orchestrator stays source-agnostic. To add a new source, follow [Add an Extractor](/docs/next/workflows/add-an-extractor).
+
+## Extractor chooser
+
+| Extractor | Best use case | Core constraints/dependencies | Notable controls | Output/behavior notes |
+| --- | --- | --- | --- | --- |
+| [Gradcracker](/docs/next/extractors/gradcracker) | UK graduate roles from Gradcracker | Crawling stability depends on page structure and anti-bot behavior; tuned for low concurrency | `GRADCRACKER_SEARCH_TERMS`, `GRADCRACKER_MAX_JOBS_PER_TERM`, `JOBOPS_SKIP_APPLY_FOR_EXISTING` | Scrapes listing metadata, then detail pages and apply URL resolution |
+| [JobSpy](/docs/next/extractors/jobspy) | Multi-source discovery (Indeed, LinkedIn, Glassdoor) | Requires Python wrapper execution per term; source availability and quality vary by site/location | `JOBSPY_SITES`, `JOBSPY_SEARCH_TERMS`, `JOBSPY_RESULTS_WANTED`, `JOBSPY_HOURS_OLD`, `JOBSPY_LINKEDIN_FETCH_DESCRIPTION` | Produces JSON per term, then orchestrator normalizes and de-duplicates by `jobUrl` |
+| [Adzuna](/docs/next/extractors/adzuna) | API-based multi-country discovery with low scraping overhead | Requires valid App ID/App Key; country must be in Adzuna-supported list | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `ADZUNA_MAX_JOBS_PER_TERM` | API pagination to dataset output; orchestrator maps progress and de-duplicates by `sourceJobId`/`jobUrl` |
+| [Hiring Cafe](/docs/next/extractors/hiring-cafe) | Browser-backed discovery using Hiring Cafe search APIs | Subject to upstream anti-bot checks; uses browser context and encoded search-state payloads | `HIRING_CAFE_SEARCH_TERMS`, `HIRING_CAFE_COUNTRY`, `HIRING_CAFE_MAX_JOBS_PER_TERM`, `HIRING_CAFE_DATE_FETCHED_PAST_N_DAYS` | Uses existing pipeline term/country/budget knobs and maps directly to normalized jobs |
+| [startup.jobs](/docs/next/extractors/startup-jobs) | Startup-focused discovery through the published `startup-jobs-scraper` package | No credentials required; detail enrichment depends on Playwright browser binaries being installed | existing pipeline `searchTerms`, selected country/cities, `jobspyResultsWanted`; `npx playwright install` for fresh environments | Algolia-backed search plus detail-page enrichment via package import; orchestrator maps normalized records and de-duplicates by `jobUrl` |
+| [Working Nomads](/docs/next/extractors/working-nomads) | Remote-only discovery through the public Working Nomads jobs API | Public API is curated and remote-only; available fields are limited to API payload shape | existing pipeline `searchTerms`, selected country/cities, `jobspyResultsWanted`, workplace type | Fetches a single public JSON feed, filters locally by terms/location, infers job type when possible, and de-duplicates by source id / URL |
+| [Golang Jobs](/docs/next/extractors/golang-jobs) | Go-specific discovery through the public Golang Jobs feed | Depends on the site's public Supabase-backed schema staying stable; no credentials required | existing pipeline `searchTerms`, selected country/cities, `jobspyResultsWanted`, workplace type | Paginates the public jobs feed, maps location through the linked city record, then filters locally and de-duplicates by source id / URL |
+| [UKVisaJobs](/docs/next/extractors/ukvisajobs) | UK visa sponsorship-focused roles | Requires authenticated session and periodic token/cookie refresh | `UKVISAJOBS_EMAIL`, `UKVISAJOBS_PASSWORD`, `UKVISAJOBS_MAX_JOBS`, `UKVISAJOBS_SEARCH_KEYWORD` | API pagination + dataset output; orchestrator de-dupes and may fetch missing descriptions |
+| [Job Boards](/docs/next/extractors/jobboards) | Regional board discovery for USA (Built In, Dice, SimplyHired), Canada (Job Bank, Eluta), and India (foundit, Shine, Instahyre) | No credentials; some boards render client-side and depend on the Jina fallback; Monster currently yields no results | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Crawl-engine fetch with direct → Jina fallback, regex + optional LLM structured parsing, optional detail-page description extraction; de-duplicates by `sourceJobId`/`jobUrl` |
+| [Remotive](/docs/next/extractors/remotive) | Curated remote roles via public JSON API, filtered by country | No credentials; API returns a bounded feed per query | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Fetches per-term, filters locally (country + worldwide-remote), maps salary/type/skills, de-duplicates |
+| [RemoteOK](/docs/next/extractors/remoteok) | Remote startup roles with salary bands via public JSON feed | No credentials; feed is a rolling snapshot of ~100 listings | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Fetches the feed once, filters locally (flag-emoji country hints), maps structured salary fields, de-duplicates |
+| [HN Who's Hiring](/docs/next/extractors/hnhiring) | Hidden startup market from the monthly Hacker News hiring thread | No credentials; only `Company | Role | Location` table lines are imported | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Finds the latest thread via Algolia HN API, parses comment tables, extracts apply links, de-duplicates |
+| [We Work Remotely](/docs/next/extractors/weworkremotely) | Established remote board via public RSS feed | No credentials; feed covers recent listings only | existing pipeline `searchTerms`, selected country, `jobspyResultsWanted` | Parses RSS, splits `Company: Role` titles, de-duplicates by URL |
+| [USAJOBS](/docs/next/extractors/usajobs) | US federal government jobs via the official API | Requires free `USAJOBS_API_KEY`; US-only by design | `USAJOBS_API_KEY`, existing `searchTerms`, `jobspyResultsWanted` | Queries the official search API, maps salary/grade/deadline/remote offering, de-duplicates |
+| [Manual Import](/docs/next/extractors/manual) | One-off jobs not covered by scrapers | Inference quality depends on model/provider and input quality; some URLs cannot be fetched reliably | App/API endpoints (`/api/manual-jobs/infer`, `/api/manual-jobs/import`) | Accepts text/HTML/URL, runs inference, then saves and scores job after review |
+
+## Which extractor should I use?
+
+- Use **JobSpy** for broad first-pass sourcing across common boards.
+- Use **Adzuna** when you want API-first discovery in supported non-UK markets.
+- Use **Hiring Cafe** when you want another term/country-driven source without adding credentials.
+- Use **startup.jobs** when you want startup-heavy listings without maintaining another scraper locally.
+- Use **Working Nomads** when you want another remote-only source with a public API and curated global roles.
+- Use **Golang Jobs** when you want a niche Go-focused board that broad aggregators often miss.
+- Use **Gradcracker** when targeting graduate pipelines in the UK.
+- Use **UKVisaJobs** for sponsorship-specific UK searches.
+- Use **Job Boards** when targeting USA, Canada, or India markets: Built In and Dice for US tech, Job Bank/Eluta for Canada, foundit/Shine/Instahyre for India.
+- Use **Remotive**, **RemoteOK**, or **We Work Remotely** when you want remote-first roles that general boards under-represent.
+- Use **HN Who's Hiring** when you want startup roles that never reach job boards — the deepest hidden market in the list.
+- Use **USAJOBS** when targeting US federal and public-sector roles (requires a free API key).
+- Use **Manual Import** when you already have a specific posting and need direct import.
+
+Many runs combine sources: broad discovery first, then manual import for high-priority jobs that scraping misses.
+
+## Common problems
+
+### How do I health-check an extractor?
+
+- Every runtime-registered extractor source exposes `GET /api/:source/health`.
+- Use the source id from the shared extractor catalog, for example `/api/linkedin/health` or `/api/gradcracker/health`.
+- The health check runs a minimal live probe for that source with a fixed search term and a result limit of `1`.
+- A `200` response means the extractor returned at least one valid normalized job for that source.
+- A `503` response means the extractor could not run successfully, returned no jobs, or returned invalid jobs.
+- A `404` response means the source id is unknown or not registered at runtime on that instance.
+
+## Related extractor docs
+
+- [Gradcracker](/docs/next/extractors/gradcracker)
+- [JobSpy](/docs/next/extractors/jobspy)
+- [Adzuna](/docs/next/extractors/adzuna)
+- [Hiring Cafe](/docs/next/extractors/hiring-cafe)
+- [startup.jobs](/docs/next/extractors/startup-jobs)
+- [Working Nomads](/docs/next/extractors/working-nomads)
+- [Golang Jobs](/docs/next/extractors/golang-jobs)
+- [UKVisaJobs](/docs/next/extractors/ukvisajobs)
+- [Job Boards](/docs/next/extractors/jobboards)
+- [Remotive](/docs/next/extractors/remotive)
+- [RemoteOK](/docs/next/extractors/remoteok)
+- [HN Who's Hiring](/docs/next/extractors/hnhiring)
+- [We Work Remotely](/docs/next/extractors/weworkremotely)
+- [USAJOBS](/docs/next/extractors/usajobs)
+- [Manual Import](/docs/next/extractors/manual)
+- [Add an Extractor](/docs/next/workflows/add-an-extractor)

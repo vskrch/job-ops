@@ -23,7 +23,7 @@ describe("McpServer", () => {
     expect(res.result).toEqual(
       expect.objectContaining({
         protocolVersion: "2024-11-05",
-        serverInfo: { name: "job-ops-mcp", version: "0.3.0" },
+        serverInfo: { name: "job-ops-mcp", version: "0.4.0" },
       }),
     );
   });
