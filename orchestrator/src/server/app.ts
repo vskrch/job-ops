@@ -18,8 +18,10 @@ import {
   requestContextMiddleware,
 } from "@infra/http";
 import { logger } from "@infra/logger";
+import { getCurrentUserId, getRequestContext } from "@infra/request-context";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { securityHeaders } from "@infra/security-headers";
+import * as jobsRepo from "@server/repositories/jobs";
 import cors from "cors";
 import express from "express";
 import { apiRouter } from "./api/index";
@@ -223,6 +225,56 @@ export function createBasicAuthGuard() {
   };
 }
 
+export function createSessionAuthGuard() {
+  function sessionAuthRequired(): boolean {
+    return process.env.AUTH_MODE?.trim() === "session";
+  }
+
+  function isPublicApiRoute(method: string, path: string): boolean {
+    const normalizedMethod = method.toUpperCase();
+    const normalizedPath = path.split("?")[0] || path;
+
+    // Credential endpoints (rate-limited at the router level).
+    if (
+      normalizedPath === "/api/auth" ||
+      normalizedPath.startsWith("/api/auth/")
+    )
+      return true;
+    // Same public surface the Basic Auth guard exposes.
+    if (normalizedMethod === "GET" && normalizedPath === "/api/profile/status")
+      return true;
+    if (
+      normalizedMethod === "POST" &&
+      normalizedPath === "/api/visa-sponsors/search"
+    )
+      return true;
+    if (normalizedMethod === "GET" && normalizedPath === "/api/demo/info")
+      return true;
+    return false;
+  }
+
+  const middleware = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (!sessionAuthRequired()) return next();
+    if (req.method.toUpperCase() === "OPTIONS") return next();
+    // The MCP HTTP/SSE router is mounted outside /api; without this it
+    // would execute as the anonymous default-user tenant.
+    const isProtectedPath =
+      req.path.startsWith("/api") ||
+      req.path === "/mcp" ||
+      req.path.startsWith("/mcp/");
+    if (!isProtectedPath) return next();
+    if (getRequestContext()?.userId) return next();
+    if (isPublicApiRoute(req.method, req.path)) return next();
+    fail(res, unauthorized("Sign in required"));
+  };
+
+  return { middleware, sessionAuthRequired };
+}
+
 export function createApp() {
   const app = express();
   // Behind a TLS-terminating reverse proxy (Heroku router, nginx, ...) the
@@ -301,6 +353,9 @@ export function createApp() {
   });
   app.use(securityHeaders());
   app.use(requestContextMiddleware());
+  // With AUTH_MODE=session, unauthenticated requests must be rejected at the
+  // edge instead of silently executing as the shared "default-user" tenant.
+  app.use(createSessionAuthGuard().middleware);
   app.use("/stats", express.raw({ limit: "1mb", type: "*/*" }));
   app.use(express.json({ limit: "1mb" }));
 
@@ -414,11 +469,12 @@ export function createApp() {
     }
   });
 
-  // Serve static files for generated PDFs
+  // Serve generated PDFs. These files embed PII and live in one shared
+  // directory, so access is resolved per-ownership instead of by path.
   const pdfDir = join(getDataDir(), "pdfs");
   if (isDemoMode()) {
     // Demo mode: serve a single demo.pdf for ALL /pdfs/* paths.
-    // This shadows the static middleware below — any real PDFs in pdfDir are
+    // This shadows the ownership route below — any real PDFs in pdfDir are
     // unreachable while demo mode is on. Only the demo file is served.
     const demoPdfPath = join(pdfDir, "demo.pdf");
     app.get("/pdfs/*", (_req, res) => {
@@ -426,8 +482,58 @@ export function createApp() {
         if (error) res.status(404).end();
       });
     });
+  } else {
+    const sendOwnedPdf = (res: express.Response, filePath: string) => {
+      res.sendFile(filePath, (error) => {
+        if (error && !res.headersSent) res.status(404).end();
+      });
+    };
+
+    app.get("/pdfs/:filename", (req, res) => {
+      const filename = req.params.filename ?? "";
+      // Strict shape guard: the filename is joined into a filesystem path,
+      // so reject anything outside a flat [A-Za-z0-9._-]+ namespace.
+      if (!/^[A-Za-z0-9._-]+$/.test(filename)) {
+        res.status(404).end();
+        return;
+      }
+
+      const jobMatch = /^resume_(.+)\.pdf$/.exec(filename);
+      if (jobMatch) {
+        void jobsRepo
+          .getJobById(jobMatch[1])
+          .then((job) => {
+            if (!job) {
+              res.status(404).end();
+              return;
+            }
+            sendOwnedPdf(res, join(pdfDir, filename));
+          })
+          .catch(() => {
+            if (!res.headersSent) res.status(404).end();
+          });
+        return;
+      }
+
+      const currentUserId = getCurrentUserId();
+      const designMatch = /^design_resume_current_(.+)\.pdf$/.exec(filename);
+      if (designMatch && designMatch[1] === currentUserId) {
+        sendOwnedPdf(res, join(pdfDir, filename));
+        return;
+      }
+      // Legacy fixed-name file from single-user installs: only resolvable by
+      // the default tenant it was generated for.
+      if (
+        filename === "design_resume_current.pdf" &&
+        currentUserId === "default-user"
+      ) {
+        sendOwnedPdf(res, join(pdfDir, filename));
+        return;
+      }
+
+      res.status(404).end();
+    });
   }
-  app.use("/pdfs", express.static(pdfDir));
 
   // Health check
   app.get("/health", (_req, res) => {

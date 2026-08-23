@@ -8,6 +8,7 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { notFound } from "@infra/errors";
 import { logger } from "@infra/logger";
+import { getCurrentUserId } from "@infra/request-context";
 import { getSetting } from "@server/repositories/settings";
 import * as userProfileRepo from "@server/repositories/user-profile";
 import { settingsRegistry } from "@shared/settings-registry";
@@ -420,7 +421,9 @@ export async function generateDesignResumePdf(options?: {
     requestOrigin: options?.requestOrigin ?? null,
   });
   const generatedAt = new Date().toISOString();
-  const outputFileName = "design_resume_current.pdf";
+  // Per-user filename: the pdfs directory is shared, so a fixed name would
+  // have every account overwrite (and be able to fetch) the same file.
+  const outputFileName = `design_resume_current_${getCurrentUserId()}.pdf`;
   const outputPath = join(OUTPUT_DIR, outputFileName);
   const preparedResume: PreparedRxResumePdfPayload = {
     mode: designResume.mode,

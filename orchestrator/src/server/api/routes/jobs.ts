@@ -172,7 +172,11 @@ const updateJobSchema = z.object({
 
 function isJobUrlConflictError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  return /UNIQUE constraint failed: jobs\.job_url/i.test(error.message);
+  // Matches both the legacy global unique (jobs.job_url) and the per-account
+  // composite unique (jobs.user_id, jobs.job_url).
+  return /UNIQUE constraint failed: jobs\.(?:user_id, jobs\.)?job_url/i.test(
+    error.message,
+  );
 }
 
 const transitionStageSchema = z.object({
@@ -909,10 +913,32 @@ jobsRouter.get("/:id", async (req: Request, res: Response) => {
 });
 
 /**
+ * Stage events and tasks hang off the jobs table without their own user
+ * column, so these routes must prove ownership of the parent job before
+ * touching them (otherwise any id is readable/editable cross-account).
+ */
+async function requireOwnedJob(
+  res: Response,
+  jobId: string | undefined,
+): Promise<boolean> {
+  if (!jobId) {
+    fail(res, badRequest("Missing job id"));
+    return false;
+  }
+  const job = await jobsRepo.getJobById(jobId);
+  if (!job) {
+    fail(res, notFound("Job not found"));
+    return false;
+  }
+  return true;
+}
+
+/**
  * GET /api/jobs/:id/events - Get stage event timeline
  */
 jobsRouter.get("/:id/events", async (req: Request, res: Response) => {
   try {
+    if (!(await requireOwnedJob(res, req.params.id))) return;
     const events = await getStageEvents(req.params.id);
     ok(res, events);
   } catch (error) {
@@ -925,6 +951,7 @@ jobsRouter.get("/:id/events", async (req: Request, res: Response) => {
  */
 jobsRouter.get("/:id/tasks", async (req: Request, res: Response) => {
   try {
+    if (!(await requireOwnedJob(res, req.params.id))) return;
     const includeCompleted =
       req.query.includeCompleted === "1" ||
       req.query.includeCompleted === "true";
@@ -940,6 +967,7 @@ jobsRouter.get("/:id/tasks", async (req: Request, res: Response) => {
  */
 jobsRouter.post("/:id/stages", async (req: Request, res: Response) => {
   try {
+    if (!(await requireOwnedJob(res, req.params.id))) return;
     const input = transitionStageSchema.parse(req.body);
     const event = transitionStage(
       req.params.id,
@@ -964,8 +992,9 @@ jobsRouter.patch(
   "/:id/events/:eventId",
   async (req: Request, res: Response) => {
     try {
+      if (!(await requireOwnedJob(res, req.params.id))) return;
       const input = updateStageEventSchema.parse(req.body);
-      updateStageEvent(req.params.eventId, input);
+      updateStageEvent(req.params.eventId, input, req.params.id);
       ok(res, null);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -983,7 +1012,8 @@ jobsRouter.delete(
   "/:id/events/:eventId",
   async (req: Request, res: Response) => {
     try {
-      deleteStageEvent(req.params.eventId);
+      if (!(await requireOwnedJob(res, req.params.id))) return;
+      deleteStageEvent(req.params.eventId, req.params.id);
       ok(res, null);
     } catch (error) {
       fail(res, toAppError(error));

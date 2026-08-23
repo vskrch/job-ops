@@ -1,3 +1,4 @@
+import { getCurrentUserId } from "@infra/request-context";
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db, schema } from "../db";
@@ -71,6 +72,10 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function buildEventFilters(args: AnalyticsFilterArgs) {
   const filters = [];
+
+  // Analytics must never aggregate across accounts: tracer tables have no
+  // user column, so scope through the owning job instead.
+  filters.push(eq(jobs.userId, getCurrentUserId()));
 
   if (typeof args.from === "number") {
     filters.push(gte(tracerClickEvents.clickedAt, args.from));
@@ -317,6 +322,7 @@ export async function getTracerAnalyticsTotals(
     })
     .from(tracerClickEvents)
     .innerJoin(tracerLinks, eq(tracerClickEvents.tracerLinkId, tracerLinks.id))
+    .innerJoin(jobs, eq(tracerLinks.jobId, jobs.id))
     .where(filters.length > 0 ? and(...filters) : undefined);
 
   const clicks = normalizeNumber(row?.clicks);
@@ -351,6 +357,7 @@ export async function getTracerAnalyticsTimeSeries(
     })
     .from(tracerClickEvents)
     .innerJoin(tracerLinks, eq(tracerClickEvents.tracerLinkId, tracerLinks.id))
+    .innerJoin(jobs, eq(tracerLinks.jobId, jobs.id))
     .where(filters.length > 0 ? and(...filters) : undefined)
     .groupBy(sql`date(${tracerClickEvents.clickedAt}, 'unixepoch')`)
     .orderBy(sql`date(${tracerClickEvents.clickedAt}, 'unixepoch') asc`);

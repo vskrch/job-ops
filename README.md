@@ -232,8 +232,11 @@ JobOps includes a standard **Model Context Protocol (MCP)** server, enabling Cla
 |---|---|---|
 | `PORT` | `3001` | Backend HTTP listening port |
 | `NODE_ENV` | `development` | Runtime mode (`development` or `production`) |
+| `AUTH_MODE` | *(unset)* | Set to `session` for multi-user deployments: unauthenticated `/api` and `/mcp` requests are rejected with 401 instead of running as a shared anonymous tenant |
 | `DATA_DIR` | `./data` | Directory for SQLite database (`jobs.db`) and file assets |
 | `SESSION_SECRET` | *(auto-generated)* | 32+ character hex string for signing session tokens |
+| `EXTRACTOR_RUN_TIMEOUT_MS` | `600000` | Hard timeout per extractor run (pipelines and searches) |
+| `PIPELINE_MAX_GLOBAL_RUNS` | `12` | Process-wide ceiling on concurrently running pipelines across all users |
 | `OPENAI_API_KEY` | - | API key for OpenAI model completions |
 | `OPENROUTER_API_KEY` | - | API key for OpenRouter multi-model routing |
 | `GEMINI_API_KEY` | - | API key for Google Gemini Flash / Pro models |

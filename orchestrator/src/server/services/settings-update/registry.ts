@@ -1,3 +1,4 @@
+import { getCurrentUserId } from "@infra/request-context";
 import type { SettingKey } from "@server/repositories/settings";
 import * as settingsRepo from "@server/repositories/settings";
 import { applyEnvValue, normalizeEnvInput } from "@server/services/envSettings";
@@ -160,7 +161,11 @@ for (const [key, def] of Object.entries(settingsRegistry)) {
 
     const sideEffect = hasEnvKey
       ? () => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // Per-user overrides resolve per-request via getEffectiveSettings;
+          // mutating process.env here would apply the value to every other
+          // account on the process. Only the single-user default tenant may
+          // rewrite the process environment.
+          if (getCurrentUserId() !== "default-user") return;
           // biome-ignore lint/suspicious/noExplicitAny: def is constrained by kind
           applyEnvValue((def as any).envKey, serialized);
         }

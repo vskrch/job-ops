@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { notFound } from "@infra/errors";
 import { logger } from "@infra/logger";
 import { trackServerProductEvent } from "@infra/product-analytics";
+import { getCurrentUserId } from "@infra/request-context";
 import type {
   ApplicationStage,
   ApplicationTask,
@@ -157,9 +159,15 @@ export function transitionStage(
   const timestamp = occurredAt ?? now;
 
   const event = db.transaction((tx) => {
-    const job = tx.select().from(jobs).where(eq(jobs.id, applicationId)).get();
+    const job = tx
+      .select()
+      .from(jobs)
+      .where(
+        and(eq(jobs.id, applicationId), eq(jobs.userId, getCurrentUserId())),
+      )
+      .get();
     if (!job) {
-      throw new Error("Job not found");
+      throw notFound("Job not found");
     }
 
     const lastEvent = tx
@@ -278,6 +286,7 @@ export function updateStageEvent(
     metadata?: StageEventMetadata | null;
     outcome?: JobOutcome | null;
   },
+  expectedApplicationId?: string,
 ): void {
   const { toStage, occurredAt, metadata, outcome } = payload;
   const parsedMetadata = metadata
@@ -291,7 +300,13 @@ export function updateStageEvent(
       .from(stageEvents)
       .where(eq(stageEvents.id, eventId))
       .get();
-    if (!event) throw new Error("Event not found");
+    if (!event) throw notFound("Event not found");
+    if (
+      expectedApplicationId !== undefined &&
+      event.applicationId !== expectedApplicationId
+    ) {
+      throw notFound("Event not found");
+    }
 
     const updates: Partial<typeof stageEvents.$inferInsert> = {};
     if (toStage) updates.toStage = toStage;
@@ -353,7 +368,10 @@ export function updateStageEvent(
   });
 }
 
-export function deleteStageEvent(eventId: string): void {
+export function deleteStageEvent(
+  eventId: string,
+  expectedApplicationId?: string,
+): void {
   db.transaction((tx) => {
     const event = tx
       .select()
@@ -361,6 +379,12 @@ export function deleteStageEvent(eventId: string): void {
       .where(eq(stageEvents.id, eventId))
       .get();
     if (!event) return;
+    if (
+      expectedApplicationId !== undefined &&
+      event.applicationId !== expectedApplicationId
+    ) {
+      throw notFound("Event not found");
+    }
 
     tx.delete(stageEvents).where(eq(stageEvents.id, eventId)).run();
 

@@ -7,6 +7,7 @@
 
 import { logger } from "@infra/logger";
 import { getExtractorRegistry } from "@server/extractors/registry";
+import { withExtractorRunLock } from "@server/extractors/run-lock";
 import * as settingsRepo from "@server/repositories/settings";
 import { normalizeCountryKey } from "@shared/location-support.js";
 import type {
@@ -89,16 +90,18 @@ export async function runManifestTask(
     }, timeoutMs);
 
     try {
-      const result = await manifest.run({
-        source: task.selectedSources[0] ?? manifestId,
-        selectedSources: task.selectedSources,
-        settings: filteredSettings,
-        searchTerms,
-        selectedCountry: selectedCountry ?? null,
-        getExistingJobUrls: () => existingJobUrls,
-        shouldCancel: () => cancelled,
-        onProgress: () => {},
-      });
+      const result = await withExtractorRunLock(manifestId, () =>
+        manifest.run({
+          source: task.selectedSources[0] ?? manifestId,
+          selectedSources: task.selectedSources,
+          settings: filteredSettings,
+          searchTerms,
+          selectedCountry: selectedCountry ?? null,
+          getExistingJobUrls: () => existingJobUrls,
+          shouldCancel: () => cancelled,
+          onProgress: () => {},
+        }),
+      );
 
       if (cancelled) {
         return {

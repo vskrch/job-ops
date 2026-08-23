@@ -82,13 +82,16 @@ export async function getEnvSettingsData(
   const basicAuthUser = normalizeEnvInput(
     activeOverrides.basicAuthUser ?? process.env.BASIC_AUTH_USER,
   );
-  const basicAuthPassword = normalizeEnvInput(
-    activeOverrides.basicAuthPassword ?? process.env.BASIC_AUTH_PASSWORD,
+  const basicAuthPasswordSet = Boolean(
+    normalizeEnvInput(
+      activeOverrides.basicAuthPassword ?? process.env.BASIC_AUTH_PASSWORD,
+    ),
   );
-  const basicAuthActive = Boolean(basicAuthUser && basicAuthPassword);
 
-  values.basicAuthActive = basicAuthActive;
-  values.basicAuthPassword = basicAuthActive ? basicAuthPassword : null;
+  // The password itself is never echoed back to clients — it is write-only
+  // (basicAuthPasswordHint from the secret loop above shows it is set).
+  values.basicAuthActive = Boolean(basicAuthUser && basicAuthPasswordSet);
+  values.basicAuthPassword = null;
 
   return values;
 }

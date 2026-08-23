@@ -42,6 +42,19 @@ apiRouter.use("/auth/forgot-password", authLimiter);
 apiRouter.use("/auth/verify-reset-token", resetLimiter);
 apiRouter.use("/auth/reset-password", resetLimiter);
 
+// Expensive-work start endpoints (each fans out browser extractors and
+// LLM calls) get a per-IP budget so one account or script cannot saturate
+// the shared crawler/search slots for everyone: 6 heavy jobs / 5 min / IP.
+// POST-only registrations: status polling and reads stay unlimited.
+// Skipped under NODE_ENV=test, where suites legitimately fire bursts.
+if (process.env.NODE_ENV !== "test") {
+  const heavyWorkLimiter = rateLimitMiddleware({ max: 6, windowMs: 300_000 });
+  apiRouter.post("/pipeline/run", heavyWorkLimiter);
+  apiRouter.post("/job-search", heavyWorkLimiter);
+  apiRouter.post("/agentic-searches", heavyWorkLimiter);
+  apiRouter.post("/browser-agent/run", heavyWorkLimiter);
+}
+
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/jobs", jobsRouter);
 apiRouter.use("/job-search", jobSearchRouter);

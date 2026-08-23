@@ -152,6 +152,18 @@ describe.sequential("Ghostwriter API", () => {
 
   beforeEach(async () => {
     ({ server, baseUrl, closeDb, tempDir } = await startServer());
+
+    // The router ownership-gates chat routes behind the parent job, so the
+    // job these tests chat about must exist for the default tenant.
+    const { db, schema } = await import("@server/db/index");
+    await db.insert(schema.jobs).values({
+      id: "job-1",
+      userId: "default-user",
+      source: "test",
+      title: "Test Job",
+      employer: "Test Employer",
+      jobUrl: "https://example.com/jobs/job-1",
+    });
   });
 
   afterEach(async () => {

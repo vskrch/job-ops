@@ -57,15 +57,18 @@ async function startServer() {
 
   // In production, refuse to start with no authentication configured.
   // Without BASIC_AUTH or session-based auth, all API routes are open.
-  // Allow opt-out via ALLOW_NO_AUTH=true for single-user/self-hosted scenarios.
+  // AUTH_MODE=session (per-user accounts, anonymous /api rejected) also
+  // counts as authentication. Allow opt-out via ALLOW_NO_AUTH=true for
+  // single-user/self-hosted scenarios.
   if (
     process.env.NODE_ENV === "production" &&
+    process.env.AUTH_MODE?.trim() !== "session" &&
     !process.env.BASIC_AUTH_USER?.trim() &&
     !process.env.BASIC_AUTH_PASSWORD?.trim() &&
     process.env.ALLOW_NO_AUTH !== "true"
   ) {
     logger.error(
-      "No authentication configured. Set BASIC_AUTH_USER and BASIC_AUTH_PASSWORD, or set ALLOW_NO_AUTH=true to acknowledge the risk. Refusing to start.",
+      "No authentication configured. Set AUTH_MODE=session for per-user accounts, set BASIC_AUTH_USER and BASIC_AUTH_PASSWORD, or set ALLOW_NO_AUTH=true to acknowledge the risk. Refusing to start.",
     );
     process.exit(1);
   }

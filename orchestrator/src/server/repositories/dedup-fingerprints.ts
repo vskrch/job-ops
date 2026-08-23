@@ -2,9 +2,12 @@
  * Dedup Fingerprints repository (ADR-008).
  *
  * Persists content and URL fingerprints for cross-search deduplication and history tracking.
+ * Fingerprints are scoped per account so one user's crawl history never
+ * suppresses another user's "new" results.
  */
 
-import { inArray } from "drizzle-orm";
+import { getCurrentUserId } from "@infra/request-context";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/index";
 
 const { dedupFingerprints } = schema;
@@ -13,7 +16,12 @@ export async function hasFingerprint(fingerprint: string): Promise<boolean> {
   const [row] = await db
     .select({ fingerprint: dedupFingerprints.fingerprint })
     .from(dedupFingerprints)
-    .where(inArray(dedupFingerprints.fingerprint, [fingerprint]));
+    .where(
+      and(
+        eq(dedupFingerprints.userId, getCurrentUserId()),
+        inArray(dedupFingerprints.fingerprint, [fingerprint]),
+      ),
+    );
   return Boolean(row);
 }
 
@@ -28,13 +36,14 @@ export async function recordFingerprints(
       await db
         .insert(dedupFingerprints)
         .values({
+          userId: getCurrentUserId(),
           fingerprint: entry.fingerprint,
           canonicalJobUrl: entry.canonicalJobUrl,
           firstSeenAt: now,
           lastSeenAt: now,
         })
         .onConflictDoUpdate({
-          target: dedupFingerprints.fingerprint,
+          target: [dedupFingerprints.userId, dedupFingerprints.fingerprint],
           set: { lastSeenAt: now },
         });
     } catch {

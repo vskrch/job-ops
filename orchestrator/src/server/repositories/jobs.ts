@@ -275,7 +275,11 @@ async function insertJob(
 
 function isJobUrlUniqueViolation(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  return /UNIQUE constraint failed: jobs\.job_url/i.test(error.message);
+  // Matches both the legacy global unique (jobs.job_url) and the per-account
+  // composite unique (jobs.user_id, jobs.job_url).
+  return /UNIQUE constraint failed: jobs\.(?:user_id, jobs\.)?job_url/i.test(
+    error.message,
+  );
 }
 
 async function tryInsertJob(

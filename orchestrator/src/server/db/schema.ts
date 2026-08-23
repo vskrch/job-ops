@@ -22,6 +22,7 @@ import { sql } from "drizzle-orm";
 import {
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -154,6 +155,12 @@ export const jobs = sqliteTable(
   (table) => ({
     discoveredByRunIndex: index("idx_jobs_discovered_by_run").on(
       table.discoveredByRunId,
+    ),
+    // Job URLs are unique per account, not globally: two users saving the
+    // same listing must each get their own row.
+    userJobUrlUnique: uniqueIndex("idx_jobs_user_job_url").on(
+      table.userId,
+      table.jobUrl,
     ),
   }),
 );
@@ -870,7 +877,8 @@ export type NewJobSearchRow = typeof jobSearches.$inferInsert;
 export const dedupFingerprints = sqliteTable(
   "dedup_fingerprints",
   {
-    fingerprint: text("fingerprint").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    fingerprint: text("fingerprint").notNull(),
     canonicalJobUrl: text("canonical_job_url").notNull(),
     firstSeenAt: text("first_seen_at")
       .notNull()
@@ -878,6 +886,9 @@ export const dedupFingerprints = sqliteTable(
     lastSeenAt: text("last_seen_at").notNull().default(sql`(datetime('now'))`),
   },
   (table) => ({
+    // Fingerprints dedupe per account: one user's crawl history must never
+    // suppress another user's "new" results.
+    primaryKey: primaryKey({ columns: [table.userId, table.fingerprint] }),
     canonicalUrlIndex: index("idx_dedup_fingerprints_url").on(
       table.canonicalJobUrl,
     ),

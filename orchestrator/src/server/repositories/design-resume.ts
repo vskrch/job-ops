@@ -45,13 +45,27 @@ export async function listDesignResumeAssets(documentId: string) {
     .orderBy(desc(designResumeAssets.updatedAt));
 }
 
-export async function getDesignResumeAssetById(id: string) {
+export async function getDesignResumeAssetById(
+  id: string,
+  userId: string = currentUserId(),
+) {
+  // Assets have no user column of their own — ownership comes from the
+  // parent document, so an asset id alone must never resolve cross-account.
   const [row] = await db
-    .select()
+    .select({ asset: designResumeAssets })
     .from(designResumeAssets)
-    .where(eq(designResumeAssets.id, id))
+    .innerJoin(
+      designResumeDocuments,
+      eq(designResumeAssets.documentId, designResumeDocuments.id),
+    )
+    .where(
+      and(
+        eq(designResumeAssets.id, id),
+        eq(designResumeDocuments.userId, userId),
+      ),
+    )
     .limit(1);
-  return row ?? null;
+  return row?.asset ?? null;
 }
 
 export async function upsertDesignResumeDocument(

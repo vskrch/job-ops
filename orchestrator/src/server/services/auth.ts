@@ -47,6 +47,31 @@ function hashResetToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/**
+ * Number of registered accounts. Destructive whole-database maintenance
+ * (clear/backup APIs) is only offered to single-user installs: with more
+ * than one account, one tenant must not be able to wipe or snapshot
+ * everyone's data.
+ */
+export async function countRegisteredUsers(): Promise<number> {
+  try {
+    const [row] = await db.select({ count: sql<number>`count(*)` }).from(users);
+    return Number(row?.count ?? 0);
+  } catch (error) {
+    // A database file that was deleted or never initialized has no users
+    // table (or a closed handle) — treat it as zero registered accounts so
+    // the maintenance route's own error handling still runs.
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      message.includes("no such table") ||
+      message.includes("database connection is not open")
+    ) {
+      return 0;
+    }
+    throw error;
+  }
+}
+
 export async function createUser(args: {
   email: string;
   password: string;

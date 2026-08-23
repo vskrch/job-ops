@@ -1,12 +1,31 @@
 import { asyncRoute, fail, ok } from "@infra/http";
 import { runWithRequestContext } from "@infra/request-context";
 import { setupSse, startSseHeartbeat, writeSseData } from "@infra/sse";
-import { badRequest, toAppError } from "@server/infra/errors";
+import { badRequest, notFound, toAppError } from "@server/infra/errors";
+import * as jobsRepo from "@server/repositories/jobs";
 import * as ghostwriterService from "@server/services/ghostwriter";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 
 export const ghostwriterRouter = Router({ mergeParams: true });
+
+// Chat tables are keyed by jobId with no user column of their own; every
+// request must first prove the session user owns the parent job or chat
+// history would be readable and writable across accounts.
+ghostwriterRouter.use(
+  "/",
+  asyncRoute(async (req, res, next) => {
+    const jobId = req.params.id;
+    if (jobId) {
+      const job = await jobsRepo.getJobById(jobId);
+      if (!job) {
+        fail(res, notFound("Job not found"));
+        return;
+      }
+    }
+    next();
+  }),
+);
 
 /**
  * Sets up SSE with heartbeat and client-disconnect detection.

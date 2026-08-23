@@ -1,7 +1,8 @@
-import { badRequest, notFound } from "@infra/errors";
+import { badRequest, forbidden, notFound } from "@infra/errors";
 import { asyncRoute, fail, ok } from "@infra/http";
 import { logger } from "@infra/logger";
 import { isDemoMode, sendDemoBlocked } from "@server/config/demo";
+import { countRegisteredUsers } from "@server/services/auth";
 import {
   createBackup,
   deleteBackup,
@@ -11,6 +12,24 @@ import {
 import { type Request, type Response, Router } from "express";
 
 export const backupRouter = Router();
+
+/**
+ * Backups snapshot the whole database file (every account's rows and
+ * credentials), so manual create/delete is limited to single-user installs.
+ */
+async function rejectMultiUserInstall(res: Response): Promise<boolean> {
+  const registeredUsers = await countRegisteredUsers();
+  if (registeredUsers > 1) {
+    fail(
+      res,
+      forbidden(
+        "Manual backup management is disabled on multi-user installs because backups contain every account's data.",
+      ),
+    );
+    return true;
+  }
+  return false;
+}
 
 /**
  * GET /api/backups - List all backups with metadata
@@ -46,6 +65,8 @@ backupRouter.post(
           { route: "POST /api/backups" },
         );
       }
+
+      if (await rejectMultiUserInstall(res)) return;
 
       const filename = await createBackup("manual");
       const backups = await listBackups();
@@ -83,6 +104,8 @@ backupRouter.delete(
           },
         );
       }
+
+      if (await rejectMultiUserInstall(res)) return;
 
       const { filename } = req.params;
 

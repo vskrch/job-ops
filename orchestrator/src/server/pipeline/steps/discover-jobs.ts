@@ -1,6 +1,7 @@
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import { getExtractorRegistry } from "@server/extractors/registry";
+import { withExtractorRunLock } from "@server/extractors/run-lock";
 import { getAllJobUrls } from "@server/repositories/jobs";
 import * as settingsRepo from "@server/repositories/settings";
 import {
@@ -207,37 +208,39 @@ export async function discoverJobsStep(args: {
           filteredSettings.jobspyHoursOld = String(args.mergedConfig.hoursOld);
         }
 
-        const result = await manifest.run({
-          source: grouped.sources[0],
-          selectedSources: grouped.sources,
-          settings: filteredSettings,
-          searchTerms,
-          selectedCountry,
-          getExistingJobUrls,
-          shouldCancel: args.shouldCancel,
-          onProgress: (event) => {
-            progressHelpers.crawlingUpdate({
-              source: manifest.id,
-              termsProcessed: event.termsProcessed,
-              termsTotal: event.termsTotal,
-              listPagesProcessed: event.listPagesProcessed,
-              listPagesTotal: event.listPagesTotal,
-              jobCardsFound: event.jobCardsFound,
-              jobPagesEnqueued: event.jobPagesEnqueued,
-              jobPagesSkipped: event.jobPagesSkipped,
-              jobPagesProcessed: event.jobPagesProcessed,
-              phase: event.phase,
-              currentUrl: event.currentUrl,
-            });
-
-            if (event.detail) {
-              updateProgress({
-                step: "crawling",
-                detail: event.detail,
+        const result = await withExtractorRunLock(manifest.id, () =>
+          manifest.run({
+            source: grouped.sources[0],
+            selectedSources: grouped.sources,
+            settings: filteredSettings,
+            searchTerms,
+            selectedCountry,
+            getExistingJobUrls,
+            shouldCancel: args.shouldCancel,
+            onProgress: (event) => {
+              progressHelpers.crawlingUpdate({
+                source: manifest.id,
+                termsProcessed: event.termsProcessed,
+                termsTotal: event.termsTotal,
+                listPagesProcessed: event.listPagesProcessed,
+                listPagesTotal: event.listPagesTotal,
+                jobCardsFound: event.jobCardsFound,
+                jobPagesEnqueued: event.jobPagesEnqueued,
+                jobPagesSkipped: event.jobPagesSkipped,
+                jobPagesProcessed: event.jobPagesProcessed,
+                phase: event.phase,
+                currentUrl: event.currentUrl,
               });
-            }
-          },
-        });
+
+              if (event.detail) {
+                updateProgress({
+                  step: "crawling",
+                  detail: event.detail,
+                });
+              }
+            },
+          }),
+        );
 
         if (!result.success) {
           return {

@@ -4,6 +4,7 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { logger } from "@infra/logger";
 import type Database from "better-sqlite3";
 import DatabaseConstructor from "better-sqlite3";
 import { getDataDir } from "../config/dataDir";
@@ -75,7 +76,7 @@ const migrations = [
     title TEXT NOT NULL,
     employer TEXT NOT NULL,
     employer_url TEXT,
-    job_url TEXT NOT NULL UNIQUE,
+    job_url TEXT NOT NULL,
     application_link TEXT,
     disciplines TEXT,
     deadline TEXT,
@@ -493,7 +494,7 @@ const migrations = [
     title TEXT NOT NULL,
     employer TEXT NOT NULL,
     employer_url TEXT,
-    job_url TEXT NOT NULL UNIQUE,
+    job_url TEXT NOT NULL,
     application_link TEXT,
     disciplines TEXT,
     deadline TEXT,
@@ -554,6 +555,9 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_discovered_at ON jobs(discovered_at)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_status_discovered_at ON jobs(status, discovered_at)`,
+  // Job URL uniqueness is per account (see schema.ts) — a global UNIQUE
+  // would let one user's saved listing silently suppress another user's.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_user_job_url ON jobs(user_id, job_url)`,
   `CREATE INDEX IF NOT EXISTS idx_pipeline_runs_started_at ON pipeline_runs(started_at)`,
   `CREATE INDEX IF NOT EXISTS idx_stage_events_application_id ON stage_events(application_id)`,
   `CREATE INDEX IF NOT EXISTS idx_stage_events_occurred_at ON stage_events(occurred_at)`,
@@ -909,12 +913,12 @@ const migrations = [
 ];
 
 export function runMigrations(db: Database.Database): void {
-  console.log("🔧 Running database migrations...");
+  logger.info("Running database migrations");
 
   for (const migration of migrations) {
     try {
       db.exec(migration);
-      console.log("✅ Migration applied");
+      logger.debug("Migration applied");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const isDuplicateColumn =
@@ -922,7 +926,7 @@ export function runMigrations(db: Database.Database): void {
         message.toLowerCase().includes("duplicate column name");
 
       if (isDuplicateColumn) {
-        console.log("↩️ Migration skipped (column already exists)");
+        logger.debug("Migration skipped (column already exists)");
         continue;
       }
 
@@ -930,7 +934,7 @@ export function runMigrations(db: Database.Database): void {
         migration.toLowerCase().includes("update post_application_messages") &&
         message.toLowerCase().includes("no such column");
       if (isLegacyBackfillOnFreshSchema) {
-        console.log("↩️ Migration skipped (legacy backfill not applicable)");
+        logger.debug("Migration skipped (legacy backfill not applicable)");
         continue;
       }
 
@@ -940,11 +944,11 @@ export function runMigrations(db: Database.Database): void {
         "idx_jobs_status_discovered_at",
       );
       if (isOptionalOptimizationMigration) {
-        console.warn("⚠️ Optional migration skipped:", message);
+        logger.warn("Optional migration skipped", { message });
         continue;
       }
 
-      console.error("❌ Migration failed:", error);
+      logger.error("Migration failed", { error });
       throw error;
     }
   }
@@ -975,7 +979,7 @@ export function runMigrations(db: Database.Database): void {
       ALTER TABLE settings_new RENAME TO settings;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_user_key_unique ON settings(user_id, key);
     `);
-    console.log("✅ Rebuilt legacy settings table (added id primary key)");
+    logger.debug("Rebuilt legacy settings table (added id primary key)");
   }
 
   // Add scoring enrichment columns (matchGrade, topProject, matchVerdict) if
@@ -1003,7 +1007,7 @@ export function runMigrations(db: Database.Database): void {
       .get(col.name) as { n: number };
     if (exists.n === 0) {
       db.exec(col.ddl);
-      console.log(`✅ Added column jobs.${col.name}`);
+      logger.debug(`Added column jobs.${col.name}`);
     }
   }
 
@@ -1051,7 +1055,7 @@ export function runMigrations(db: Database.Database): void {
       .get(col.name) as { n: number };
     if (exists.n === 0) {
       db.exec(col.ddl);
-      console.log(`✅ Added column job_searches.${col.name}`);
+      logger.debug(`Added column job_searches.${col.name}`);
     }
   }
 
@@ -1069,7 +1073,7 @@ export function runMigrations(db: Database.Database): void {
       .get() as { n: number };
     if (queryHashExists.n > 0) {
       db.exec("ALTER TABLE job_searches RENAME COLUMN query_hash TO spec_hash");
-      console.log("✅ Renamed job_searches.query_hash -> spec_hash");
+      logger.debug("Renamed job_searches.query_hash -> spec_hash");
       // RENAME COLUMN preserves NOT NULL; schema.ts declares spec_hash nullable.
       try {
         db.exec(
@@ -1080,7 +1084,7 @@ export function runMigrations(db: Database.Database): void {
       }
     } else {
       db.exec("ALTER TABLE job_searches ADD COLUMN spec_hash TEXT");
-      console.log("✅ Added column job_searches.spec_hash");
+      logger.debug("Added column job_searches.spec_hash");
     }
   }
 
@@ -1094,7 +1098,7 @@ export function runMigrations(db: Database.Database): void {
     db.exec(
       `UPDATE job_searches SET admission_hash = spec_hash WHERE admission_hash = '' AND spec_hash IS NOT NULL`,
     );
-    console.log(
+    logger.info(
       `✅ Backfilled job_searches.admission_hash (${admissionBackfill.n} rows)`,
     );
   }
@@ -1122,25 +1126,68 @@ export function runMigrations(db: Database.Database): void {
        ON job_searches(user_id, admission_hash)
        WHERE status = 'running'`,
     );
-    console.log(
+    logger.info(
       "✅ Replaced job_searches unique index with partial running index",
     );
   }
 
   // Create dedup_fingerprints table for cross-search and cross-pipeline dedup (ADR-008).
+  // Fingerprints are per-account: composite PK (user_id, fingerprint).
   db.exec(
     `CREATE TABLE IF NOT EXISTS dedup_fingerprints (
-      fingerprint TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default-user',
+      fingerprint TEXT NOT NULL,
       canonical_job_url TEXT NOT NULL,
       first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
-      last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+      last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, fingerprint)
     )`,
   );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_dedup_fingerprints_url ON dedup_fingerprints(canonical_job_url)`,
   );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_dedup_fingerprints_user ON dedup_fingerprints(user_id)`,
+  );
 
-  console.log("🎉 Database migrations complete!");
+  migrateDedupFingerprintsPerUser(db);
+
+  logger.info("Database migrations complete");
+}
+
+/**
+ * Legacy databases have a globally-shared dedup_fingerprints table (PK on
+ * fingerprint alone). Rebuild it into the per-account shape, attributing
+ * existing rows to the default tenant.
+ */
+function migrateDedupFingerprintsPerUser(db: Database.Database): void {
+  const columns = db.pragma("table_info(dedup_fingerprints)") as Array<{
+    name: string;
+  }>;
+  // Fresh installs create the per-user shape directly via the migration
+  // above; nothing to rebuild when user_id already exists.
+  if (columns.length === 0 || columns.some((c) => c.name === "user_id")) {
+    return;
+  }
+
+  logger.info("Rebuilding dedup_fingerprints with per-user rows");
+  db.exec(`
+    CREATE TABLE dedup_fingerprints_new (
+      user_id TEXT NOT NULL DEFAULT 'default-user',
+      fingerprint TEXT NOT NULL,
+      canonical_job_url TEXT NOT NULL,
+      first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, fingerprint)
+    );
+    INSERT OR REPLACE INTO dedup_fingerprints_new (user_id, fingerprint, canonical_job_url, first_seen_at, last_seen_at)
+      SELECT 'default-user', fingerprint, canonical_job_url, first_seen_at, last_seen_at
+      FROM dedup_fingerprints;
+    DROP TABLE dedup_fingerprints;
+    ALTER TABLE dedup_fingerprints_new RENAME TO dedup_fingerprints;
+    CREATE INDEX IF NOT EXISTS idx_dedup_fingerprints_url ON dedup_fingerprints(canonical_job_url);
+    CREATE INDEX IF NOT EXISTS idx_dedup_fingerprints_user ON dedup_fingerprints(user_id);
+  `);
 }
 
 // When run directly as a script (not imported), execute migrations and close.

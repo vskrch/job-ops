@@ -141,11 +141,27 @@ function safeParseExperienceBullets(
 
 // Multi-tenant counting semaphore and run tracking.
 // Concurrency is enforced per-user account so runs for User A do not
-// block or interfere with runs for User B.
+// block or interfere with runs for User B — plus a process-wide ceiling:
+// pipeline runs hold browser child processes and memory, and per-user
+// limits alone would let N users spawn N × limit concurrent crawls.
 const activeRunIdsByUserId = new Map<string, Set<string>>();
 const cancelRequestedByRunId = new Set<string>();
 const cancelAllByUserId = new Map<string, boolean>();
 let maxConcurrentPipelinesPerUser = 3;
+const DEFAULT_MAX_CONCURRENT_PIPELINES_GLOBAL = 12;
+
+function maxConcurrentPipelinesGlobal(): number {
+  const raw = Number(process.env.PIPELINE_MAX_GLOBAL_RUNS);
+  return Number.isFinite(raw) && raw > 0
+    ? raw
+    : DEFAULT_MAX_CONCURRENT_PIPELINES_GLOBAL;
+}
+
+function totalActivePipelineRuns(): number {
+  let total = 0;
+  for (const runs of activeRunIdsByUserId.values()) total += runs.size;
+  return total;
+}
 
 class PipelineCancelledError extends Error {
   constructor(message = "Cancelled by user request") {
@@ -245,6 +261,16 @@ export async function runPipeline(
       jobsDiscovered: 0,
       jobsProcessed: 0,
       error: `Pipeline concurrency limit reached (${userActiveRuns.size} running for your account). Try again shortly.`,
+    };
+  }
+
+  if (totalActivePipelineRuns() >= maxConcurrentPipelinesGlobal()) {
+    return {
+      success: false,
+      jobsDiscovered: 0,
+      jobsProcessed: 0,
+      error:
+        "Server is running too many pipelines right now. Try again shortly.",
     };
   }
 
