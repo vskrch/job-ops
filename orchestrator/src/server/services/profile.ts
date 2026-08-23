@@ -1,5 +1,6 @@
 import { conflict } from "@infra/errors";
 import { logger } from "@infra/logger";
+import { getCurrentUserId } from "@infra/request-context";
 import * as userProfileRepo from "@server/repositories/user-profile";
 import type { ResumeProfile } from "@shared/types";
 import {
@@ -10,9 +11,23 @@ import { profileToResumeProfile } from "./resume-parser";
 import { getResume, RxResumeAuthConfigError } from "./rxresume";
 import { getConfiguredRxResumeBaseResumeId } from "./rxresume/baseResumeId";
 
-let cachedProfile: ResumeProfile | null = null;
-let cachedResumeId: string | null = null;
-let cachedLocalProfile: ResumeProfile | null = null;
+interface ProfileCacheEntry {
+  profile: ResumeProfile | null;
+  resumeId: string | null;
+  localProfile: ResumeProfile | null;
+}
+
+const profileCache = new Map<string, ProfileCacheEntry>();
+
+function getProfileCache(): ProfileCacheEntry {
+  const userId = getCurrentUserId();
+  let cached = profileCache.get(userId);
+  if (!cached) {
+    cached = { profile: null, resumeId: null, localProfile: null };
+    profileCache.set(userId, cached);
+  }
+  return cached;
+}
 
 /**
  * Get the base resume profile from RxResume.
@@ -24,14 +39,16 @@ let cachedLocalProfile: ResumeProfile | null = null;
  * @throws Error if rxresumeBaseResumeId is not configured or API call fails.
  */
 export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
-  if (cachedLocalProfile && !forceRefresh) {
-    return cachedLocalProfile;
+  const cached = getProfileCache();
+
+  if (cached.localProfile && !forceRefresh) {
+    return cached.localProfile;
   }
 
   try {
     const localProfile = await designResumeToProfile();
     if (localProfile) {
-      cachedLocalProfile = localProfile;
+      cached.localProfile = localProfile;
       return localProfile;
     }
   } catch (error) {
@@ -54,7 +71,7 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
     const uploadedProfile = await userProfileRepo.getCurrentUserProfile();
     if (uploadedProfile) {
       const converted = profileToResumeProfile(uploadedProfile);
-      cachedLocalProfile = converted;
+      cached.localProfile = converted;
       return converted;
     }
   } catch (error) {
@@ -72,11 +89,11 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
 
   // Return cached profile if valid
   if (
-    cachedProfile &&
-    cachedResumeId === rxresumeBaseResumeId &&
+    cached.profile &&
+    cached.resumeId === rxresumeBaseResumeId &&
     !forceRefresh
   ) {
-    return cachedProfile;
+    return cached.profile;
   }
 
   try {
@@ -91,12 +108,12 @@ export async function getProfile(forceRefresh = false): Promise<ResumeProfile> {
       throw new Error("Resume data is empty or invalid");
     }
 
-    cachedProfile = resume.data as unknown as ResumeProfile;
-    cachedResumeId = rxresumeBaseResumeId;
+    cached.profile = resume.data as unknown as ResumeProfile;
+    cached.resumeId = rxresumeBaseResumeId;
     logger.info("Profile loaded from Reactive Resume", {
       resumeId: rxresumeBaseResumeId,
     });
-    return cachedProfile;
+    return cached.profile;
   } catch (error) {
     if (error instanceof RxResumeAuthConfigError) {
       throw new Error(error.message);
@@ -140,7 +157,5 @@ export async function getProfileOrEmpty(
  * Clear the profile cache.
  */
 export function clearProfileCache(): void {
-  cachedProfile = null;
-  cachedResumeId = null;
-  cachedLocalProfile = null;
+  profileCache.delete(getCurrentUserId());
 }

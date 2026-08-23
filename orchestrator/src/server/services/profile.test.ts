@@ -1,3 +1,7 @@
+import {
+  getCurrentUserId,
+  runWithRequestContext,
+} from "@infra/request-context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearProfileCache, getProfile } from "./profile";
 
@@ -69,6 +73,40 @@ describe("getProfile", () => {
     expect(designResumeToProfile).toHaveBeenCalledTimes(1);
     expect(getConfiguredRxResumeBaseResumeId).not.toHaveBeenCalled();
     expect(getResume).not.toHaveBeenCalled();
+  });
+
+  it("keeps cached local profiles isolated by user", async () => {
+    vi.mocked(designResumeToProfile).mockImplementation(async () => ({
+      basics: { name: getCurrentUserId() },
+    }));
+
+    const loadAs = (userId: string) =>
+      runWithRequestContext({ requestId: userId, userId }, () => getProfile());
+
+    await expect(loadAs("user-a")).resolves.toMatchObject({
+      basics: { name: "user-a" },
+    });
+    await expect(loadAs("user-b")).resolves.toMatchObject({
+      basics: { name: "user-b" },
+    });
+    await expect(loadAs("user-a")).resolves.toMatchObject({
+      basics: { name: "user-a" },
+    });
+    expect(designResumeToProfile).toHaveBeenCalledTimes(2);
+
+    runWithRequestContext({ requestId: "clear-a", userId: "user-a" }, () =>
+      clearProfileCache(),
+    );
+    await loadAs("user-a");
+    await loadAs("user-b");
+    expect(designResumeToProfile).toHaveBeenCalledTimes(3);
+
+    runWithRequestContext({ requestId: "cleanup-a", userId: "user-a" }, () =>
+      clearProfileCache(),
+    );
+    runWithRequestContext({ requestId: "cleanup-b", userId: "user-b" }, () =>
+      clearProfileCache(),
+    );
   });
 
   it("should fetch profile from Reactive Resume when configured", async () => {

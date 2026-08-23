@@ -98,6 +98,16 @@ The footer estimate shows expected discovered jobs and resume-processing range.
 - no compatible sources are selected
 - no search terms are present
 
+#### Scheduled searches
+
+Use **Scheduled searches** on the Automatic tab to run a saved natural-language job search hourly or daily:
+
+1. Click **Add scheduled search** and enter a label and search query.
+2. Choose **Hourly** or **Daily** and select the UTC minute or hour.
+3. Choose notification options, then save the schedule.
+
+An hourly schedule set to `:25` runs at 25 minutes past each UTC hour. Editing, disabling, or deleting a schedule cancels its previously scheduled next run; the card shows the active next-run time.
+
 ### Manual tab
 
 Manual mode opens direct import flow in the same modal.

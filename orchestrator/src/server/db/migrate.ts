@@ -20,6 +20,25 @@ if (!existsSync(dataDir)) {
 
 const sqlite = new DatabaseConstructor(DB_PATH);
 
+function tableSupportsStatus(
+  db: Database.Database,
+  table: string,
+  status: string,
+): boolean {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(table) as { sql?: string } | undefined;
+  return row?.sql?.includes(status) ?? false;
+}
+
+function tableExists(db: Database.Database, table: string): boolean {
+  return Boolean(
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(table),
+  );
+}
+
 const migrations = [
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -438,6 +457,14 @@ const migrations = [
   `DROP TABLE IF EXISTS post_application_message_candidates`,
   `DROP TABLE IF EXISTS post_application_message_links`,
 
+  // Add columns introduced after the legacy status-table rebuilds before
+  // those rebuilds run, so partially upgraded databases retain their data.
+  `ALTER TABLE jobs ADD COLUMN discovered_by_run_id TEXT`,
+  `ALTER TABLE pipeline_runs ADD COLUMN config TEXT`,
+  `ALTER TABLE jobs ADD COLUMN match_grade TEXT`,
+  `ALTER TABLE jobs ADD COLUMN top_project TEXT`,
+  `ALTER TABLE jobs ADD COLUMN match_verdict TEXT`,
+
   // Protect child tables (stage_events/tasks/interviews) during parent table rebuilds.
   // Without this, dropping/replacing `jobs` can cascade-delete historical stage data.
   `PRAGMA foreign_keys = OFF`,
@@ -451,10 +478,11 @@ const migrations = [
     status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
     jobs_discovered INTEGER NOT NULL DEFAULT 0,
     jobs_processed INTEGER NOT NULL DEFAULT 0,
-    error_message TEXT
+    error_message TEXT,
+    config TEXT
   )`,
-  `INSERT OR REPLACE INTO pipeline_runs_new (id, user_id, started_at, completed_at, status, jobs_discovered, jobs_processed, error_message)
-   SELECT id, COALESCE(user_id, 'default-user'), started_at, completed_at, status, jobs_discovered, jobs_processed, error_message
+  `INSERT OR REPLACE INTO pipeline_runs_new (id, user_id, started_at, completed_at, status, jobs_discovered, jobs_processed, error_message, config)
+   SELECT id, COALESCE(user_id, 'default-user'), started_at, completed_at, status, jobs_discovered, jobs_processed, error_message, config
    FROM pipeline_runs`,
   `DROP TABLE IF EXISTS pipeline_runs`,
   `ALTER TABLE pipeline_runs_new RENAME TO pipeline_runs`,
@@ -467,6 +495,7 @@ const migrations = [
     source_job_id TEXT,
     job_url_direct TEXT,
     date_posted TEXT,
+    discovered_by_run_id TEXT,
     job_type TEXT,
     salary_source TEXT,
     salary_interval TEXT,
@@ -508,6 +537,9 @@ const migrations = [
     closed_at INTEGER,
     suitability_score REAL,
     suitability_reason TEXT,
+    match_grade TEXT,
+    top_project TEXT,
+    match_verdict TEXT,
     tailored_summary TEXT,
     tailored_headline TEXT,
     tailored_skills TEXT,
@@ -525,25 +557,25 @@ const migrations = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `INSERT OR REPLACE INTO jobs_new (
-    id, user_id, source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
+    id, user_id, source, source_job_id, job_url_direct, date_posted, discovered_by_run_id, job_type, salary_source, salary_interval,
     salary_min_amount, salary_max_amount, salary_currency, is_remote, job_level, job_function, listing_type,
     emails, company_industry, company_logo, company_url_direct, company_addresses, company_num_employees,
     company_revenue, company_description, skills, experience_range, company_rating, company_reviews_count,
     vacancy_count, work_from_home_type, title, employer, employer_url, job_url, application_link, disciplines,
     deadline, salary, location, degree_required, starting, job_description, status, outcome, closed_at,
-    suitability_score, suitability_reason, tailored_summary, tailored_headline, tailored_skills,
+    suitability_score, suitability_reason, match_grade, top_project, match_verdict, tailored_summary, tailored_headline, tailored_skills, tailored_experience_bullets,
     selected_project_ids, pdf_path, tracer_links_enabled, sponsor_match_score, sponsor_match_names, discovered_at, processed_at,
     ready_at,
     applied_at, created_at, updated_at
   )
   SELECT
-    id, COALESCE(user_id, 'default-user'), source, source_job_id, job_url_direct, date_posted, job_type, salary_source, salary_interval,
+    id, COALESCE(user_id, 'default-user'), source, source_job_id, job_url_direct, date_posted, discovered_by_run_id, job_type, salary_source, salary_interval,
     salary_min_amount, salary_max_amount, salary_currency, is_remote, job_level, job_function, listing_type,
     emails, company_industry, company_logo, company_url_direct, company_addresses, company_num_employees,
     company_revenue, company_description, skills, experience_range, company_rating, company_reviews_count,
     vacancy_count, work_from_home_type, title, employer, employer_url, job_url, application_link, disciplines,
     deadline, salary, location, degree_required, starting, job_description, status, outcome, closed_at,
-    suitability_score, suitability_reason, tailored_summary, tailored_headline, tailored_skills,
+    suitability_score, suitability_reason, match_grade, top_project, match_verdict, tailored_summary, tailored_headline, tailored_skills, tailored_experience_bullets,
     selected_project_ids, pdf_path, tracer_links_enabled, sponsor_match_score, sponsor_match_names, discovered_at, processed_at,
     ready_at,
     applied_at, created_at, updated_at
@@ -915,7 +947,37 @@ const migrations = [
 export function runMigrations(db: Database.Database): void {
   logger.info("Running database migrations");
 
+  let skippedRebuild: "jobs" | "pipeline_runs" | null = null;
   for (const migration of migrations) {
+    if (
+      migration.includes("CREATE TABLE IF NOT EXISTS pipeline_runs_new") &&
+      tableSupportsStatus(db, "pipeline_runs", "cancelled") &&
+      !tableExists(db, "pipeline_runs_new")
+    ) {
+      skippedRebuild = "pipeline_runs";
+      logger.debug("Migration skipped (pipeline_runs status is current)");
+      continue;
+    }
+    if (
+      migration.includes("CREATE TABLE IF NOT EXISTS jobs_new") &&
+      tableSupportsStatus(db, "jobs", "in_progress") &&
+      !tableExists(db, "jobs_new")
+    ) {
+      skippedRebuild = "jobs";
+      logger.debug("Migration skipped (jobs status is current)");
+      continue;
+    }
+    if (skippedRebuild) {
+      if (
+        migration.includes(
+          `ALTER TABLE ${skippedRebuild}_new RENAME TO ${skippedRebuild}`,
+        )
+      ) {
+        skippedRebuild = null;
+      }
+      continue;
+    }
+
     try {
       db.exec(migration);
       logger.debug("Migration applied");

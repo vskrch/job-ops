@@ -3,8 +3,8 @@
  *
  * Each row in the `search_schedules` table gets its own scheduler instance.
  * Daily schedules use `createScheduler` at a configured UTC hour; hourly
- * schedules use a `setInterval` callback (every 60 minutes with an optional
- * minute offset for staggering). `refreshSearchScheduler()` rebuilds all
+ * schedules use an aligned timeout at their configured UTC minute.
+ * `refreshSearchScheduler()` rebuilds all
  * instances from the DB, and `getSearchSchedules()` returns the list with
  * each schedule's computed `nextRun`.
  */
@@ -20,15 +20,22 @@ import { executeJobSearch } from "./job-search";
 import { sendScheduledSearchNotifications } from "./search-notifications";
 
 interface ActiveScheduler {
-  scheduler: Scheduler;
-  interval: ReturnType<typeof setInterval> | null;
+  scheduler: Scheduler | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  nextRun: Date | null;
   frequency: "hourly" | "daily";
   hour: number | null;
 }
 
 const activeSchedulers = new Map<string, ActiveScheduler>();
 
-const HOURLY_INTERVAL_MS = 60 * 60 * 1000;
+function getNextHourlyRun(minute: number): Date {
+  const now = new Date();
+  const next = new Date(now);
+  next.setUTCMinutes(minute, 0, 0);
+  if (next <= now) next.setUTCHours(next.getUTCHours() + 1);
+  return next;
+}
 
 /**
  * Create a job search record for a scheduled run. Unlike the HTTP path,
@@ -171,19 +178,19 @@ async function runScheduledSearch(
  * schedule mutation.
  */
 /**
- * Stop all active search schedulers and clear intervals.
+ * Stop all active search schedulers and clear timers.
  * Called during graceful shutdown.
  */
 export function stopAllSearchSchedulers(): void {
   for (const entry of activeSchedulers.values()) {
-    if (entry.interval) clearInterval(entry.interval);
-    entry.scheduler.stop();
+    if (entry.timer) clearTimeout(entry.timer);
+    entry.scheduler?.stop();
   }
   activeSchedulers.clear();
 }
 
 export async function refreshSearchScheduler(): Promise<void> {
-  // Stop all existing schedulers and intervals.
+  // Stop all existing schedulers and timers.
   stopAllSearchSchedulers();
 
   const schedules = await scheduleRepo.getEnabledSearchSchedules();
@@ -197,58 +204,33 @@ export async function refreshSearchScheduler(): Promise<void> {
 
   for (const schedule of schedules) {
     if (schedule.frequency === "hourly") {
-      // Hourly: use setInterval for every 60 minutes, with a minute-based
-      // offset for staggering. The minute field controls the offset within
-      // the hour (0-59 minutes → 0-59 * 60_000 ms initial delay).
-      const offsetMs = (schedule.minute % 60) * 60_000;
       let running = false;
+      const entry: ActiveScheduler = {
+        scheduler: null,
+        timer: null,
+        nextRun: null,
+        frequency: "hourly",
+        hour: null,
+      };
+      activeSchedulers.set(schedule.id, entry);
 
-      const intervalId = setInterval(async () => {
-        if (running) {
-          logger.debug(
-            "Search schedule already running, skipping hourly tick",
-            {
-              scheduler: `search-${schedule.id}`,
-              scheduleId: schedule.id,
-            },
-          );
-          return;
-        }
-        running = true;
-        try {
-          await runScheduledSearch(schedule);
-        } finally {
-          running = false;
-        }
-      }, HOURLY_INTERVAL_MS);
-
-      // Stagger the first tick by the offset. We do this by delaying the first
-      // setInterval fire using setTimeout for the initial run.
-      if (offsetMs > 0) {
-        setTimeout(() => {
-          void (async () => {
-            if (running) return;
+      const scheduleNextRun = () => {
+        entry.nextRun = getNextHourlyRun(schedule.minute);
+        entry.timer = setTimeout(async () => {
+          if (activeSchedulers.get(schedule.id) !== entry) return;
+          if (!running) {
             running = true;
             try {
               await runScheduledSearch(schedule);
             } finally {
               running = false;
             }
-          })();
-        }, offsetMs);
-      }
+          }
+          if (activeSchedulers.get(schedule.id) === entry) scheduleNextRun();
+        }, entry.nextRun.getTime() - Date.now());
+      };
 
-      // Store a no-op scheduler for hourly (so getNextRun works in the list)
-      const scheduler = createScheduler(`search-${schedule.id}`, async () => {
-        await runScheduledSearch(schedule);
-      });
-
-      activeSchedulers.set(schedule.id, {
-        scheduler,
-        interval: intervalId,
-        frequency: "hourly",
-        hour: null,
-      });
+      scheduleNextRun();
     } else {
       // Daily: use createScheduler at the configured UTC hour.
       const hour = schedule.hour ?? 2;
@@ -268,7 +250,8 @@ export async function refreshSearchScheduler(): Promise<void> {
       scheduler.start(hour);
       activeSchedulers.set(schedule.id, {
         scheduler,
-        interval: null,
+        timer: null,
+        nextRun: null,
         frequency: "daily",
         hour,
       });
@@ -294,11 +277,9 @@ export async function getSearchSchedules(
 
     if (entry && s.enabled) {
       if (entry.frequency === "daily" && entry.hour !== null) {
-        nextRun = entry.scheduler.getNextRun();
+        nextRun = entry.scheduler?.getNextRun() ?? null;
       } else if (entry.frequency === "hourly") {
-        // Estimate next hourly run from now + interval.
-        const next = new Date(Date.now() + HOURLY_INTERVAL_MS);
-        nextRun = next.toISOString();
+        nextRun = entry.nextRun?.toISOString() ?? null;
       }
     }
 
