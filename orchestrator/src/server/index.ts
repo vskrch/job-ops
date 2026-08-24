@@ -269,7 +269,7 @@ async function startServer() {
     stopAllSearchSchedulers();
     stopAllPipelineSchedulers();
     stopBackupScheduler();
-    const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 30_000;
+    const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 28_000;
     const forceExit = setTimeout(() => {
       logger.error("Forced shutdown after timeout.", {
         timeoutMs: GRACEFUL_SHUTDOWN_TIMEOUT_MS,
