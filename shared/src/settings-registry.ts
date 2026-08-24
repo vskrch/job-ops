@@ -621,6 +621,15 @@ export const settingsRegistry = {
     },
     serialize: serializeNullableNumber,
   },
+  salaryBenchmarksJson: {
+    kind: "typed" as const,
+    schema: z.string().trim().max(200_000),
+    default: (): string => "",
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
+  },
+
   autoSkipScoreThreshold: {
     kind: "typed" as const,
     schema: z.number().int().min(0).max(100),

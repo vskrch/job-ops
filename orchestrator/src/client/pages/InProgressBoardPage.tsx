@@ -1,4 +1,5 @@
 import { PageHeader, PageMain } from "@client/components/layout";
+import { QuietFollowupsPanel } from "@client/components/QuietFollowupsPanel";
 import {
   APPLICATION_STAGES,
   type ApplicationStage,
@@ -264,6 +265,7 @@ export const InProgressBoardPage: React.FC = () => {
         }
       />
       <PageMain className="max-w-[1600px]">
+        <QuietFollowupsPanel />
         {isLoading ? (
           <div className="rounded-lg border border-dashed border-border/60 p-6 text-sm text-muted-foreground">
             Loading board...

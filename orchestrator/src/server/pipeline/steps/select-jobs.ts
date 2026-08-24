@@ -17,6 +17,23 @@ export function selectJobsStep(args: {
       ) {
         return false;
       }
+      const bd = (
+        job as unknown as {
+          scoreBreakdown?: {
+            locationVerdict?: string;
+            languageGate?: string;
+            dealBreakerHit?: boolean;
+          } | null;
+        }
+      ).scoreBreakdown;
+      if (
+        bd &&
+        (bd.locationVerdict === "FAIL" ||
+          bd.languageGate === "FAIL" ||
+          bd.dealBreakerHit)
+      ) {
+        return false;
+      }
       return true;
     })
     .sort(

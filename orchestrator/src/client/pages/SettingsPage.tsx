@@ -15,6 +15,7 @@ import {
   validateAndMaybePersistRxResumeMode,
 } from "@client/lib/rxresume-config";
 import { BackupSettingsSection } from "@client/pages/settings/components/BackupSettingsSection";
+import { CareerPreferencesSection } from "@client/pages/settings/components/CareerPreferencesSection";
 import { ChatSettingsSection } from "@client/pages/settings/components/ChatSettingsSection";
 import { DangerZoneSection } from "@client/pages/settings/components/DangerZoneSection";
 import { DisplaySettingsSection } from "@client/pages/settings/components/DisplaySettingsSection";
@@ -1783,7 +1784,12 @@ export const SettingsPage: React.FC = () => {
       );
       break;
     case "my-resume":
-      activeSectionContent = <ResumeUploadSettingsSection layoutMode="panel" />;
+      activeSectionContent = (
+        <div className="space-y-6">
+          <ResumeUploadSettingsSection layoutMode="panel" />
+          <CareerPreferencesSection layoutMode="panel" />
+        </div>
+      );
       break;
     case "danger-zone":
       activeSectionContent = (

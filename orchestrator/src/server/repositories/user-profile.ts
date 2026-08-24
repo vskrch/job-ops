@@ -49,6 +49,13 @@ function mapRowToUserProfile(
     certifications: (row.certifications as string[] | null) ?? [],
     languages: (row.languages as string[] | null) ?? [],
     links: (row.links as UserProfile["links"] | null) ?? [],
+    languageLevels:
+      (row.languageLevels as UserProfile["languageLevels"] | null) ?? [],
+    dealBreakers: (row.dealBreakers as string[] | null) ?? [],
+    careerGoals: (row.careerGoals as string[] | null) ?? [],
+    behavioralNotes: row.behavioralNotes ?? null,
+    starExamples:
+      (row.starExamples as UserProfile["starExamples"] | null) ?? [],
     fileName: row.fileName,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -143,5 +150,41 @@ export async function deleteCurrentUserProfile(): Promise<boolean> {
   const result = await db
     .delete(userProfiles)
     .where(eq(userProfiles.userId, currentUserId()));
+  return result.changes > 0;
+}
+
+export interface ProfilePreferencesUpdate {
+  languageLevels?: UserProfile["languageLevels"];
+  dealBreakers?: string[];
+  careerGoals?: string[];
+  behavioralNotes?: string | null;
+  starExamples?: UserProfile["starExamples"];
+}
+
+/**
+ * Update career-preference fields for the current user's profile. Distinct
+ * from the resume upload path on purpose: re-uploading a PDF refreshes the
+ * resume-derived fields but must never wipe user-curated preferences.
+ * Returns false when no profile exists yet.
+ */
+export async function updateProfilePreferences(
+  update: ProfilePreferencesUpdate,
+): Promise<boolean> {
+  const userId = currentUserId();
+  const set: Record<string, unknown> = {
+    updatedAt: new Date().toISOString(),
+  };
+  if (update.languageLevels !== undefined)
+    set.languageLevels = update.languageLevels;
+  if (update.dealBreakers !== undefined) set.dealBreakers = update.dealBreakers;
+  if (update.careerGoals !== undefined) set.careerGoals = update.careerGoals;
+  if (update.behavioralNotes !== undefined)
+    set.behavioralNotes = update.behavioralNotes;
+  if (update.starExamples !== undefined) set.starExamples = update.starExamples;
+
+  const result = await db
+    .update(userProfiles)
+    .set(set)
+    .where(eq(userProfiles.userId, userId));
   return result.changes > 0;
 }

@@ -2,6 +2,10 @@ import { badRequest, notFound } from "@infra/errors";
 import { logger } from "@infra/logger";
 import { sanitizeUnknown } from "@infra/sanitize";
 import type { Job, ResumeProfile } from "@shared/types";
+import {
+  sanitizeUntrustedText,
+  withTrustBoundary,
+} from "@shared/untrusted-content";
 import * as jobsRepo from "../repositories/jobs";
 import {
   getWritingLanguageLabel,
@@ -63,7 +67,9 @@ function buildJobSnapshot(job: Job): string {
       tailoredSummary: truncate(job.tailoredSummary, 1200),
       tailoredHeadline: truncate(job.tailoredHeadline, 300),
       tailoredSkills: truncate(job.tailoredSkills, 1200),
-      jobDescription: truncate(job.jobDescription, MAX_JOB_DESCRIPTION),
+      jobDescription: sanitizeUntrustedText(
+        truncate(job.jobDescription, MAX_JOB_DESCRIPTION),
+      ),
     },
   };
 
@@ -124,17 +130,19 @@ async function buildSystemPrompt(
     "ghostwriterSystemPromptTemplate",
   );
 
-  return renderPromptTemplate(template, {
-    outputLanguage,
-    tone: style.tone,
-    formality: style.formality,
-    constraintsSentence: effectiveConstraints
-      ? `Writing constraints: ${effectiveConstraints}`
-      : "",
-    avoidTermsSentence: style.doNotUse
-      ? `Avoid these terms: ${style.doNotUse}`
-      : "",
-  });
+  return withTrustBoundary(
+    renderPromptTemplate(template, {
+      outputLanguage,
+      tone: style.tone,
+      formality: style.formality,
+      constraintsSentence: effectiveConstraints
+        ? `Writing constraints: ${effectiveConstraints}`
+        : "",
+      avoidTermsSentence: style.doNotUse
+        ? `Avoid these terms: ${style.doNotUse}`
+        : "",
+    }),
+  );
 }
 
 export async function buildJobChatPromptContext(

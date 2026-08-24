@@ -1,6 +1,10 @@
 import { logger } from "@infra/logger";
 import * as agenticRepo from "@server/repositories/agentic-search";
 import type { CreateJobInput, JobVerificationStatus } from "@shared/types";
+import {
+  sanitizeUntrustedText,
+  TRUST_BOUNDARY_NOTICE,
+} from "@shared/untrusted-content";
 import type { JsonSchemaDefinition } from "../llm/types";
 import { createLlmClient } from "../modelSelection";
 
@@ -102,7 +106,7 @@ export async function verifyJobConstraints(
     `Location: ${job.companyAddresses ?? "not specified"}`,
     `Remote: ${job.isRemote ? "yes" : "no"}`,
     `Experience: ${job.experienceRange ?? "not specified"}`,
-    `Job description: ${(job.jobDescription ?? "").slice(0, 2000)}`,
+    `Job description: ${sanitizeUntrustedText(job.jobDescription ?? "", { maxLength: 2000 })}`,
   ].join("\n");
 
   const result = await llm.callJson<VerificationLlmOutput>({
@@ -111,7 +115,7 @@ export async function verifyJobConstraints(
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Job record:\n${jobText}\n\nConstraints to verify:\n${constraintsText}`,
+        content: `Job record:\n${jobText}\n\nConstraints to verify:\n${constraintsText}\n\n${TRUST_BOUNDARY_NOTICE}`,
       },
     ],
     jsonSchema: VERIFY_SCHEMA,

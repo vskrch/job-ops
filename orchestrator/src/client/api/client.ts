@@ -1228,6 +1228,145 @@ export async function deleteUserProfile(): Promise<{ deleted: boolean }> {
   });
 }
 
+export interface ProfilePreferencesPatch {
+  languageLevels?: Array<{ name: string; level: string | null }>;
+  dealBreakers?: string[];
+  careerGoals?: string[];
+  behavioralNotes?: string | null;
+  starExamples?: Array<{
+    id: string;
+    title: string;
+    useFor: string[];
+    situation: string;
+    task: string;
+    action: string;
+    result: string;
+  }>;
+}
+
+/**
+ * Update career-preference fields (language levels, deal-breakers, career
+ * goals, behavioral notes, STAR examples). Only included fields change.
+ */
+export async function updateProfilePreferences(
+  patch: ProfilePreferencesPatch,
+): Promise<{ profile: UserProfile }> {
+  return fetchApi<{ profile: UserProfile }>("/user-profile/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+// ── Feature: quiet follow-ups, interview prep, upskill, salary, company research ──
+
+export interface QuietFollowupsResponse {
+  quiet: Array<{
+    job: Job;
+    daysQuiet: number;
+    followUpCount: number;
+  }>;
+}
+
+export async function getQuietFollowups(): Promise<QuietFollowupsResponse> {
+  return fetchApi<QuietFollowupsResponse>("/followups/quiet");
+}
+
+export async function draftFollowup(input: {
+  jobId: string;
+  channel?: "email" | "linkedin" | "portal";
+  contactPerson?: string | null;
+  language?: string;
+}): Promise<{ draft: string; artifact: { id: string } }> {
+  return fetchApi<{ draft: string; artifact: { id: string } }>(
+    "/followups/draft",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function logFollowup(input: {
+  jobId: string;
+  artifactId?: string;
+}): Promise<{ logged: boolean; id: string }> {
+  return fetchApi<{ logged: boolean; id: string }>("/followups/log", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generateInterviewPrep(input: {
+  jobId: string;
+  stage?: string;
+  interviewerNames?: string[];
+  format?: string | null;
+}): Promise<{ artifact: { id: string }; content: string }> {
+  return fetchApi<{ artifact: { id: string }; content: string }>(
+    "/interview-prep/generate",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function getCompanyResearch(
+  company: string,
+  options?: { allowStale?: boolean },
+): Promise<{
+  research: { payload: unknown };
+  fromCache: boolean;
+  fresh: boolean;
+}> {
+  const q = options?.allowStale ? "?allowStale=true" : "";
+  return fetchApi<{
+    research: { payload: unknown };
+    fromCache: boolean;
+    fresh: boolean;
+  }>(`/company-research/${encodeURIComponent(company)}${q}`);
+}
+
+export async function refreshCompanyResearch(
+  company: string,
+): Promise<{ research: unknown; fromCache: boolean; fresh: boolean }> {
+  return fetchApi<{ research: unknown; fromCache: boolean; fresh: boolean }>(
+    `/company-research/${encodeURIComponent(company)}/refresh`,
+    { method: "POST" },
+  );
+}
+
+export async function getUpskillHeatmap(): Promise<{
+  heatmap: Array<{
+    skill: string;
+    priority: string;
+    type: string;
+    score: number;
+  }>;
+  artifact: { id: string };
+}> {
+  return fetchApi<{
+    heatmap: Array<{
+      skill: string;
+      priority: string;
+      type: string;
+      score: number;
+    }>;
+    artifact: { id: string };
+  }>("/upskill/heatmap", { method: "POST" });
+}
+
+export async function lookupSalary(args: {
+  company: string;
+  city?: string | null;
+}): Promise<{ entry: unknown; metadata: unknown }> {
+  const params = new URLSearchParams({ company: args.company });
+  if (args.city) params.set("city", args.city);
+  return fetchApi<{ entry: unknown; metadata: unknown }>(
+    `/salary/lookup?${params.toString()}`,
+  );
+}
+
 // Post-Application Tracking API
 export async function postApplicationProviderConnect(input: {
   provider?: PostApplicationProvider;

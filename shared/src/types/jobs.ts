@@ -147,11 +147,13 @@ export interface Job {
   status: JobStatus;
   outcome: JobOutcome | null;
   closedAt: number | null;
-  suitabilityScore: number | null; // 0-100 AI-generated score
+  suitabilityScore: number | null; // 0-100 AI-generated score (weighted overall)
   suitabilityReason: string | null; // AI explanation
   matchGrade: string | null; // Letter grade A-F from AI
   topProject: string | null; // AI-recommended project to highlight
   matchVerdict: string | null; // One-word verdict (apply/maybe/skip)
+  /** Structured dimension breakdown + gate verdicts + strengths/gaps (A1). Persisted as JSON. */
+  scoreBreakdown: import("../score-breakdown").ScoreBreakdown | null;
   tailoredSummary: string | null; // Generated resume summary
   tailoredHeadline: string | null; // Generated resume headline
   tailoredSkills: string | null; // Generated resume skills (JSON)
@@ -317,6 +319,7 @@ export interface UpdateJobInput {
   matchGrade?: string;
   topProject?: string | null;
   matchVerdict?: string;
+  scoreBreakdown?: string | null;
   tailoredSummary?: string;
   tailoredHeadline?: string;
   tailoredSkills?: string;

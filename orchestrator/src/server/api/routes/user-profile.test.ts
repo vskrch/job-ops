@@ -57,6 +57,11 @@ const FAKE_PROFILE: import("@shared/types").UserProfile = {
   certifications: [],
   languages: [],
   links: [],
+  languageLevels: [],
+  dealBreakers: [],
+  careerGoals: [],
+  behavioralNotes: null,
+  starExamples: [],
   fileName: "resume.pdf",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -222,5 +227,104 @@ describe("User profile API routes", () => {
     expect(res.status).toBe(404);
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("returns 404 when patching preferences with no uploaded profile", async () => {
+    const res = await fetch(`${baseUrl}/api/user-profile/preferences`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dealBreakers: ["no on-call"] }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("rejects invalid preference payloads with 400", async () => {
+    const res = await fetch(`${baseUrl}/api/user-profile/preferences`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ languageLevels: [{ level: "fluent" }] }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("updates career preferences and returns the profile", async () => {
+    const { upsertUserProfile } = await import(
+      "@server/repositories/user-profile"
+    );
+    await upsertUserProfile({
+      profile: {
+        fullName: "Jane Doe",
+        email: "jane@example.com",
+        phone: null,
+        location: "London, UK",
+        headline: "Data Engineer",
+        summary: null,
+        skills: ["Python"],
+        experience: [],
+        education: [],
+        projects: [],
+        certifications: [],
+        languages: ["English"],
+        links: [],
+      },
+      fileName: "resume.pdf",
+    });
+
+    const res = await fetch(`${baseUrl}/api/user-profile/preferences`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        languageLevels: [
+          { name: "English", level: "native" },
+          { name: "German", level: "B1" },
+        ],
+        dealBreakers: ["no on-call", "no relocation"],
+        careerGoals: ["staff engineer track"],
+        behavioralNotes: "Thrives in small senior teams.",
+        starExamples: [
+          {
+            id: "star-1",
+            title: "Migrated pipeline to streaming",
+            useFor: ["ownership", "technical depth"],
+            situation: "Batch ETL took 9h nightly.",
+            task: "Cut latency under 1h.",
+            action: "Rebuilt as Kafka streams.",
+            result: "12 min nightly, zero data loss.",
+          },
+        ],
+      }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.data.profile.languageLevels).toEqual([
+      { name: "English", level: "native" },
+      { name: "German", level: "B1" },
+    ]);
+    expect(body.data.profile.dealBreakers).toEqual([
+      "no on-call",
+      "no relocation",
+    ]);
+    expect(body.data.profile.careerGoals).toEqual(["staff engineer track"]);
+    expect(body.data.profile.behavioralNotes).toBe(
+      "Thrives in small senior teams.",
+    );
+    expect(body.data.profile.starExamples).toHaveLength(1);
+    expect(body.data.profile.starExamples[0].useFor).toEqual([
+      "ownership",
+      "technical depth",
+    ]);
+    // Resume-derived fields untouched by the preferences patch.
+    expect(body.data.profile.fullName).toBe("Jane Doe");
+    expect(body.data.profile.languages).toEqual(["English"]);
   });
 });

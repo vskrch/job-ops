@@ -942,6 +942,55 @@ const migrations = [
   `ALTER TABLE post_application_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default-user'`,
   `CREATE INDEX IF NOT EXISTS idx_post_app_sync_runs_user_provider_account_started_at ON post_application_sync_runs(user_id, provider, account_key, started_at)`,
   `CREATE INDEX IF NOT EXISTS idx_post_app_messages_user_provider_account_processing_status ON post_application_messages(user_id, provider, account_key, processing_status)`,
+
+  // Career-preference fields on user_profiles (language levels feed the
+  // scoring Language Gate; the rest feed fit scoring and interview prep).
+  `ALTER TABLE user_profiles ADD COLUMN language_levels TEXT`,
+  `ALTER TABLE user_profiles ADD COLUMN deal_breakers TEXT`,
+  `ALTER TABLE user_profiles ADD COLUMN career_goals TEXT`,
+  `ALTER TABLE user_profiles ADD COLUMN behavioral_notes TEXT`,
+  `ALTER TABLE user_profiles ADD COLUMN star_examples TEXT`,
+
+  // Structured scoring breakdown per job (dimensions + gates + strengths/gaps).
+  `ALTER TABLE jobs ADD COLUMN score_breakdown TEXT`,
+
+  // Company research cache (A5): per-user, TTL 30 days, sources per claim.
+  `CREATE TABLE IF NOT EXISTS company_research (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    company_key TEXT NOT NULL,
+    company TEXT NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+    payload TEXT NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_company_research_user_key ON company_research(user_id, company_key)`,
+
+  // Shared artifacts (prep packs, follow-ups, review reports, upskill).
+  `CREATE TABLE IF NOT EXISTS application_artifacts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    job_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('prep_pack', 'followup', 'thank_you', 'form_text', 'review', 'upskill')),
+    stage TEXT,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_app_artifacts_job ON application_artifacts(job_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_app_artifacts_user ON application_artifacts(user_id)`,
+
+  // User-registered LaTeX/Cover templates (C4).
+  `CREATE TABLE IF NOT EXISTS resume_templates (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('cv', 'cover')),
+    manifest TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_resume_templates_user_name ON resume_templates(user_id, name)`,
 ];
 
 export function runMigrations(db: Database.Database): void {

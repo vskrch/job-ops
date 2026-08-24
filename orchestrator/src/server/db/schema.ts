@@ -130,6 +130,8 @@ export const jobs = sqliteTable(
     matchGrade: text("match_grade"),
     topProject: text("top_project"),
     matchVerdict: text("match_verdict"),
+    /** Persisted dimension + gate breakdown (A1). JSON of ScoreBreakdown. */
+    scoreBreakdown: text("score_breakdown"),
     tailoredSummary: text("tailored_summary"),
     tailoredHeadline: text("tailored_headline"),
     tailoredSkills: text("tailored_skills"),
@@ -818,6 +820,13 @@ export const userProfiles = sqliteTable(
     certifications: text("certifications", { mode: "json" }),
     languages: text("languages", { mode: "json" }),
     links: text("links", { mode: "json" }),
+    // Career-preference fields. Populated via PATCH /api/user-profile/preferences;
+    // resume re-uploads intentionally leave these untouched.
+    languageLevels: text("language_levels", { mode: "json" }),
+    dealBreakers: text("deal_breakers", { mode: "json" }),
+    careerGoals: text("career_goals", { mode: "json" }),
+    behavioralNotes: text("behavioral_notes"),
+    starExamples: text("star_examples", { mode: "json" }),
     fileName: text("file_name"),
     createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
     updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
@@ -897,3 +906,80 @@ export const dedupFingerprints = sqliteTable(
 
 export type DedupFingerprintRow = typeof dedupFingerprints.$inferSelect;
 export type NewDedupFingerprintRow = typeof dedupFingerprints.$inferInsert;
+
+export const companyResearch = sqliteTable(
+  "company_research",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    companyKey: text("company_key").notNull(),
+    company: text("company").notNull(),
+    fetchedAt: text("fetched_at").notNull().default(sql`(datetime('now'))`),
+    // JSON: { sources: { website?, reviews?, linkedin?, media? }, notes?: string, sourceUrls?: Record<string,string> }
+    payload: text("payload").notNull(),
+  },
+  (table) => ({
+    userKeyUnique: uniqueIndex("idx_company_research_user_key").on(
+      table.userId,
+      table.companyKey,
+    ),
+  }),
+);
+
+export type CompanyResearchRow = typeof companyResearch.$inferSelect;
+export type NewCompanyResearchRow = typeof companyResearch.$inferInsert;
+
+export const applicationArtifacts = sqliteTable(
+  "application_artifacts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    jobId: text("job_id").notNull(),
+    kind: text("kind", {
+      enum: [
+        "prep_pack",
+        "followup",
+        "thank_you",
+        "form_text",
+        "review",
+        "upskill",
+      ],
+    }).notNull(),
+    stage: text("stage"),
+    content: text("content").notNull(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    jobIndex: index("idx_app_artifacts_job").on(table.jobId),
+    userIndex: index("idx_app_artifacts_user").on(table.userId),
+  }),
+);
+
+export type ApplicationArtifactRow = typeof applicationArtifacts.$inferSelect;
+export type NewApplicationArtifactRow =
+  typeof applicationArtifacts.$inferInsert;
+
+export const resumeTemplates = sqliteTable(
+  "resume_templates",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().default("default-user"),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["cv", "cover"] }).notNull(),
+    manifest: text("manifest").notNull(),
+    // JSON: { compileCommand, fonts, pageLimit, pitfalls }
+    storagePath: text("storage_path").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    userNameUnique: uniqueIndex("idx_resume_templates_user_name").on(
+      table.userId,
+      table.name,
+    ),
+  }),
+);
+
+export type ResumeTemplateRow = typeof resumeTemplates.$inferSelect;
+export type NewResumeTemplateRow = typeof resumeTemplates.$inferInsert;

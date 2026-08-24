@@ -19,6 +19,10 @@ import type {
   ResumeProfile,
   UserProfile,
 } from "@shared/types";
+import {
+  sanitizeUntrustedText,
+  TRUST_BOUNDARY_NOTICE,
+} from "@shared/untrusted-content";
 import { LlmService } from "../llm/service";
 import type { JsonSchemaDefinition } from "../llm/types";
 import { resolveLlmModel, resolveLlmRuntimeSettings } from "../modelSelection";
@@ -164,11 +168,13 @@ JOB:
 - Experience range: ${job.experienceRange ?? "not specified"}
 - Job type: ${job.jobType ?? "not specified"}
 - Skills: ${job.skills ?? "not specified"}
-- Description: ${(job.jobDescription ?? "").slice(0, 1000)}
+- Description: ${sanitizeUntrustedText(job.jobDescription ?? "", { maxLength: 1000 })}
 
 Score 0-100 based on: title match (0-30), skills match (0-25), location/work-mode (0-20), experience (0-15), semantic similarity of description to query (0-10).
 
-Respond with ONLY valid JSON: {"score": <integer 0-100>, "explanation": "<1-2 sentences referencing specific matched constraints>"}`;
+Respond with ONLY valid JSON: {"score": <integer 0-100>, "explanation": "<1-2 sentences referencing specific matched constraints>"}
+
+${TRUST_BOUNDARY_NOTICE}`;
 
     const result = await runtime.llm.callJson<{
       score: number;

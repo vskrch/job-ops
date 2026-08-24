@@ -15,6 +15,10 @@ export async function scoreJobsStep(args: {
   excludeRunIds?: string[];
   shouldCancel?: () => boolean;
 }): Promise<{ unprocessedJobs: Job[]; scoredJobs: ScoredJob[] }> {
+  // Sweep: auto-expire past-deadline discoverable jobs before scoring.
+  try {
+    await jobsRepo.markPastDeadlineJobsExpired();
+  } catch {}
   logger.info("Running scoring step", {
     excludeRunIds: args.excludeRunIds ?? [],
   });
@@ -68,13 +72,41 @@ export async function scoreJobsStep(args: {
           matchGrade: job.matchGrade ?? "",
           topProject: job.topProject ?? null,
           matchVerdict: job.matchVerdict ?? "",
+          scoreBreakdown:
+            ((job as unknown as Record<string, unknown>).scoreBreakdown as
+              | import("@shared/score-breakdown").ScoreBreakdown
+              | null) ?? null,
         });
         return;
       }
 
-      const { score, reason, grade, topProject, verdict } =
-        await scoreJobSuitability(job, args.profile);
+      const {
+        score,
+        reason,
+        grade,
+        topProject,
+        verdict,
+        breakdown: rawBreakdown,
+      } = await scoreJobSuitability(job, args.profile);
       if (args.shouldCancel?.()) return;
+
+      const breakdown: import("@shared/score-breakdown").ScoreBreakdown =
+        (rawBreakdown as import("@shared/score-breakdown").ScoreBreakdown) ?? {
+          technical: 50,
+          experience: 50,
+          behavioral: 50,
+          career: 50,
+          overall: score,
+          locationVerdict: "PASS",
+          locationNote: null,
+          languageGate: "PASS",
+          languageNote: null,
+          dealBreakerHit: false,
+          dealBreakerNote: null,
+          strengths: [],
+          gaps: [],
+          evaluatedAt: new Date().toISOString(),
+        };
 
       let sponsorMatchScore = 0;
       let sponsorMatchNames: string | undefined;
@@ -116,6 +148,7 @@ export async function scoreJobsStep(args: {
           matchGrade: grade,
           topProject,
           matchVerdict: verdict,
+          scoreBreakdown: JSON.stringify(breakdown),
           sponsorMatchScore,
           sponsorMatchNames,
           ...(shouldAutoSkip ? { status: "skipped" } : {}),
@@ -152,6 +185,7 @@ export async function scoreJobsStep(args: {
         matchGrade: grade,
         topProject,
         matchVerdict: verdict,
+        scoreBreakdown: breakdown,
       });
     },
   });

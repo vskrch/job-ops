@@ -32,6 +32,7 @@ import {
   Router,
 } from "express";
 import multer from "multer";
+import { z } from "zod";
 
 export const userProfileRouter = Router();
 
@@ -253,6 +254,55 @@ userProfileRouter.delete("/", async (_req: Request, res: Response) => {
     clearProfileCache();
     return ok(res, { deleted: true });
   } catch (error) {
+    return fail(res, toAppError(error));
+  }
+});
+
+const profileLanguageSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  level: z.string().trim().max(60).nullable(),
+});
+
+const starExampleSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(200),
+  useFor: z.array(z.string().trim().min(1).max(80)).max(20),
+  situation: z.string().trim().max(4000),
+  task: z.string().trim().max(4000),
+  action: z.string().trim().max(4000),
+  result: z.string().trim().max(4000),
+});
+
+const preferencesSchema = z.object({
+  languageLevels: z.array(profileLanguageSchema).max(30).optional(),
+  dealBreakers: z.array(z.string().trim().max(300)).max(50).optional(),
+  careerGoals: z.array(z.string().trim().max(300)).max(50).optional(),
+  behavioralNotes: z.string().trim().max(8000).nullable().optional(),
+  starExamples: z.array(starExampleSchema).max(30).optional(),
+});
+
+/**
+ * PATCH /api/user-profile/preferences — update career-preference fields
+ * (language levels, deal-breakers, career goals, behavioral notes, STAR
+ * examples). Omitted fields are left untouched. These fields feed scoring
+ * gates and interview prep; they survive resume re-uploads.
+ */
+userProfileRouter.patch("/preferences", async (req: Request, res: Response) => {
+  try {
+    const parsed = preferencesSchema.parse(req.body ?? {});
+    const updated = await userProfileRepo.updateProfilePreferences(parsed);
+    if (!updated) {
+      return fail(res, notFound("No resume uploaded yet"));
+    }
+    // Scoring/tailoring read the resolved profile — invalidate the per-tenant
+    // cache so the next pipeline run sees the new preferences.
+    clearProfileCache();
+    const profile = await userProfileRepo.getCurrentUserProfile();
+    return ok(res, { profile });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail(res, badRequest(error.message, error.flatten()));
+    }
     return fail(res, toAppError(error));
   }
 });

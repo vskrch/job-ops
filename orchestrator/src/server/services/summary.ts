@@ -4,6 +4,10 @@
 
 import { logger } from "@infra/logger";
 import type { ResumeProfile } from "@shared/types";
+import {
+  sanitizeUntrustedText,
+  withTrustBoundary,
+} from "@shared/untrusted-content";
 import type { JsonSchemaDefinition } from "./llm/types";
 import { createLlmClient } from "./modelSelection";
 import {
@@ -337,8 +341,8 @@ async function buildTailoringPrompt(
 
   const template = await getEffectivePromptTemplate("tailoringPromptTemplate");
 
-  return renderPromptTemplate(template, {
-    jobDescription: jd,
+  const prompt = renderPromptTemplate(template, {
+    jobDescription: sanitizeUntrustedText(jd),
     profileJson: JSON.stringify(relevantProfile, null, 2),
     outputLanguage,
     tone: writingStyle.tone,
@@ -358,6 +362,8 @@ async function buildTailoringPrompt(
       ? `- Avoid these words or phrases: ${writingStyle.doNotUse}`
       : "",
   });
+
+  return withTrustBoundary(prompt);
 }
 
 function sanitizeText(text: string): string {

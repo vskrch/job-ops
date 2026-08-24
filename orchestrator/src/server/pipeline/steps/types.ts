@@ -1,3 +1,4 @@
+import type { ScoreBreakdown } from "@shared/score-breakdown";
 import type { CreateJobInput, Job, PipelineConfig } from "@shared/types";
 
 export type ScoredJob = Job & {
@@ -6,6 +7,7 @@ export type ScoredJob = Job & {
   matchGrade: string;
   topProject: string | null;
   matchVerdict: string;
+  scoreBreakdown: ScoreBreakdown | null;
 };
 
 export type RunPipelineContext = {

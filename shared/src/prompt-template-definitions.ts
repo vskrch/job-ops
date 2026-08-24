@@ -116,14 +116,14 @@ OUTPUT FORMAT (JSON):
       "scoringInstructionsText",
     ] as const,
     defaultTemplate: `
-You are evaluating a job listing for a candidate. Score how suitable this job is for the candidate on a scale of 0-100 and provide a letter grade and action verdict.
+You are evaluating a job listing for a candidate. Score how suitable this job is for the candidate on a scale of 0-100, across four scored dimensions plus gate verdicts.
 
-SCORING CRITERIA:
-- Skills match (technologies, frameworks, languages): 0-30 points
-- Experience level match: 0-25 points
-- Location/remote work alignment: 0-15 points
-- Industry/domain fit: 0-15 points
-- Career growth potential: 0-15 points
+SCORING CRITERIA (each 0-100; weighted overall = technical*0.30 + experience*0.25 + behavioral*0.15 + career*0.30):
+- technicalSkills — fit with the posting's required/preferred technologies and tools
+- experience — seniority, domain, and role overlap (by function, not just title)
+- behavioral — culture/team style compatibility (thrives-on / drains are in the profile)
+- career — alignment with the candidate's stated goals and values
+- location/logistics — treat as a gate verdict below (PASS/FAIL/FLAG), not a score
 
 CANDIDATE PROFILE:
 {{profileJson}}
@@ -139,13 +139,18 @@ Disciplines: {{disciplines}}
 JOB DESCRIPTION:
 {{jobDescription}}
 
+GATE RULES (must be followed):
+- Location gate: when the posting would require relocation or relocation without support and the profile indicates that is a deal-breaker, set locationVerdict to FAIL. Otherwise PASS, or FLAG when there is friction but not a hard stop. Quote the triggering line from the posting in locationNote when FAIL/FLAG.
+- Language gate: for each language the posting *requires as a job condition*, compare it against the profile's languageLevels (each {name, level}). A language the candidate has not declared at all → FAIL (hard stop, quote the posting line in languageNote). A language the candidate has at a plausibly lower declared level than the posting's stated bar → FLAG (include both the posting's stated requirement and the declared level in languageNote; still score normally — the user judges the case). A posting whose ad language differs from the role's working language is NOT a trigger. When unsure about level mapping, prefer FLAG over silent PASS.
+- Deal-breaker hit: if any of the profile's dealBreakers appears as a stated requirement/condition of the posting (e.g. "must have clearance", "on-call rotation"), set dealBreakerHit=true and quote the line in dealBreakerNote.
+
 SCORING INSTRUCTIONS:
 {{scoringInstructionsText}}
 
 IMPORTANT: Respond with ONLY a valid JSON object. No markdown, no code fences, no explanation outside the JSON.
 
 REQUIRED FORMAT (exactly this structure):
-{"score": <integer 0-100>, "reason": "<1-2 sentence explanation>", "grade": "<A|B|C|D|F>", "topProject": "<name of the best project from the candidate profile for this role, or empty string>", "verdict": "<apply|maybe|skip>"}
+{"score": <integer 0-100 weighted overall>, "reason": "<1-2 sentence explanation>", "grade": "<A|B|C|D|F>", "topProject": "<name of the best project from the candidate profile for this role, or empty string>", "verdict": "<apply|maybe|skip>", "technical": <integer 0-100>, "experience": <integer 0-100>, "behavioral": <integer 0-100>, "career": <integer 0-100>, "locationVerdict": "<PASS|FAIL|FLAG>", "locationNote": "<string or empty>", "languageGate": "<PASS|FAIL|FLAG>", "languageNote": "<string or empty>", "dealBreakerHit": <true|false>, "dealBreakerNote": "<string or empty>", "strengths": ["1-3 bullets, grounded in posting + profile"], "gaps": ["1-3 bullets, honest gaps to bridge"]}
 
 GRADE GUIDE:
 - A (80-100): Near-perfect fit — apply immediately
@@ -158,10 +163,10 @@ VERDICT GUIDE:
 - apply: Strong fit, apply now
 - maybe: Partial fit, consider applying
 - skip: Poor fit, do not apply
+- Also: any gate FAIL or dealBreakerHit forces skip regardless of score. Use a FLAG gate only to surface a warning; do not lower the score for a FLAG.
 
 EXAMPLE VALID RESPONSE:
-{"score": 75, "reason": "Strong skills match with React and TypeScript requirements, but position requires 3+ years experience.", "grade": "B", "topProject": "Real-time Chat Dashboard", "verdict": "apply"}
-`.trim(),
+{"score": 75, "reason": "Strong skills match with React and TypeScript requirements, but position requires 3+ years experience.", "grade": "B", "topProject": "Real-time Chat Dashboard", "verdict": "apply", "technical": 85, "experience": 65, "behavioral": 70, "career": 80, "locationVerdict": "PASS", "locationNote": "", "languageGate": "PASS", "languageNote": "", "dealBreakerHit": false, "dealBreakerNote": "", "strengths": ["React + TypeScript align with the posting's core stack"], "gaps": ["Position asks for B2 German, profile has B1"]}`.trim(),
   },
   jobSearchParsePromptTemplate: {
     label: "Job search query parsing prompt",

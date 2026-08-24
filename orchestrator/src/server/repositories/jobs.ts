@@ -503,6 +503,29 @@ export async function deleteJobsByStatus(status: JobStatus): Promise<number> {
 }
 
 /**
+ * Mark past-deadline jobs as expired (reversible — re-discovery reopens them
+ * via a status change). Returns the number of rows flipped.
+ */
+export async function markPastDeadlineJobsExpired(): Promise<number> {
+  const result = await db
+    .update(jobs)
+    .set({
+      status: "expired" as JobStatus,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(jobs.userId, currentUserId()),
+        sql`${jobs.deadline} IS NOT NULL`,
+        sql`date(${jobs.deadline}) < date('now')`,
+        sql`${jobs.status} IN ('discovered', 'ready', 'processing')`,
+      ),
+    )
+    .run();
+  return result.changes;
+}
+
+/**
  * Delete jobs with suitability score below threshold (excluding applied and in_progress jobs).
  */
 export async function deleteJobsBelowScore(threshold: number): Promise<number> {
@@ -549,6 +572,11 @@ function mapRowToJob(row: typeof jobs.$inferSelect): Job {
     matchGrade: row.matchGrade ?? null,
     topProject: row.topProject ?? null,
     matchVerdict: row.matchVerdict ?? null,
+    scoreBreakdown: row.scoreBreakdown
+      ? (JSON.parse(
+          row.scoreBreakdown as unknown as string,
+        ) as Job["scoreBreakdown"])
+      : null,
     tailoredSummary: row.tailoredSummary,
     tailoredHeadline: row.tailoredHeadline ?? null,
     tailoredSkills: row.tailoredSkills ?? null,
