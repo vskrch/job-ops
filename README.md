@@ -131,6 +131,8 @@ docker compose up -d
 open http://localhost:3005
 ```
 
+> **Deploying to a server that already runs other services?** See [Deploy to an Existing Server](/docs/next/getting-started/deploy-existing-server) for an isolated, additive-footprint Docker deployment (safe port selection, no Nginx takeover) including optional exposure via a Cloudflare Tunnel subdomain.
+
 ---
 
 ### 3. Heroku Container Deployment

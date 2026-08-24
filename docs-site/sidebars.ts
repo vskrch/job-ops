@@ -62,6 +62,7 @@ const sidebars: SidebarsConfig = {
       label: "Self-Hosting & Ops",
       items: [
         "getting-started/self-hosting",
+        "getting-started/deploy-existing-server",
         "getting-started/gmail-oauth-setup",
         "getting-started/database-backups",
         "troubleshooting/common-problems",
