@@ -10,6 +10,7 @@ export type AppErrorCode =
   | "UNPROCESSABLE_ENTITY"
   | "UPSTREAM_ERROR"
   | "SERVICE_UNAVAILABLE"
+  | "TOO_MANY_REQUESTS"
   | "INTERNAL_ERROR";
 
 const DEFAULT_CODE_BY_STATUS: Record<number, AppErrorCode> = {
@@ -20,6 +21,7 @@ const DEFAULT_CODE_BY_STATUS: Record<number, AppErrorCode> = {
   408: "REQUEST_TIMEOUT",
   409: "CONFLICT",
   422: "UNPROCESSABLE_ENTITY",
+  429: "TOO_MANY_REQUESTS",
   500: "INTERNAL_ERROR",
   502: "UPSTREAM_ERROR",
   503: "SERVICE_UNAVAILABLE",
@@ -117,6 +119,12 @@ export function internalError(cause?: unknown, details?: unknown): AppError {
 
 export function serviceUnavailable(message: string): AppError {
   return new AppError({ status: 503, code: "SERVICE_UNAVAILABLE", message });
+}
+
+export function tooManyRequests(
+  message = "Too many requests. Please slow down and retry shortly.",
+): AppError {
+  return new AppError({ status: 429, code: "TOO_MANY_REQUESTS", message });
 }
 
 function isZodErrorLike(error: unknown): error is ZodError {

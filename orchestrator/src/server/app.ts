@@ -163,12 +163,30 @@ export function createBasicAuthGuard() {
     const user = decoded.slice(0, separatorIndex);
     const pass = decoded.slice(separatorIndex + 1);
 
-    const userMatch =
-      user.length === authUser.length &&
-      timingSafeEqual(Buffer.from(user), Buffer.from(authUser));
-    const passMatch =
-      pass.length === authPass.length &&
-      timingSafeEqual(Buffer.from(pass), Buffer.from(authPass));
+    // Constant-time comparison that does not leak credential length via early return.
+    // When lengths differ we still perform a dummy timingSafeEqual on equal-length buffers
+    // to equalize timing before returning false.
+    const userBuf = Buffer.from(user);
+    const authUserBuf = Buffer.from(authUser);
+    let userMatch = false;
+    if (userBuf.length === authUserBuf.length) {
+      userMatch = timingSafeEqual(userBuf, authUserBuf);
+    } else {
+      // Dummy compare to mitigate timing oracle for length mismatch
+      const dummyA = Buffer.alloc(Math.max(userBuf.length, authUserBuf.length));
+      const dummyB = Buffer.alloc(Math.max(userBuf.length, authUserBuf.length));
+      timingSafeEqual(dummyA, dummyB);
+    }
+    const passBuf = Buffer.from(pass);
+    const authPassBuf = Buffer.from(authPass);
+    let passMatch = false;
+    if (passBuf.length === authPassBuf.length) {
+      passMatch = timingSafeEqual(passBuf, authPassBuf);
+    } else {
+      const dummyA = Buffer.alloc(Math.max(passBuf.length, authPassBuf.length));
+      const dummyB = Buffer.alloc(Math.max(passBuf.length, authPassBuf.length));
+      timingSafeEqual(dummyA, dummyB);
+    }
     return userMatch && passMatch;
   }
 
@@ -287,14 +305,36 @@ export function createApp() {
   const authGuard = createBasicAuthGuard();
   const isProduction = process.env.NODE_ENV === "production";
   const corsOrigin = process.env.CORS_ORIGIN?.trim();
+  // Validate CORS origins are http(s) URLs when provided; warn and fall back to same-origin on invalid config.
+  const parsedCorsOrigins = (() => {
+    if (!corsOrigin) return null;
+    const origins = corsOrigin.includes(",")
+      ? corsOrigin.split(",").map((o) => o.trim())
+      : [corsOrigin.trim()];
+    const valid: string[] = [];
+    for (const o of origins) {
+      if (!o) continue;
+      try {
+        const u = new URL(o);
+        if (u.protocol === "http:" || u.protocol === "https:") {
+          valid.push(o);
+        } else {
+          logger.warn("CORS_ORIGIN entry ignored (must be http(s))", {
+            origin: o,
+          });
+        }
+      } catch {
+        logger.warn("CORS_ORIGIN entry ignored (invalid URL)", { origin: o });
+      }
+    }
+    return valid.length > 0 ? (valid.length === 1 ? valid[0] : valid) : null;
+  })();
   // In production, default to same-origin (no CORS headers). In dev, allow
   // all origins. Set CORS_ORIGIN to allow specific cross-origin clients.
   const corsMiddleware = cors(
-    corsOrigin
+    parsedCorsOrigins
       ? {
-          origin: corsOrigin.includes(",")
-            ? corsOrigin.split(",").map((o) => o.trim())
-            : corsOrigin,
+          origin: parsedCorsOrigins,
           credentials: true,
         }
       : { origin: !isProduction },
@@ -338,7 +378,7 @@ export function createApp() {
       logger.error("Tracer redirect failed", {
         route,
         token: slug,
-        error,
+        error: sanitizeUnknown(error),
       });
       res.status(500).type("text/plain; charset=utf-8").send("Internal error");
     }
@@ -535,9 +575,37 @@ export function createApp() {
     });
   }
 
-  // Health check
+  // Health check — shallow liveness probe for orchestrators
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Readiness probe — verifies database connectivity and basic filesystem access.
+  // Orchestrators should use /ready for deployment readiness gates; /health stays shallow.
+  app.get("/ready", async (_req, res) => {
+    try {
+      // Dynamically import DB to avoid circular deps at module load time
+      const { db } = await import("./db/index");
+      // Simple DB ping — will throw if WAL-locked or file missing
+      (
+        db.$client as unknown as {
+          prepare: (sql: string) => { get: () => unknown };
+        }
+      )
+        .prepare("SELECT 1 as ok")
+        .get();
+      // Verify data dir is writable (pdfs dir exists or can be checked)
+      const dataDir = getDataDir();
+      if (!existsSync(dataDir)) {
+        throw new Error(`Data directory missing: ${dataDir}`);
+      }
+      res.json({ status: "ready", timestamp: new Date().toISOString() });
+    } catch (error) {
+      logger.warn("Readiness check failed", { error: sanitizeUnknown(error) });
+      res
+        .status(503)
+        .json({ status: "unavailable", timestamp: new Date().toISOString() });
+    }
   });
 
   // Serve client app in production

@@ -107,7 +107,7 @@ export const apiErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   logger.error(appError.message, {
     status: appError.status,
     code: appError.code,
-    details: appError.details,
+    details: appError.details ? sanitizeUnknown(appError.details) : undefined,
     ...(appError.cause !== undefined
       ? { cause: sanitizeUnknown(appError.cause) }
       : {}),

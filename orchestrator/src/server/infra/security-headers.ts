@@ -24,7 +24,9 @@ const CSP_HEADER =
   "img-src 'self' data: https:; " +
   "font-src 'self' https: https://fonts.gstatic.com; " +
   "connect-src 'self' https://api.github.com; " +
-  "frame-ancestors 'none'";
+  "frame-ancestors 'none'; " +
+  "object-src 'none'; " +
+  "base-uri 'self'";
 
 export function securityHeaders(): RequestHandler {
   const isProduction = process.env.NODE_ENV === "production";

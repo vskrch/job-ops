@@ -60,6 +60,12 @@ if (process.env.NODE_ENV !== "test") {
   apiRouter.post("/job-search", heavyWorkLimiter);
   apiRouter.post("/agentic-searches", heavyWorkLimiter);
   apiRouter.post("/browser-agent/run", heavyWorkLimiter);
+  // Bulk job actions (max 100 jobs, concurrency) + resume upload (10MB) need throttling too
+  const uploadLimiter = rateLimitMiddleware({ max: 10, windowMs: 600_000 });
+  apiRouter.post("/user-profile/resume", uploadLimiter);
+  const jobActionsLimiter = rateLimitMiddleware({ max: 30, windowMs: 60_000 });
+  apiRouter.post("/jobs/actions", jobActionsLimiter);
+  apiRouter.post("/jobs/actions/stream", jobActionsLimiter);
 }
 
 apiRouter.use("/auth", authRouter);

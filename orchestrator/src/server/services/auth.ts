@@ -78,11 +78,11 @@ export async function createUser(args: {
   name?: string;
 }): Promise<UserProfile> {
   const normalizedEmail = args.email.trim().toLowerCase();
-  if (!normalizedEmail || !normalizedEmail.includes("@")) {
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     throw badRequest("A valid email address is required.");
   }
-  if (!args.password || args.password.length < 6) {
-    throw badRequest("Password must be at least 6 characters long.");
+  if (!args.password || args.password.length < 8) {
+    throw badRequest("Password must be at least 8 characters long.");
   }
 
   const [existing] = await db
@@ -172,7 +172,10 @@ export async function updateUserProfile(
 
   if (args.email !== undefined) {
     const normalizedEmail = args.email.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+    if (
+      !normalizedEmail ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+    ) {
       throw badRequest("A valid email address is required.");
     }
     if (normalizedEmail !== user.email) {
@@ -198,8 +201,8 @@ export async function changeUserPassword(
   userId: string,
   args: { currentPassword: string; newPassword: string },
 ): Promise<{ success: boolean }> {
-  if (!args.newPassword || args.newPassword.length < 6) {
-    throw badRequest("New password must be at least 6 characters long.");
+  if (!args.newPassword || args.newPassword.length < 8) {
+    throw badRequest("New password must be at least 8 characters long.");
   }
 
   const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -256,7 +259,7 @@ export async function createPasswordResetToken(args: {
   resetUrl?: string;
 }> {
   const normalizedEmail = args.email.trim().toLowerCase();
-  if (!normalizedEmail || !normalizedEmail.includes("@")) {
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     throw badRequest("A valid email address is required.");
   }
 
@@ -360,8 +363,8 @@ export async function resetPasswordWithToken(args: {
   token: string;
   newPassword: string;
 }): Promise<{ success: boolean }> {
-  if (!args.newPassword || args.newPassword.length < 6) {
-    throw badRequest("New password must be at least 6 characters long.");
+  if (!args.newPassword || args.newPassword.length < 8) {
+    throw badRequest("New password must be at least 8 characters long.");
   }
 
   const tokenHash = hashResetToken(args.token.trim());

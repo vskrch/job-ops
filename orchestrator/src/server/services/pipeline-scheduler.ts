@@ -9,6 +9,7 @@
  * each schedule's computed `nextRun`.
  */
 
+import { randomUUID } from "node:crypto";
 import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import { runPipeline } from "@server/pipeline/index";
@@ -98,19 +99,26 @@ export async function refreshPipelineScheduler(): Promise<void> {
         sources: schedule.sources,
       });
 
-      await runWithRequestContext({ userId: schedule.userId }, async () => {
-        const runConfig = buildRunConfig(schedule);
-        const result = await runPipeline(runConfig);
-        logger.info("Scheduled pipeline run finished", {
-          scheduler: `pipeline-${schedule.id}`,
-          scheduleId: schedule.id,
+      await runWithRequestContext(
+        {
           userId: schedule.userId,
-          success: result.success,
-          jobsDiscovered: result.jobsDiscovered,
-          jobsProcessed: result.jobsProcessed,
-          error: result.error ?? undefined,
-        });
-      });
+          requestId: randomUUID(),
+          pipelineRunId: schedule.id,
+        },
+        async () => {
+          const runConfig = buildRunConfig(schedule);
+          const result = await runPipeline(runConfig);
+          logger.info("Scheduled pipeline run finished", {
+            scheduler: `pipeline-${schedule.id}`,
+            scheduleId: schedule.id,
+            userId: schedule.userId,
+            success: result.success,
+            jobsDiscovered: result.jobsDiscovered,
+            jobsProcessed: result.jobsProcessed,
+            error: result.error ?? undefined,
+          });
+        },
+      );
     });
 
     scheduler.start(schedule.hour);

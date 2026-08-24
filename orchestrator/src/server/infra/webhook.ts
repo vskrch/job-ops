@@ -7,6 +7,7 @@
  */
 
 import { logger } from "@infra/logger";
+import { sanitizeUnknown } from "@infra/sanitize";
 
 export interface SafeWebhookResult {
   ok: boolean;
@@ -52,9 +53,10 @@ export async function postWebhook(
     });
     if (!response.ok) {
       const rawBody = await response.text().catch(() => "");
+      const sanitizedBody = sanitizeUnknown(rawBody.slice(0, 500)) as string;
       logger.warn(`${contextLabel} POST failed`, {
         status: response.status,
-        response: rawBody.slice(0, 500),
+        response: sanitizedBody,
         ...loggerContext,
       });
       return { ok: false, status: response.status, error: "non_2xx" };

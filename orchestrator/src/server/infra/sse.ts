@@ -28,12 +28,26 @@ export function setupSse(res: Response, options: SetupSseOptions = {}): void {
   }
 }
 
+function isResponseWritable(res: Response): boolean {
+  return !res.writableEnded && !res.destroyed;
+}
+
 export function writeSseData(res: Response, data: unknown): void {
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  if (!isResponseWritable(res)) return;
+  try {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    // Client disconnected — silently ignore write after close
+  }
 }
 
 export function writeSseComment(res: Response, comment: string): void {
-  res.write(`: ${comment}\n\n`);
+  if (!isResponseWritable(res)) return;
+  try {
+    res.write(`: ${comment}\n\n`);
+  } catch {
+    // Client disconnected — silently ignore
+  }
 }
 
 export function startSseHeartbeat(
@@ -41,6 +55,7 @@ export function startSseHeartbeat(
   intervalMs = DEFAULT_HEARTBEAT_MS,
 ): () => void {
   const heartbeat = setInterval(() => {
+    if (!isResponseWritable(res)) return;
     writeSseComment(res, "heartbeat");
   }, intervalMs);
 

@@ -10,15 +10,22 @@ import DatabaseConstructor from "better-sqlite3";
 import { getDataDir } from "../config/dataDir";
 
 // Database path - can be overridden via env for Docker
-const DB_PATH = join(getDataDir(), "jobs.db");
-
-// Ensure data directory exists
-const dataDir = dirname(DB_PATH);
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
+function getDbPath(): string {
+  return join(getDataDir(), "jobs.db");
 }
 
-const sqlite = new DatabaseConstructor(DB_PATH);
+// Ensure data directory exists for script-mode execution; imported usage relies on db/index.ts
+function ensureDataDirExists(): void {
+  const dataDir = dirname(getDbPath());
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
+}
+
+function getScriptDb(): Database.Database {
+  ensureDataDirExists();
+  return new DatabaseConstructor(getDbPath());
+}
 
 function tableSupportsStatus(
   db: Database.Database,
@@ -1303,6 +1310,10 @@ function migrateDedupFingerprintsPerUser(db: Database.Database): void {
 
 // When run directly as a script (not imported), execute migrations and close.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runMigrations(sqlite);
-  sqlite.close();
+  const scriptDb = getScriptDb();
+  try {
+    runMigrations(scriptDb);
+  } finally {
+    scriptDb.close();
+  }
 }

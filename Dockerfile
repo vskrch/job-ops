@@ -184,6 +184,8 @@ COPY --from=tectonic /usr/local/bin/tectonic /usr/local/bin/tectonic
 COPY --from=python-deps /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
 COPY --from=python-deps /ms-playwright /ms-playwright
 COPY --from=node-deps /root/.cache/camoufox /root/.cache/camoufox
+# Also copy to appuser's home for non-root runtime (HOME=/app)
+COPY --from=node-deps /root/.cache/camoufox /app/.cache/camoufox
 
 # Copy built assets and runtime source code.
 COPY --from=client-build /app/orchestrator/dist ./orchestrator/dist
@@ -203,7 +205,9 @@ RUN mkdir -p /app/data/pdfs
 
 # Run as non-root for production safety.
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser && \
-    chown -R appuser:appuser /app/data
+    chown -R appuser:appuser /app/data && \
+    chown -R appuser:appuser /app/.cache 2>/dev/null || true
+ENV HOME=/app
 USER appuser
 
 EXPOSE 3001

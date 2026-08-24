@@ -26,6 +26,22 @@ services:
       - path: ./.env
         required: false
     restart: unless-stopped
+    init: true
+    # Resource limits to prevent OOM from Tectonic + Playwright + better-sqlite3 WAL
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    pids_limit: 256
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s

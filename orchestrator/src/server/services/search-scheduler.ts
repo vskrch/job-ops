@@ -9,6 +9,7 @@
  * each schedule's computed `nextRun`.
  */
 
+import { randomUUID } from "node:crypto";
 import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import * as jobSearchRepo from "@server/repositories/job-search";
@@ -92,8 +93,9 @@ async function runScheduledSearch(
   logger.info("Scheduled search starting", runLog);
 
   try {
-    const searchId = await runWithRequestContext({ userId }, () =>
-      createScheduledSearch(schedule.id, schedule.query),
+    const searchId = await runWithRequestContext(
+      { userId, requestId: randomUUID() },
+      () => createScheduledSearch(schedule.id, schedule.query),
     );
     if (!searchId) {
       logger.warn(
@@ -112,14 +114,17 @@ async function runScheduledSearch(
     }
 
     // Execute the search to completion within a request context.
-    await runWithRequestContext({ searchId, userId }, async () => {
-      await executeJobSearch(searchId, schedule.query, userId);
-    });
+    await runWithRequestContext(
+      { searchId, userId, requestId: randomUUID() },
+      async () => {
+        await executeJobSearch(searchId, schedule.query, userId);
+      },
+    );
 
     // Read the completed search for notifications + result count.
     let resultsCount: number | null = null;
     const searchForNotify = await runWithRequestContext(
-      { searchId, userId },
+      { searchId, userId, requestId: randomUUID() },
       () => jobSearchRepo.getJobSearch(searchId),
     );
 
@@ -137,8 +142,9 @@ async function runScheduledSearch(
       };
 
       if (schedule.notifyEmail || schedule.notifyWebhook) {
-        await runWithRequestContext({ searchId, userId }, () =>
-          sendScheduledSearchNotifications(searchForNotify, notifyCtx),
+        await runWithRequestContext(
+          { searchId, userId, requestId: randomUUID() },
+          () => sendScheduledSearchNotifications(searchForNotify, notifyCtx),
         );
       }
     }
@@ -221,7 +227,16 @@ export async function refreshSearchScheduler(): Promise<void> {
           if (!running) {
             running = true;
             try {
-              await runScheduledSearch(schedule);
+              await runWithRequestContext(
+                {
+                  userId: schedule.userId,
+                  requestId: randomUUID(),
+                  searchId: schedule.id,
+                },
+                async () => {
+                  await runScheduledSearch(schedule);
+                },
+              );
             } finally {
               running = false;
             }
@@ -242,9 +257,16 @@ export async function refreshSearchScheduler(): Promise<void> {
           hour,
         });
 
-        await runWithRequestContext({ userId: schedule.userId }, async () => {
-          await runScheduledSearch(schedule);
-        });
+        await runWithRequestContext(
+          {
+            userId: schedule.userId,
+            requestId: randomUUID(),
+            searchId: schedule.id,
+          },
+          async () => {
+            await runScheduledSearch(schedule);
+          },
+        );
       });
 
       scheduler.start(hour);
@@ -302,7 +324,10 @@ export async function runSearchScheduleNow(
 
   const effectiveUserId =
     (schedule as { userId?: string }).userId ?? userId ?? "default-user";
-  return runWithRequestContext({ userId: effectiveUserId }, async () => {
-    return runScheduledSearch(schedule, true);
-  });
+  return runWithRequestContext(
+    { userId: effectiveUserId, requestId: randomUUID() },
+    async () => {
+      return runScheduledSearch(schedule, true);
+    },
+  );
 }

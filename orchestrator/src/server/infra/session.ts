@@ -100,7 +100,15 @@ export function sessionSetCookieHeader(token: string): string {
 }
 
 export function sessionClearCookieHeader(): string {
-  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  const flags = [
+    `${COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+  if (isProduction()) flags.push("Secure");
+  return flags.join("; ");
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME;

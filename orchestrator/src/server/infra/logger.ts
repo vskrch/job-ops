@@ -29,10 +29,12 @@ export function getConfiguredLogLevel(): LogLevel {
 }
 
 export function isDebugLoggingEnabled(): boolean {
-  return minLevel === "debug";
+  return getConfiguredLogLevel() === "debug";
 }
 
-const minLevel = getConfiguredLogLevel();
+function getMinLevel(): LogLevel {
+  return getConfiguredLogLevel();
+}
 
 export class Logger {
   constructor(private readonly context: Record<string, unknown> = {}) {}
@@ -58,7 +60,7 @@ export class Logger {
   }
 
   private log(level: LogLevel, message: string, meta?: unknown): void {
-    if (levelPriority[level] < levelPriority[minLevel]) return;
+    if (levelPriority[level] < levelPriority[getMinLevel()]) return;
 
     const requestContext = getRequestContext();
     const payload: Record<string, unknown> = {

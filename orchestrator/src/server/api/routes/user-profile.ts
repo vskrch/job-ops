@@ -41,6 +41,7 @@ const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 // Uploads spool to disk instead of RAM: PDF parsing expands files many times
 // over in memory, and on the constrained production container a memory-backed
 // upload was enough to push the process past its heap limit.
+const ALLOWED_RESUME_MIME = new Set(["application/pdf"]);
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
@@ -51,6 +52,18 @@ const upload = multer({
       ),
   }),
   limits: { fileSize: MAX_RESUME_BYTES },
+  fileFilter: (_req, file, cb) => {
+    // Enforce MIME + extension at the multer layer to reject non-PDFs before spooling
+    const extOk = file.originalname.toLowerCase().endsWith(".pdf");
+    const mimeOk =
+      ALLOWED_RESUME_MIME.has(file.mimetype) ||
+      file.mimetype === "application/octet-stream";
+    if (!extOk || !mimeOk) {
+      cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "file"));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 /** Runs the multer upload and maps its errors onto the API error contract. */
@@ -61,10 +74,14 @@ function uploadResumeSingle(
 ): void {
   upload.single("file")(req, res, (error) => {
     if (error instanceof multer.MulterError) {
-      const message =
-        error.code === "LIMIT_FILE_SIZE"
-          ? "The PDF is too large. Maximum size is 10 MB."
-          : `Upload failed: ${error.code}`;
+      let message: string;
+      if (error.code === "LIMIT_FILE_SIZE") {
+        message = "The PDF is too large. Maximum size is 10 MB.";
+      } else if (error.code === "LIMIT_UNEXPECTED_FILE") {
+        message = "Only PDF files are supported (invalid type).";
+      } else {
+        message = `Upload failed: ${error.code}`;
+      }
       fail(res, badRequest(message));
       return;
     }
@@ -170,6 +187,17 @@ userProfileRouter.post(
     if (!req.file.originalname.toLowerCase().endsWith(".pdf")) {
       if (tempPath) void fs.unlink(tempPath).catch(() => {});
       return fail(res, badRequest("Only PDF files are supported"));
+    }
+    if (
+      req.file.mimetype &&
+      req.file.mimetype !== "application/pdf" &&
+      req.file.mimetype !== "application/octet-stream"
+    ) {
+      if (tempPath) void fs.unlink(tempPath).catch(() => {});
+      return fail(
+        res,
+        badRequest("Only PDF files are supported (invalid MIME)"),
+      );
     }
 
     pruneResumeTasks();

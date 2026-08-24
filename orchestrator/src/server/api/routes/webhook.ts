@@ -32,7 +32,16 @@ webhookRouter.post("/trigger", async (req: Request, res: Response) => {
   const receivedToken = authHeader.slice("Bearer ".length);
   const a = Buffer.from(receivedToken);
   const b = Buffer.from(expectedToken);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+  // Constant-time comparison without leaking token length
+  let tokenMatch = false;
+  if (a.length === b.length) {
+    tokenMatch = timingSafeEqual(a, b);
+  } else {
+    const dummyA = Buffer.alloc(Math.max(a.length, b.length));
+    const dummyB = Buffer.alloc(Math.max(a.length, b.length));
+    timingSafeEqual(dummyA, dummyB);
+  }
+  if (!tokenMatch) {
     return fail(res, unauthorized());
   }
 

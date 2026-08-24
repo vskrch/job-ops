@@ -269,10 +269,13 @@ async function startServer() {
     stopAllSearchSchedulers();
     stopAllPipelineSchedulers();
     stopBackupScheduler();
+    const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 30_000;
     const forceExit = setTimeout(() => {
-      logger.error("Forced shutdown after timeout.");
+      logger.error("Forced shutdown after timeout.", {
+        timeoutMs: GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+      });
       process.exit(1);
-    }, 10000);
+    }, GRACEFUL_SHUTDOWN_TIMEOUT_MS);
     forceExit.unref();
 
     const finish = () => {
@@ -286,8 +289,17 @@ async function startServer() {
 
     // Persist a fresh snapshot before the dyno goes away — on ephemeral
     // filesystems (Heroku) this is the last chance before the disk is wiped.
+    // Race the upload against the force-exit timeout so we don't kill mid-upload.
     if (isRemoteBackupConfigured()) {
-      void syncBackupToRemote().finally(finish);
+      const upload = syncBackupToRemote();
+      // Ensure finish is called even if upload hangs; the timeout above will force exit
+      void upload
+        .catch((error) => {
+          logger.warn("Remote backup sync failed during shutdown", {
+            error: sanitizeUnknown(error),
+          });
+        })
+        .finally(finish);
       return;
     }
     finish();

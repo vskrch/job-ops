@@ -88,13 +88,16 @@ export function rateLimitMiddleware(
         "retry-after",
         String(Math.ceil((result.resetAt - Date.now()) / 1000)),
       );
+      // Use typed 429 response that matches AGENTS.md code map and ApiResponse contract.
       res.status(429).json({
         ok: false,
         error: {
-          code: "TOO_MANY_REQUESTS",
+          code: "TOO_MANY_REQUESTS" as const,
           message: "Too many requests. Please slow down and retry shortly.",
         },
-        meta: { requestId: res.getHeader("x-request-id") ?? "unknown" },
+        meta: {
+          requestId: (res.getHeader("x-request-id") as string) ?? "unknown",
+        },
       });
       return;
     }

@@ -44,6 +44,24 @@ jobs:
         run: npm run test:all
         working-directory: .
 
+  audit:
+    name: Audit (npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --workspaces --include-workspace-root
+        working-directory: .
+      - name: Run npm audit (moderate+)
+        run: npm audit --audit-level=moderate || true
+        working-directory: .
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -55,6 +73,17 @@ jobs:
           - hiringcafe-extractor
           - startupjobs-extractor
           - workingnomads-extractor
+          - golangjobs-extractor
+          - gradcracker-extractor
+          - jobboards-extractor
+          - remotive-extractor
+          - remoteok-extractor
+          - ukvisajobs-extractor
+          - usajobs-extractor
+          - weworkremotely-extractor
+          - hnhiring-extractor
+          - aijobs-extractor
+          - himalayas-extractor
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node

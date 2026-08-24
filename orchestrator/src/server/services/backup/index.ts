@@ -205,7 +205,11 @@ export async function createBackup(type: "auto" | "manual"): Promise<string> {
     }
 
     if (!reservedHandle) {
-      throw new Error("Failed to create unique manual backup filename");
+      throw new AppError({
+        status: 409,
+        code: "CONFLICT",
+        message: "Failed to create unique manual backup filename",
+      });
     }
   }
 
@@ -275,14 +279,22 @@ export async function deleteBackup(filename: string): Promise<void> {
     !AUTO_BACKUP_PATTERN.test(filename) &&
     !MANUAL_BACKUP_PATTERN.test(filename)
   ) {
-    throw new Error("Invalid backup filename");
+    throw new AppError({
+      status: 400,
+      code: "INVALID_REQUEST",
+      message: "Invalid backup filename",
+    });
   }
 
   const backupDir = getBackupDir();
   const filePath = path.join(backupDir, filename);
 
   if (!fs.existsSync(filePath)) {
-    throw new Error(`Backup not found: ${filename}`);
+    throw new AppError({
+      status: 404,
+      code: "NOT_FOUND",
+      message: `Backup not found: ${filename}`,
+    });
   }
 
   await fs.promises.unlink(filePath);

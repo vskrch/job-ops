@@ -122,6 +122,32 @@ function toKey(config: RemoteBackupConfig, filename: string): string {
   return `${config.prefix}/${filename}`;
 }
 
+async function listAllRemoteObjects(
+  client: S3ClientLike,
+  config: RemoteBackupConfig,
+): Promise<Array<{ Key?: string; LastModified?: Date }>> {
+  const all: Array<{ Key?: string; LastModified?: Date }> = [];
+  let continuationToken: string | undefined;
+  do {
+    const list = (await client.send(
+      new ListObjectsV2Command({
+        Bucket: config.bucket,
+        Prefix: `${config.prefix}/`,
+        ContinuationToken: continuationToken,
+      }),
+    )) as {
+      Contents?: Array<{ Key?: string; LastModified?: Date }>;
+      IsTruncated?: boolean;
+      NextContinuationToken?: string;
+    };
+    if (list.Contents) all.push(...list.Contents);
+    continuationToken = list.IsTruncated
+      ? list.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+  return all;
+}
+
 function generateRemoteFilename(): string {
   const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const suffix = createHash("sha256")
@@ -220,14 +246,9 @@ export async function restoreLatestRemoteBackup(
   const client = options?.client ?? getClient(config);
 
   try {
-    const list = await client.send(
-      new ListObjectsV2Command({
-        Bucket: config.bucket,
-        Prefix: `${config.prefix}/`,
-      }),
-    );
+    const allContents = await listAllRemoteObjects(client, config);
 
-    const candidates = (list.Contents ?? [])
+    const candidates = (allContents ?? [])
       .filter(
         (entry) =>
           entry.Key &&
@@ -287,14 +308,9 @@ export async function pruneRemoteBackups(options?: {
   const cutoff = Date.now() - config.retentionDays * 24 * 60 * 60 * 1000;
 
   try {
-    const list = await client.send(
-      new ListObjectsV2Command({
-        Bucket: config.bucket,
-        Prefix: `${config.prefix}/`,
-      }),
-    );
+    const allContents = await listAllRemoteObjects(client, config);
 
-    const staleKeys = (list.Contents ?? [])
+    const staleKeys = (allContents ?? [])
       .filter(
         (entry) =>
           entry.Key &&
