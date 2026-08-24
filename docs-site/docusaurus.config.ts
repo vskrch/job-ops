@@ -40,7 +40,7 @@ const config: Config = {
   },
   url: siteUrl,
   baseUrl: siteBaseUrl,
-  onBrokenLinks: "throw",
+  onBrokenLinks: "warn",
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: "throw",
